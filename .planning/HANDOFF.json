@@ -1,0 +1,47 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-10T14:04:44.682Z",
+  "phase": "00",
+  "phase_name": "foundation-safety-harness",
+  "phase_dir": ".planning/phases/00-foundation-safety-harness",
+  "plan": null,
+  "task": "convergence-loop-cycle-1",
+  "total_tasks": null,
+  "status": "paused",
+  "workflow": "/gsd-plan-review-convergence 0 --codex",
+  "completed_tasks": [
+    {"id": 1, "name": "Enable workflow.plan_review_convergence config flag", "status": "done", "detail": "Set true via gsd config-set; verified true. Modified .planning/config.json (uncommitted)."},
+    {"id": 2, "name": "Install codex CLI", "status": "done", "detail": "npm i -g @openai/codex -> codex-cli 0.144.1 at ~/AppData/Roaming/npm (codex, codex.cmd, codex.ps1 shims present)."},
+    {"id": 3, "name": "Convergence Cycle 1 review", "status": "done_but_invalid", "detail": "Review agent ran; codex review FAILED on auth (0 bytes x2). REVIEWS.md committed as PARTIAL (commit 2a04e57) with honest reviewer_outcomes.codex.status=failed. Independent source-grounding pass recorded."},
+    {"id": 4, "name": "Refuse false convergence", "status": "done", "detail": "Did NOT declare convergence: the 0/0 CYCLE_SUMMARY came from the orchestrator's own grep pass, not codex. Escalated to user."}
+  ],
+  "remaining_tasks": [
+    {"id": 5, "name": "Re-authenticate codex (HUMAN)", "status": "blocked_human_action"},
+    {"id": 6, "name": "Re-run Cycle 1 with --codex; verify REVIEWS.md reviewer_outcomes.codex.status == success before trusting CYCLE_SUMMARY", "status": "not_started"},
+    {"id": 7, "name": "Convergence loop: parse CYCLE_SUMMARY (current_high + current_actionable); replan inline via /gsd-plan-phase 0 --reviews --skip-research if >0; repeat up to 3 cycles with stall detection", "status": "not_started"},
+    {"id": 8, "name": "On TRUE convergence (codex-reviewed, 0 HIGH, 0 actionable): gsd-tools state planned-phase --phase 0; next /gsd-execute-phase 0", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Codex ChatGPT OAuth access token expired AND refresh token rejected (refresh_token_reused); every API call returned HTTP 401 token_expired. codex produced 0 bytes on both attempts. `codex login status` reports 'logged in' (stale).", "type": "human_action", "workaround": "Interactive `codex login` re-authentication (device/browser flow). Cannot be done headlessly."},
+    {"description": "The `!`-prefix Bash on this Windows host has NO node/npm/codex on PATH and STRIPS backslashes. `codex login`, `codex-cli login`, and `C:\\Users\\...\\codex.ps1 login` all failed ('command not found' / mangled path).", "type": "technical", "workaround": "Use forward slashes + .cmd shim, or augment PATH first (see human_actions_pending)."}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Re-authenticate codex", "why": "Required for --codex reviewer to produce a real cross-AI review (the whole point of this convergence run).", "blocking": true, "how": "From THIS bash: export PATH=\"/c/Program Files/nodejs:$HOME/AppData/Roaming/npm:$PATH\" && codex login   — OR from a PowerShell window: codex login (PowerShell has the npm dir on PATH). Do NOT use the C:\\ backslash path in bash."}
+  ],
+  "decisions": [
+    {"decision": "Reviewer = codex (per user's --codex flag)", "rationale": "User explicitly chose --codex and re-authed to keep it; do not silently swap reviewers.", "phase": "00"},
+    {"decision": "Refused to declare convergence on a failed reviewer run", "rationale": "A failed/empty reviewer is not a clean review. CYCLE_SUMMARY 0/0 that did not come from codex is not valid convergence. Converging would silently point the user at /gsd-execute-phase 0 without the independent review the feature exists to provide.", "phase": "00"},
+    {"decision": "Installed codex globally via npm", "rationale": "User authorized 'Install codex CLI, then run with --codex'.", "phase": "00"}
+  ],
+  "uncommitted_files": [".planning/config.json (workflow.plan_review_convergence=true — intended change)", ".gsd/ (untracked tooling state, pre-existing)"],
+  "environment": {
+    "node": "C:\\Program Files\\nodejs\\node.exe (v25.8.2) — NOT on default bash PATH",
+    "npm_global_prefix": "C:\\Users\\nhdinh\\AppData\\Roaming\\npm — holds codex, gsd-tools, gsd_run, gsd-core, gitnexus, mslearn shims; NOT on default bash PATH",
+    "codex": "codex-cli 0.144.1 (installed this session); auth at ~/.codex/auth.json currently EXPIRED",
+    "gsd_tools_shim": "C:\\Users\\nhdinh\\.claude\\gsd-core\\bin\\gsd-tools.cjs (invoke with absolute node path)",
+    "path_fix_for_every_bash_call": "export PATH=\"/c/Program Files/nodejs:$HOME/AppData/Roaming/npm:$PATH\""
+  },
+  "next_action": "User runs `codex login` (PowerShell, or bash with PATH fix). On confirm, re-spawn the Cycle-1 review agent for `/gsd-review --phase 0 --codex`, then verify REVIEWS.md frontmatter reviewer_outcomes.codex.status == success before reading CYCLE_SUMMARY.",
+  "context_notes": "Mid /gsd-plan-review-convergence 0 --codex. Phase 0 already has 5 PLAN.md (skipped initial planning). Source-grounding pass found one REAL bug already fixed in PLAN 00-04: SAFE-02 token-count check inverted as `-ceq` in 00-RESEARCH.md:464 and 00-PATTERNS.md:252, corrected to `-cne` + test-gated at 00-04-PLAN.md:144,150-151. Only LOW doc-hygiene residuals remain (stale -ceq snippets; 00-RESEARCH.md:233 ordering prose) — non-execution-affecting. Repo is greenfield PowerShell (0 *.ps1/*.psm1/*.psd1) so all plan-cited symbols are forward references = UNCHECKABLE/new, not MISSING. Memory note in force: review plans before executing — do NOT silently chain toward execute on a bogus convergence."
+}
