@@ -59,7 +59,7 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 - **Tech stack**: PowerShell — team standard and the native AD admin tooling on Windows; PowerShell 5.1 compatibility is required because that's what ships on servers/workstations by default.
 - **Directory**: On-prem Active Directory only — current environment has no Entra/cloud dependency.
 - **Remoting**: Cannot assume WinRM on targets — must degrade to CIM/WMI or skip per host.
-- **Security**: Pass-through by default — the logged-in admin's rights are checked on each task; if rights are insufficient the tool prompts for domain-admin credentials. Credentials and configuration are stored **encrypted** in a single config file (DPAPI/SecureString export), never plaintext, and never in a separate secret vault in v1. Config file and password database must be saved in .store folder. **NEVER** push .store folder to source control.
+- **Security**: Pass-through by default — rights checked each task; prompt for domain-admin creds only when insufficient. **Config is split:** a portable plain-JSON **non-secret** config (managed OU, deny-list, caps, paths — diff/backup friendly) plus a **separate, opt-in** DPAPI-encrypted **credential** file (written only on explicit "remember me"; re-prompts on restore failure). Secrets encrypted; non-secret config portable. Both files live in the gitignored `.store/` folder — **NEVER** push `.store/` to source control. No separate secret vault in v1.
 - **Dependency**: ActiveDirectory module (RSAT) must be present where the tool runs — document the install/prerequisite, don't bundle it.
 
 ## Key Decisions
@@ -73,11 +73,11 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 | Managed-OU scoping + deny-list + admin/service-account protection | Bounds blast radius; protects high-value/break-glass accounts | — Pending |
 | Bulk via preview + typed confirmation + max-count cap | Allows efficiency without unbounded mass-change risk | — Pending |
 | Pass-through by default; prompt for domain-admin creds only when rights insufficient | Least-privilege with a recoverable fallback for junior admins | — Pending |
-| Creds + config stored encrypted in a single config file | Backup/restore + consistent safety config (managed OU, deny-list, paths); never plaintext | — Pending |
+| Config/credential split: portable plain-JSON **non-secret** config + separate opt-in DPAPI-encrypted **credential** file, both in gitignored `.store/` | DPAPI is machine+user-bound, so fully-encrypted config cannot be portable; split keeps secrets encrypted AND config backup/restore/diff-friendly; re-prompt on restore | ✓ Decided |
 | Local (per-machine) user management in addition to AD users | Remote-computer-ops pillar needs local-account lifecycle on member machines | — Pending |
 | Documentation as a first-class deliverable (README, usage guide, inline help) | Mixed-skill team; safe, correct usage must be obvious | — Pending |
 | Reports: console + CSV + HTML | Interactive use, Excel handoff, and shareable management reports | — Pending |
-| Built-in critical accounts (`krbtgt`, `Guest`, built-in `Administrator`) baseline-protected | Catastrophic if touched — confirm as a v1 default at requirements | ⚠️ Confirm at requirements |
+| No hard-coded built-in RID baseline; protection via recursive admin-group membership + custom deny-list only | User decision: rely on group/deny-list rather than hard-coding RID 500/501/502; `krbtgt`/Guest/RID-500 covered implicitly via deny-list seed | ✓ Decided |
 
 ## Evolution
 
