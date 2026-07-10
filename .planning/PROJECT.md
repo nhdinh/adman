@@ -23,14 +23,16 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 <!-- Current scope. Building toward these. Hypotheses until shipped. -->
 
 - [ ] Interactive menu (TUI) entry point — discoverable, guided prompts, usable by mixed-skill admins
-- [ ] AD user lifecycle — create, disable, enable, move OU, reset password, unlock, manage group membership
+- [ ] AD/ Local user lifecycle — create, disable, enable, move OU, reset password, unlock, manage group membership
 - [ ] AD computer lifecycle — disable, enable, move OU; report last-logon / stale / OS version
 - [ ] Reporting & inventory — console tables, CSV export, and self-contained HTML reports
 - [ ] Remote computer operations — query/live-action on remote machines with auto-detect fallback (WinRM → CIM/WMI → skip)
 - [ ] Provisioning & onboarding workflow — standardized new-user / new-computer setup
 - [ ] Offboarding workflow — disable + move to quarantine OU, strip groups, surface related cleanup
 - [ ] Safety guardrails (v1 must-have) — `-WhatIf`/dry-run on every destructive action, confirmation prompts, structured audit log (who/what/when), startup-loaded deny-list, protection of admin-group members & service accounts, managed-OU scoping, bulk operations gated by preview + typed confirmation + max-count cap
-- [ ] Portability — runs on an admin workstation with RSAT or on a management server, using the logged-in admin's own domain credentials (pass-through)
+- [ ] Portability — runs on an admin workstation with RSAT or on a management server, asking for domain admin credentials only if the logged-in user lacks sufficient rights.
+- [ ] Save & load configuration — logged in admin credentials,managed OU, deny-list, audit log path, report path, etc. stored in a single config file for easy backup and restore. Configuration MUST BE encrypted.
+- [ ] Documentation — README, usage guide, and inline help for every command/parameter
 
 ### Out of Scope
 
@@ -50,14 +52,14 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 - **Team:** Small IT team, mixed skill levels. The tool must be discoverable (menu) for juniors and fast for seniors, and must make the safe path the easy path.
 - **Runtime:** Windows PowerShell 5.1 (and ideally PowerShell 7.x). Relies on the **ActiveDirectory module (RSAT)** for AD cmdlets; **WMI/CIM** for inventory; **PSRemoting/WinRM** where enabled for remote ops. Because WinRM is not guaranteed on every target, remote operations must **auto-detect and fall back** (WinRM → CIM → skip gracefully).
 - **Execution location:** Must be portable — runs on an admin workstation that has RSAT, or on a management server/jump host, with no code changes between the two.
-- **Credential model:** Pass-through — the tool uses the logged-in admin's own domain account (least-privilege, no stored secrets in v1). Elevation prompts / stored privileged creds are a future consideration, not v1.
+- **Credential model:** Domain admin must be logged in to use this tool. If the logged-in user lacks sufficient rights, the tool prompts for credentials. Credentials are stored encrypted in a single config file for easy backup/restore. On each script task run, check the logged-in user’s rights and prompt for credentials if needed. No credentials are stored in plaintext or in a secret vault in v1.
 
 ## Constraints
 
 - **Tech stack**: PowerShell — team standard and the native AD admin tooling on Windows; PowerShell 5.1 compatibility is required because that's what ships on servers/workstations by default.
 - **Directory**: On-prem Active Directory only — current environment has no Entra/cloud dependency.
 - **Remoting**: Cannot assume WinRM on targets — must degrade to CIM/WMI or skip per host.
-- **Security**: Pass-through credentials (logged-in admin); least-privilege; no credential storage in v1 — avoids secret-management complexity and audit risk.
+- **Security**: Pass-through by default — the logged-in admin's rights are checked on each task; if rights are insufficient the tool prompts for domain-admin credentials. Credentials and configuration are stored **encrypted** in a single config file (DPAPI/SecureString export), never plaintext, and never in a separate secret vault in v1.
 - **Dependency**: ActiveDirectory module (RSAT) must be present where the tool runs — document the install/prerequisite, don't bundle it.
 
 ## Key Decisions
@@ -70,7 +72,10 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 | "Delete" = disable + move to quarantine OU | Reversible, safe default; no accidental hard-deletes | — Pending |
 | Managed-OU scoping + deny-list + admin/service-account protection | Bounds blast radius; protects high-value/break-glass accounts | — Pending |
 | Bulk via preview + typed confirmation + max-count cap | Allows efficiency without unbounded mass-change risk | — Pending |
-| Pass-through credentials (logged-in admin) | Least-privilege; no stored secrets; simplest audit story | — Pending |
+| Pass-through by default; prompt for domain-admin creds only when rights insufficient | Least-privilege with a recoverable fallback for junior admins | — Pending |
+| Creds + config stored encrypted in a single config file | Backup/restore + consistent safety config (managed OU, deny-list, paths); never plaintext | — Pending |
+| Local (per-machine) user management in addition to AD users | Remote-computer-ops pillar needs local-account lifecycle on member machines | — Pending |
+| Documentation as a first-class deliverable (README, usage guide, inline help) | Mixed-skill team; safe, correct usage must be obvious | — Pending |
 | Reports: console + CSV + HTML | Interactive use, Excel handoff, and shareable management reports | — Pending |
 | Built-in critical accounts (`krbtgt`, `Guest`, built-in `Administrator`) baseline-protected | Catastrophic if touched — confirm as a v1 default at requirements | ⚠️ Confirm at requirements |
 
