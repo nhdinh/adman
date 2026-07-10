@@ -1,0 +1,17 @@
+# NEVER commit secrets / encrypted config & credential store
+.store/
+
+# Local PowerShell / runtime artifacts
+*.log
+*.psc1
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Build / export output (reports are generated, not source)
+out/
+reports/
+*.csv.bak

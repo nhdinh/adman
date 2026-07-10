@@ -59,7 +59,7 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 - **Tech stack**: PowerShell — team standard and the native AD admin tooling on Windows; PowerShell 5.1 compatibility is required because that's what ships on servers/workstations by default.
 - **Directory**: On-prem Active Directory only — current environment has no Entra/cloud dependency.
 - **Remoting**: Cannot assume WinRM on targets — must degrade to CIM/WMI or skip per host.
-- **Security**: Pass-through by default — the logged-in admin's rights are checked on each task; if rights are insufficient the tool prompts for domain-admin credentials. Credentials and configuration are stored **encrypted** in a single config file (DPAPI/SecureString export), never plaintext, and never in a separate secret vault in v1.
+- **Security**: Pass-through by default — the logged-in admin's rights are checked on each task; if rights are insufficient the tool prompts for domain-admin credentials. Credentials and configuration are stored **encrypted** in a single config file (DPAPI/SecureString export), never plaintext, and never in a separate secret vault in v1. Config file and password database must be saved in .store folder. **NEVER** push .store folder to source control.
 - **Dependency**: ActiveDirectory module (RSAT) must be present where the tool runs — document the install/prerequisite, don't bundle it.
 
 ## Key Decisions
