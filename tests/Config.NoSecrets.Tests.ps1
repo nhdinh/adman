@@ -8,7 +8,7 @@
 
 .NOTES
     No-secret rule (review concern C2-M1): uses a REAL regex (-match) per key-name and a
-    secret-value scan - NEVER Select-String -SimpleMatch (which literal-matches a pipe pattern
+    secret-value scan - NEVER the literal-match switch (which treats a pipe pattern as a literal
     and false-passes). The metadata key credentialPolicy.allowRememberMe and the DenyList[].token
     key are non-secret and explicitly allow-listed; the bare substring 'credential' is NOT banned.
     Pure file/JSON checks - does NOT import the adman module or PSFramework.
@@ -23,51 +23,49 @@ BeforeAll {
     $script:GitignorePath = Join-Path $script:RepoRoot '.gitignore'
 
     # Secret-name regex (case-insensitive): password|secret|apiKey|privateKey as a bounded token.
-    # Applied per-key with -match (NEVER -SimpleMatch). 'credential' and 'token' are NOT in the set.
+    # Applied per-key with -match (NEVER the literal-match switch). 'credential'/'token' not in set.
     $script:SecretNameRegex = '(^|[^A-Za-z])(password|secret|apiKey|privateKey)([^A-Za-z]|$)'
 
     # Explicit non-secret allow-list (review C2-M1): present in the schema, must NOT be flagged.
     $script:AllowedNonSecretNames = @('credentialPolicy', 'allowRememberMe', 'token')
-}
 
-# Recursively yield every property NAME in a JSON object graph (PSCustomObject / arrays / scalars).
-function Get-AdmanObjectPropertyName {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)]$Node)
-
-    if ($null -eq $Node) { return }
-    if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
-        foreach ($item in $Node) { Get-AdmanObjectPropertyName -Node $item }
-        return
-    }
-    $props = $Node.PSObject.Properties
-    if ($null -eq $props) { return }
-    foreach ($p in $props) {
-        $p.Name
-        Get-AdmanObjectPropertyName -Node $p.Value
-    }
-}
-
-# Yield string VALUES whose immediate property name is a literal-value carrier
-# (default/enum/examples/const) - the places a hard-coded secret would actually live.
-function Get-AdmanLiteralStringValue {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)]$Node)
-
-    if ($null -eq $Node) { return }
-    if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
-        foreach ($item in $Node) { Get-AdmanLiteralStringValue -Node $item }
-        return
-    }
-    $props = $Node.PSObject.Properties
-    if ($null -eq $props) { return }
-    foreach ($p in $props) {
-        if ($p.Name -in @('default', 'enum', 'examples', 'const')) {
-            foreach ($v in @($p.Value)) {
-                if ($v -is [string]) { $v }
-            }
+    # Recursively yield every property NAME in a JSON object graph.
+    function Get-AdmanObjectPropertyName {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)]$Node)
+        if ($null -eq $Node) { return }
+        if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
+            foreach ($item in $Node) { Get-AdmanObjectPropertyName -Node $item }
+            return
         }
-        Get-AdmanLiteralStringValue -Node $p.Value
+        $props = $Node.PSObject.Properties
+        if ($null -eq $props) { return }
+        foreach ($p in $props) {
+            $p.Name
+            Get-AdmanObjectPropertyName -Node $p.Value
+        }
+    }
+
+    # Yield string VALUES whose immediate property name is a literal-value carrier
+    # (default/enum/examples/const) - the places a hard-coded secret would actually live.
+    function Get-AdmanLiteralStringValue {
+        [CmdletBinding()]
+        param([Parameter(Mandatory)]$Node)
+        if ($null -eq $Node) { return }
+        if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
+            foreach ($item in $Node) { Get-AdmanLiteralStringValue -Node $item }
+            return
+        }
+        $props = $Node.PSObject.Properties
+        if ($null -eq $props) { return }
+        foreach ($p in $props) {
+            if ($p.Name -in @('default', 'enum', 'examples', 'const')) {
+                foreach ($v in @($p.Value)) {
+                    if ($v -is [string]) { $v }
+                }
+            }
+            Get-AdmanLiteralStringValue -Node $p.Value
+        }
     }
 }
 
@@ -121,12 +119,14 @@ Describe 'CONF-05 no-secret config artifacts (Task 1)' -Tag 'Unit' {
         $flagged | Should -Contain 'password'
     }
 
-    It 'no-secret check uses a real regex (-match / Where-Object), never -SimpleMatch' {
+    It 'no-secret check uses a real regex (-match / Where-Object), never the literal-match switch' {
         $self = Get-Content -LiteralPath $PSCommandPath -Raw
         $self | Should -Match '-match'
         $self | Should -Match 'Where-Object'
-        # -SimpleMatch literal-matches a pipe pattern and false-passes; it must not appear here.
-        $self | Should -Not -Match '-SimpleMatch'
+        # The literal-match switch (built by concatenation so its contiguous token never appears
+        # in this source) literal-matches a pipe pattern and false-passes; it must not be used.
+        $forbidden = '-' + 'Simple' + 'Match'
+        $self | Should -Not -Match ([regex]::Escape($forbidden))
     }
 }
 

@@ -1,0 +1,28 @@
+{
+  "_comment": "adman non-secret config defaults (CONF-01/02/03). Source-of-truth values for a fresh .store/config.json. Empty ManagedOUs => a fresh install fails closed until configured (CONF-02). Keys prefixed '_comment' are stripped by the loader before validation (D-04) and are NOT written into the runtime .store/config.json.",
+  "ManagedOUs": [],
+  "DenyList": [
+    { "token": "500", "note": "starter, not exhaustive - built-in Administrator (RID 500), matched by SID/RID (D-05)" },
+    { "token": "501", "note": "starter, not exhaustive - Guest (RID 501), matched by SID/RID (D-05)" },
+    { "token": "502", "note": "starter, not exhaustive - krbtgt (RID 502), matched by SID/RID (D-05)" }
+  ],
+  "safety": {
+    "bulkConfirmThreshold": 5
+  },
+  "bulk": {
+    "_comment_maxCount": "Placeholder cap only. ENFORCEMENT is Phase 4 (BULK-02); not enforced in Phase 0.",
+    "maxCount": 50
+  },
+  "AuditDir": ".store/audit",
+  "ReportDir": "reports",
+  "transport": {
+    "order": [ "WinRM", "CimWsman", "CimDcom", "Skip" ],
+    "timeouts": { "WinRM": 15, "CIM": 20 }
+  },
+  "credentialPolicy": {
+    "allowRememberMe": false
+  },
+  "AdmanProtectedGroup": "",
+  "DC": "",
+  "delegatedAdminGroup": ""
+}

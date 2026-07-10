@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "adman non-secret configuration",
+  "description": "Portable plain-JSON NON-SECRET config (CONF-01/03/05). One shared schema used by BOTH the first-run wizard/init emitter and the loader (D-04), so the two entry points cannot drift. Secrets never live here; the opt-in DPAPI credential is a separate file (D-06). Keys prefixed '_comment' are stripped by the loader before validation (D-04), so the annotated example validates.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ManagedOUs",
+    "DenyList",
+    "safety",
+    "bulk",
+    "AuditDir",
+    "ReportDir",
+    "transport",
+    "credentialPolicy",
+    "AdmanProtectedGroup",
+    "DC",
+    "delegatedAdminGroup"
+  ],
+  "properties": {
+    "ManagedOUs": {
+      "type": "array",
+      "description": "Distinguished-name roots the tool is allowed to mutate (SAFE-07). Empty (or absent) on a fresh install so the loader fails closed until configured (CONF-02).",
+      "items": { "type": "string" }
+    },
+    "DenyList": {
+      "type": "array",
+      "description": "Hard floor of never-touch identities (SAFE-05), matched by objectSid/RID against (Get-ADDomain).DomainSID at check time - never by sAMAccountName (D-05). token is a non-secret RID suffix (500/501/502) or a well-known SID literal (e.g. S-1-5-32-544).",
+      "items": {
+        "type": "object",
+        "required": [ "token", "note" ],
+        "properties": {
+          "token": { "type": "string", "description": "Non-secret RID suffix (500/501/502) or well-known SID literal." },
+          "note":  { "type": "string", "description": "Human note, e.g. 'starter, not exhaustive'." }
+        }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": [ "bulkConfirmThreshold" ],
+      "properties": {
+        "bulkConfirmThreshold": {
+          "type": "integer",
+          "description": "At/above this target count the operator must type the exact count (SAFE-02). Default 5 (D-07).",
+          "default": 5,
+          "minimum": 1
+        }
+      }
+    },
+    "bulk": {
+      "type": "object",
+      "description": "Bulk-operation knobs. maxCount is a placeholder here; ENFORCEMENT lands in Phase 4 (BULK-02) and is NOT applied in Phase 0.",
+      "required": [ "maxCount" ],
+      "properties": {
+        "maxCount": {
+          "type": "integer",
+          "description": "Placeholder cap (Phase 4/BULK-02 enforces). Not enforced in Phase 0.",
+          "default": 50,
+          "minimum": 1
+        }
+      }
+    },
+    "AuditDir": {
+      "type": "string",
+      "description": "Local fail-closed audit directory (D-03). Default under gitignored .store/.",
+      "default": ".store/audit"
+    },
+    "ReportDir": {
+      "type": "string",
+      "description": "Output directory for generated reports (CSV/HTML).",
+      "default": "reports"
+    },
+    "transport": {
+      "type": "object",
+      "description": "Remote-operation fallback ladder and short timeouts (Phase 3; probed at startup, never hangs).",
+      "required": [ "order", "timeouts" ],
+      "properties": {
+        "order": {
+          "type": "array",
+          "description": "Per-host transport fallback order.",
+          "items": { "type": "string" }
+        },
+        "timeouts": {
+          "type": "object",
+          "required": [ "WinRM", "CIM" ],
+          "properties": {
+            "WinRM": { "type": "integer", "description": "WinRM probe timeout (seconds).", "default": 15 },
+            "CIM":   { "type": "integer", "description": "CIM/DCOM probe timeout (seconds).", "default": 20 }
+          }
+        }
+      }
+    },
+    "credentialPolicy": {
+      "type": "object",
+      "description": "Non-secret metadata controlling the opt-in DPAPI remember-me flow (D-06). Carries NO credential value; consumed as-is by 00-03 Get-AdmanCredential.",
+      "required": [ "allowRememberMe" ],
+      "properties": {
+        "allowRememberMe": {
+          "type": "boolean",
+          "description": "When true, the remember-me consent is offered and a DPAPI file may be written (separate from this config). Default false (pass-through).",
+          "default": false
+        }
+      }
+    },
+    "AdmanProtectedGroup": {
+      "type": "string",
+      "description": "DN of the admin-maintained adman-Protected group (D-02); may be empty until created.",
+      "default": ""
+    },
+    "DC": {
+      "type": "string",
+      "description": "Pinned domain-controller FQDN for -Server (Pitfall 1/6); empty => resolved at startup.",
+      "default": ""
+    },
+    "delegatedAdminGroup": {
+      "type": "string",
+      "description": "SID of the team delegated-admin group used by the startup rights banner (MENU-05); environment-specific, supplied by the team (CONTEXT L77). Placeholder empty.",
+      "default": ""
+    }
+  }
+}

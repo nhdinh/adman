@@ -1,0 +1,44 @@
+{
+  "_comment": "CONF-05 reconciliation: this annotated example is TRACKED at config/adman.example.json (tracked outside the gitignored .store/) because .store/ is gitignored and a shipped example must be tracked; the first-run wizard/init (00-03) emits the runtime .store/config.json (gitignored) FROM this same shared schema (D-04). Strict JSON has no comments, so '_comment' keys annotate each section and are stripped by the loader before validation (NOT JSONC/JSON5).",
+
+  "_comment_ManagedOUs": "One or more DN roots the tool may mutate (SAFE-07). Component-boundary-anchored: a target DN must equal a root or end with ',<root>'. Empty in defaults.json so a fresh install fails closed (CONF-02); populate via the wizard.",
+  "ManagedOUs": [
+    "OU=Managed,OU=Corp,DC=contoso,DC=com"
+  ],
+
+  "_comment_DenyList": "Hard floor of never-touch identities (SAFE-05), matched by objectSid/RID against (Get-ADDomain).DomainSID - never sAMAccountName (RID-500 is routinely renamed). token is a non-secret RID suffix (500/501/502) or a well-known SID literal (S-1-5-32-544). Seed is 'starter, not exhaustive'; extend in .store/config.json (D-05).",
+  "DenyList": [
+    { "token": "500", "note": "starter, not exhaustive - built-in Administrator (RID 500)" },
+    { "token": "501", "note": "starter, not exhaustive - Guest (RID 501)" },
+    { "token": "502", "note": "starter, not exhaustive - krbtgt (RID 502)" },
+    { "token": "S-1-5-32-544", "note": "example well-known SID literal - builtin Administrators group" }
+  ],
+
+  "_comment_safety": "Scaled confirmation (SAFE-02). At/above bulkConfirmThreshold the operator must type the exact count (no Enter-to-accept). Default 5 (D-07).",
+  "safety": { "bulkConfirmThreshold": 5 },
+
+  "_comment_bulk": "maxCount is a placeholder cap; ENFORCEMENT is Phase 4 (BULK-02) and is NOT applied in Phase 0.",
+  "bulk": { "maxCount": 50 },
+
+  "_comment_paths": "AuditDir is local for fail-closed reliability (D-03); ReportDir holds generated CSV/HTML. Both relative to the tool root.",
+  "AuditDir": ".store/audit",
+  "ReportDir": "reports",
+
+  "_comment_transport": "Per-host remote-op fallback ladder (Phase 3) with short timeouts so a probe never hangs. WinRM -> CIM/WSMan -> CIM/DCOM -> Skip.",
+  "transport": {
+    "order": [ "WinRM", "CimWsman", "CimDcom", "Skip" ],
+    "timeouts": { "WinRM": 15, "CIM": 20 }
+  },
+
+  "_comment_credentialPolicy": "Non-secret metadata only. allowRememberMe gates the opt-in DPAPI remember-me flow (D-06); NO credential is stored in this file - the DPAPI blob is a separate .store/ file written only on explicit consent. Default false = pass-through.",
+  "credentialPolicy": { "allowRememberMe": false },
+
+  "_comment_AdmanProtectedGroup": "DN of the admin-maintained adman-Protected group whose members (recursive) are never mutated (D-02). Empty until the team creates the group.",
+  "AdmanProtectedGroup": "",
+
+  "_comment_DC": "Pinned domain-controller FQDN for -Server (Pitfall 1/6). Empty => resolved at startup.",
+  "DC": "",
+
+  "_comment_delegatedAdminGroup": "SID of the team delegated-admin group for the startup rights banner (MENU-05). Environment-specific; supplied by the team.",
+  "delegatedAdminGroup": ""
+}
