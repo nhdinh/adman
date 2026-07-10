@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 0
-current_phase_name: Foundation & Safety Harness
-status: planned
-stopped_at: "plan→execute boundary — Phase 0 CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5) on 2026-07-10; awaiting user stop-and-review before /gsd-execute-phase 0"
-last_updated: "2026-07-10T19:05:00.000Z"
+current_phase: 00
+current_phase_name: foundation-safety-harness
+status: executing
+stopped_at: plan→execute boundary — Phase 0 CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5) on 2026-07-10; awaiting user stop-and-review before /gsd-execute-phase 0
+last_updated: "2026-07-10T21:29:38.903Z"
 last_activity: 2026-07-10
-last_activity_desc: Phase 0 planned (5 plans) and converged 0/0 codex-verified across 5 review cycles; paused at plan→execute boundary per user stop-and-review rule
+last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-10)
 
 **Core value:** Any admin on the team can perform common AD/local-user & computer tasks correctly and safely — every destructive action is previewed (`-WhatIf`), confirmed, scoped to a managed OU, blocked from protected accounts, and written to an audit log.
-**Current focus:** Phase 0 — Foundation & Safety Harness (ready to plan)
+**Current focus:** Phase 00 — foundation-safety-harness
 
 ## Current Position
 
-Phase: 0 of 5 (Foundation & Safety Harness)
-Plan: 5 of 5 PLANNED — cross-AI review CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5); 0 executed
-Status: Planned ✅ — paused at plan→execute boundary (user stop-and-review required before /gsd-execute-phase 0)
-Last activity: 2026-07-10 — Cycle-5 confirming review CONVERGED 0/0; one-token -WhatIf discriminator fix (76e6467) verified 3 ways; state marked planned
+Phase: 00 (foundation-safety-harness) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-07-10 — Phase 00 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 00 P01 | ~1h5m | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - Roadmap: Governing principle locked — the safety spine (Phase 0) must exist and be proven (incl. a Pester test that no exported function calls AD write cmdlets directly) before any real write can merge.
 - Roadmap: Config/credential split (Decided in PROJECT.md) — portable plain-JSON non-secret config + separate opt-in DPAPI-encrypted credential file, both in gitignored `.store/`; pass-through by default; no built-in RID baseline (protection via recursive admin-group membership + custom deny-list only).
 - Roadmap: TUI is the product — `**UI hint**: no` for all phases (no browser frontend; `/gsd-ui-phase` not applicable).
+- [Phase ?]: D-01: PSFramework 1.14.457 adopted in Phase 0 for config + diagnostic/ops logging; audit writer stays hand-rolled/synchronous (CLAUDE.md reconciled, C2-M2).
+- [Phase ?]: SAFE-08: explicit FunctionsToExport; single non-exported gate Invoke-AdmanMutation; one banned-verb source drives both the PSScriptAnalyzer rule and the Pester AST guard.
+- [Phase ?]: PSFramework exact-pinned via RequiredVersion='1.14.457'; ActiveDirectory is a prerequisite (never in RequiredModules); CompatiblePSEditions=@('Desktop') until the Phase 5 CI matrix passes on 7.6.
+- [Phase ?]: Guard alias resolution uses Get-Alias (no module auto-load) so lint/tests never pull in RSAT (T-00-11); the custom PSSA rule emits on the root AST only (no duplicate diagnostics).
 
 ### Pending Todos
 
@@ -87,7 +92,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-10T19:05:00.000Z
+Last session: 2026-07-10T21:26:44.217Z
 Stopped at: plan→execute boundary — Phase 0 CONVERGED 0/0 (codex-verified); awaiting user stop-and-review before execute
 Resume file: .planning/HANDOFF.json + .planning/phases/00-foundation-safety-harness/.continue-here.md
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.

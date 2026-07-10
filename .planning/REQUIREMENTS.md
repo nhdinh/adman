@@ -15,7 +15,7 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 - [ ] **MENU-02**: Admin can select an action by number and be prompted for required inputs with validation
 - [ ] **MENU-03**: Admin can navigate back and quit from any prompt
 - [ ] **MENU-04**: Every menu action routes to the same parameterized function a senior can call directly (one code path, two speeds)
-- [ ] **MENU-05**: On startup the tool probes capabilities (RSAT present, domain reachable, current rights, transport availability) and shows actionable guidance if something is missing
+- [x] **MENU-05**: On startup the tool probes capabilities (RSAT present, domain reachable, current rights, transport availability) and shows actionable guidance if something is missing
 
 ### Configuration & Credential Store (CONF)
 
@@ -35,7 +35,7 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 - [ ] **SAFE-05**: A startup-loaded deny-list hard-blocks matching targets before any action
 - [ ] **SAFE-06**: Protected-account guard refuses targets that are (recursively) members of Domain/Enterprise/Schema Admins, Account/Backup/Server Operators, or local Administrators, plus gMSA/service accounts — via runtime well-known-SID resolution, never `adminCount` alone
 - [ ] **SAFE-07**: Managed-OU scoping refuses any target whose DN is not under a configured managed-OU root
-- [ ] **SAFE-08**: All write verbs route through one **non-exported** mutation gate (`Invoke-AdmanMutation`); no public/exported function calls AD write cmdlets directly (enforced by a lint + Pester guard)
+- [x] **SAFE-08**: All write verbs route through one **non-exported** mutation gate (`Invoke-AdmanMutation`); no public/exported function calls AD write cmdlets directly (enforced by a lint + Pester guard)
 - [ ] **SAFE-09**: "Delete" is reversible — disable + move to quarantine OU + record original location/groups for restore; the tool ships **no** hard-delete verb
 - [ ] **SAFE-10**: The gate uses identical target resolution for preview and execute, so the preview cannot lie
 
@@ -155,7 +155,7 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | MENU-02 | Phase 1 | Pending |
 | MENU-03 | Phase 1 | Pending |
 | MENU-04 | Phase 1 | Pending |
-| MENU-05 | Phase 0 | Pending |
+| MENU-05 | Phase 0 | Complete |
 | CONF-01 | Phase 0 | Pending |
 | CONF-02 | Phase 0 | Pending |
 | CONF-03 | Phase 0 | Pending |
@@ -169,7 +169,7 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | SAFE-05 | Phase 0 | Pending |
 | SAFE-06 | Phase 0 | Pending |
 | SAFE-07 | Phase 0 | Pending |
-| SAFE-08 | Phase 0 | Pending |
+| SAFE-08 | Phase 0 | Complete |
 | SAFE-09 | Phase 0 | Pending |
 | SAFE-10 | Phase 0 | Pending |
 | USER-01 | Phase 1 | Pending |
@@ -211,6 +211,7 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | DOC-03 | Phase 5 | Pending |
 
 **Coverage (validated 2026-07-10):**
+
 - v1 requirements: 58 total
 - Mapped to phases: 58
 - Unmapped: 0 ✓
