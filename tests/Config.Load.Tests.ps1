@@ -78,7 +78,7 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         $expectedPath = Join-Path $store 'config.json'
 
         Mock Import-PSFConfig -ModuleName adman { }
-        $result = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+        $result = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
 
         $result | Should -BeTrue
         & (Get-Module adman) {
@@ -98,7 +98,7 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         # Initialize-AdmanConfig is a config-only loader; it never calls AD cmdlets. The D-04
         # contract: in -SetupMode the empty-scope gate is bypassed (wizard may write an
         # empty-scope config) while AD-mutating entry points (Phase 2) still enforce it.
-        $result = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig -SetupMode } -ArgumentList $store
+        $result = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig -SetupMode } -p $store
 
         $result | Should -BeTrue
         & (Get-Module adman) { $script:ConfigLoaded | Should -BeTrue }
@@ -111,7 +111,7 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
 
         # First load -> seed written into the JSON.
-        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
         $first = Get-Content -LiteralPath (Join-Path $store 'config.json') -Raw | ConvertFrom-Json
         $firstTokens = @($first.DenyList | ForEach-Object { $_.token })
         $firstTokens | Should -Contain '500'
@@ -120,7 +120,7 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         @($first.DenyList).Count | Should -Be 3
 
         # Second load -> file is the source of truth; no duplication.
-        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
         $second = Get-Content -LiteralPath (Join-Path $store 'config.json') -Raw | ConvertFrom-Json
         @($second.DenyList).Count | Should -Be 3 -Because 'a second load must not re-seed/duplicate the deny-list'
     }

@@ -71,7 +71,7 @@ Describe 'Initialize-AdmanConfig round-trip (CONF-03)' -Tag 'Unit' {
             Microsoft.PowerShell.Utility\ConvertTo-Json -InputObject $InputObject -Depth $Depth -Compress:$Compress
         }
 
-        $null = & (Get-Module adman) { param($c, $p) Save-AdmanConfig -Config $c -Path $p -Confirm:$false } -ArgumentList $cfg, $path
+        $null = & (Get-Module adman) { param($c, $p) Save-AdmanConfig -Config $c -Path $p -Confirm:$false } -c $cfg -p $path
 
         $script:capturedDepth | Should -Not -BeNullOrEmpty -Because 'every save must pass -Depth (Pitfall 8)'
         [int]$script:capturedDepth | Should -BeGreaterOrEqual 5
@@ -90,7 +90,7 @@ Describe 'Initialize-AdmanConfig round-trip (CONF-03)' -Tag 'Unit' {
         $cfg = New-AdmanRoundTripConfig
         $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
 
-        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
 
         & (Get-Module adman) {
             $script:ConfigLoaded | Should -BeTrue

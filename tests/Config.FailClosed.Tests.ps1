@@ -66,7 +66,7 @@ Describe 'Initialize-AdmanConfig fail-closed (CONF-02)' -Tag 'Unit' {
 
         $err = $null
         try {
-            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
         } catch { $err = $_ }
 
         $err | Should -Not -BeNullOrEmpty -Because 'empty scope must throw before any mutating op'
@@ -81,7 +81,7 @@ Describe 'Initialize-AdmanConfig fail-closed (CONF-02)' -Tag 'Unit' {
 
         $err = $null
         try {
-            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
         } catch { $err = $_ }
 
         $err | Should -Not -BeNullOrEmpty -Because 'malformed JSON must throw (fail-closed)'
@@ -97,7 +97,7 @@ Describe 'Initialize-AdmanConfig fail-closed (CONF-02)' -Tag 'Unit' {
 
         $err = $null
         try {
-            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -ArgumentList $store
+            $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
         } catch { $err = $_ }
 
         $err | Should -Not -BeNullOrEmpty -Because 'a failed deny-list load must throw (fail-closed)'
