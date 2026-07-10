@@ -183,3 +183,92 @@ Full text lives in git history. Retrieve with: `git show aa9ba0b:.planning/phase
 - reviewer_outcomes.codex.status=success, empty_output=false.
 - `CYCLE_SUMMARY: current_high=1 current_actionable=1` (convergence=false).
 - **+1 extension did NOT converge -> escalate to the human: Proceed-anyway (acknowledge C4-H1/C4-L1 and execute) vs Manual-review (recommended: one-token surgical replan — `'Simulate'` -> `[bool]$WhatIfPreference` at 00-04:160/171 + drive Tests 5/7 with a real `-WhatIf` invocation + align 00-04:42 to `-cne` — outside the auto-loop).** Per the standing stop-and-review gate, do NOT silently chain into `/gsd-execute-phase 0`.
+
+---
+
+## Cycle 5
+
+```yaml
+phase: 0
+cycle: 5
+role: confirming_review (final gate)
+reviewed_at: 2026-07-11
+plans_reviewed: [00-01-PLAN.md, 00-02-PLAN.md, 00-03-PLAN.md, 00-04-PLAN.md, 00-05-PLAN.md]
+change_under_test: "C4-H1 fix in 00-04-PLAN.md (commit 76e6467): discriminator '$WhatIfPreference -eq \\'Simulate\\'' -> '[bool]$WhatIfPreference'; Tests 5/7 drive a REAL -WhatIf; L171 grep asserts boolean-cast PRESENT + string-discriminator ABSENT; L42 typed-count '-ceq' -> '-cne'."
+reviewer_outcomes:
+  codex:
+    status: success            # TRUST GATE: codex actually ran and produced a non-empty grounded review
+    empty_output: false
+    version: codex-cli 0.144.1 (ChatGPT OAuth)
+    invocation: "codex exec --ephemeral --dangerously-bypass-hook-trust --skip-git-repo-check - (prompt via stdin), workdir C:\\Users\\nhdinh\\dev\\adman, read-only sandbox"
+    exit_code: 0
+    review_bytes: 6047         # stdout (the structured review), ≈1.5K tokens
+    session_tokens_used: 243786  # codex end-of-run counter (stderr final line)
+    stderr_tool_trace_bytes: 594391  # captured to a real file (this host cannot write /dev/null); includes ingested docs, so historical '401/token_expired' substrings in it are the cycle-1 REVIEWS text codex READ — NOT this run's auth (auth is healthy: exit 0 + coherent on-topic review)
+cycle_summary:
+  current_high: 0
+  current_actionable: 0
+  convergence: true
+  note: "C4-H1 (=C3-H1) is GENUINELY RESOLVED by the 76e6467 fix — confirmed THREE independent ways: (1) codex's own in-sandbox PowerShell probe, (2) my local probe reproduced identically on Windows PowerShell 5.1.26100 AND PowerShell 7.x, (3) Microsoft Learn docs. C4-L1 RESOLVED (L42 now -cne). All cycle-1/2/3 fixes HOLD (re-verified). No NEW HIGH/actionable finding found by codex or by independent scan. Reference-artifact-only residuals (00-RESEARCH.md / 00-PATTERNS.md stale snippets) noted but EXCLUDED from the count per instruction. Codex-verified convergence."
+```
+
+**Status: CONVERGED (0/0, codex-verified).** C4-H1 is resolved — the boolean-cast discriminator `[bool]$WhatIfPreference` correctly detects a real `-WhatIf` and the gate now branches so a dry-run writes PENDING+OUTCOME (whatIf=$true) and reaches the inner `-WhatIf` wrapper, while only a genuine decline throws and writes nothing. No surviving or newly-introduced defect found in the load-bearing safety core (00-04) or the other four plans.
+
+This run invoked `--codex` only. Codex (`codex-cli 0.144.1`, ChatGPT OAuth, read-only sandbox, workdir `C:\Users\nhdinh\dev\adman`) read the repo and emitted **6,047 bytes** of structured review (exit 0; 243,786 session tokens; stderr tool-trace 594,391 bytes captured to a real file). `reviewer_outcomes.codex.status=success empty_output=false`. No content was fabricated.
+
+### Reviewer Status (trust gate)
+
+| Reviewer | Outcome | empty_output | Evidence it actually ran |
+|----------|---------|--------------|--------------------------|
+| codex | **SUCCESS** | false | exit 0; 6,047-byte grounded review with concrete file:line + 4 Microsoft Learn citations + an in-sandbox PowerShell probe result; ends with `CONVERGED (0/0)` |
+
+### Codex Review (verbatim, this run)
+
+> C4-H1 / C3-H1, severity HIGH, verdict ALREADY-ADDRESSED
+> file:line evidence: `00-04-PLAN.md:45` says `Confirm-AdmanAction detects [bool]$WhatIfPreference ... BEFORE interpreting a ShouldProcess $false as a decline`; `00-04-PLAN.md:148` requires a REAL `-WhatIf`; `00-04-PLAN.md:160` sets `$isWhatIf = [bool]$WhatIfPreference`; `00-04-PLAN.md:171` requires the boolean cast and absence of `$WhatIfPreference -eq 'Simulate'`; `00-04-PLAN.md:191` verifies dry-run writes PENDING+OUTCOME with `whatIf=$true` while genuine decline writes zero audit records; `00-04-PLAN.md:212-216` forwards `-WhatIf:$confirm.WhatIf` to PENDING/write/OUTCOME and only throws on `Declined`.
+> source-grounding citation: Microsoft documents `-WhatIf` as `SwitchParameter` and says it overrides `$WhatIfPreference` for the command; `$true` has the same effect as `-WhatIf` (about_CommonParameters). Microsoft's ShouldProcess deep dive says `-WhatIf` sets `$WhatIfPreference` to `$true` inside the function (ShouldProcess). Probe result in this sandbox: real `-WhatIf` => type `System.Management.Automation.SwitchParameter`, value `True`, `[bool]` true, `-eq 'Simulate'` false, `ShouldProcess` false. Manual `$WhatIfPreference='Simulate'` is a string-only artificial state.
+>
+> C4-L1, severity LOW, verdict ALREADY-ADDRESSED — `00-04-PLAN.md:42` now `(-cne)`; `00-04-PLAN.md:158`/`:168` require `-cne` and reject the inverted `-ceq` throw path. No remaining PLAN.md action item.
+>
+> C2-H1 / C2-M1 / C2-M2 / C2-L1 / C3-L1 / C1-series — verdict ALREADY-ADDRESSED (each with file:line + MS Learn citation: Get-ADObject parameter sets; ADSI Search Filter Syntax IN_CHAIN OID 1.2.840.113556.1.4.1941 + `\5c \2a \28 \29 \00` escapes; Select-String -SimpleMatch literal-vs-regex).
+>
+> C5 finding scan, severity N/A, verdict INVALID for new defect — no valid new HIGH or actionable PLAN.md finding. Structural checks still hold: 9-verb allow-list excludes hard-delete (`00-04:115/165/174`); gate order `Resolve -> Allow -> BulkPolicy -> Confirm -> PENDING -> Write -> OUTCOME` (`00-04:206-216`); fail-closed PENDING-before-write (`00-04:190/212/223`); `.store/` + DPAPI opt-in (`00-02:37/116`, `00-03:37/110-112`). Greenfield re-confirmed (`git ls-files` = 0 source files) — forward refs uncheckable/new, not defects.
+>
+> Reference-artifact-only residuals: stale snippets remain in `00-RESEARCH.md` / `00-PATTERNS.md`; not PLAN.md actionable; excluded per instruction.
+>
+> `CYCLE_SUMMARY: current_high=0 current_actionable=0`
+> `CONVERGED (0/0)`
+
+### Independent source-grounding (checks 1–4), this reviewer
+
+**Check 1 — the discriminator (DECISIVE, reproduced locally on BOTH required runtimes).** Probe `C:\Users\nhdinh\AppData\Local\Temp\gsd-review-0-c5\wip_probe.ps1` (`[CmdletBinding(SupportsShouldProcess, ConfirmImpact='High')]` function reading `$WhatIfPreference`):
+
+| State | `$WhatIfPreference` type | value | `[bool]$WhatIfPreference` | `-eq 'Simulate'` | `ShouldProcess()` |
+|---|---|---|---|---|---|
+| **A: real `-WhatIf`** (WinPS 5.1.26100) | `System.Management.Automation.SwitchParameter` | `True` | **True** | **False** | **False** (+ "What if:" line) |
+| **A: real `-WhatIf`** (PS 7.x) | `System.Management.Automation.SwitchParameter` | `True` | **True** | **False** | **False** |
+| B: default (no `-WhatIf`) | `System.Boolean` | `False` | **False** | False | (not called) |
+| C: `$WhatIfPreference='Simulate'` (assigned string — engine NEVER does this) | `System.String` | `Simulate` | True (non-empty string) | **True** | (not called) |
+
+All 10 probe assertions PASS on both editions. Conclusion: `[bool]$WhatIfPreference` is the correct, edition-portable discriminator (True under a real `-WhatIf`, False by default); `$WhatIfPreference -eq 'Simulate'` is `$false` under a real `-WhatIf` and only True for the artificial string-assignment state the old tests encoded. This matches codex's independent in-sandbox probe exactly, and matches Microsoft Learn: `-WhatIf` is a `SwitchParameter` that overrides `$WhatIfPreference` to `$true` for the command ([about_CommonParameters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_commonparameters)); the ShouldProcess deep-dive confirms `-WhatIf` sets `$WhatIfPreference=$true` inside the function and `ShouldProcess()` returns `$false` under `-WhatIf` ([everything about ShouldProcess](https://learn.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-shouldprocess)). **C4-H1 fix is correct.**
+
+**Check 2 — ShouldProcess `$false` ambiguity.** The plan checks `[bool]$WhatIfPreference` FIRST (`00-04:160` step 1): under `-WhatIf` it emits the what-if line once (`[void]$PSCmdlet.ShouldProcess(...)`, whose `$false` is the simulation, not a refusal) and returns `Outcome='DryRun'; WhatIf=$true` with NO Read-Host/throw/audit. A genuine decline has `$WhatIfPreference=$false`, so it falls to step 2 and returns `Outcome='Declined'; WhatIf=$false`, writing ZERO audit records (`00-04:142/148/149`). The gate (`00-04:210-216`) branches: Proceed+DryRun -> PENDING(`-WhatIf:$confirm.WhatIf`) -> inner wrapper `-WhatIf:$confirm.WhatIf` -> OUTCOME; only `Declined` throws `'Operator declined.'` and writes nothing (confirm-first, no orphan PENDING). Logic correctly distinguishes the two `$false` sources.
+
+**Check 3 — prior structural fixes re-verified (no regression):** (a) resolver Identity set has NO `-SearchBase/-SearchScope` (`00-04:116/117` drop them; `00-04:128` AST assertion; Get-ADObject Identity set has `-Partition`, not SearchBase — [MS Learn Get-ADObject](https://learn.microsoft.com/en-us/powershell/module/activedirectory/get-adobject)); (b) protected check uses LDAP-filter set only, IN_CHAIN OID `1.2.840.113556.1.4.1941`, every DN RFC-4515-escaped via `Escape-AdmanLdapFilterValue` (`\5c \2a \28 \29 \00`), never `adminCount`, deny by RID `Split('-')[-1]` never `sAMAccountName`, scope `EndsWith(','+$root)` never `-like` (`00-04:39-41/118/122-129`); (c) 9-verb allow-list excludes the hard-delete verb (`00-04:115/165/174`); (d) gate order Resolve->Allow->BulkPolicy->Confirm->PENDING->Write->OUTCOME (`00-04:187/206-216/222`); (e) fail-closed write-ahead — PENDING throw => AD write never invoked (`00-04:190/212/223`); (f) `.store/` gitignored (`.gitignore:2` = `.store/`; CONF-05) and DPAPI opt-in only on consent (`00-03:37/93/105-111/127`, Export-Clixml CurrentUser, keyed-AES rejected, re-prompt on 0x8009000B). All HOLD.
+
+**Check 4 — no new issue from the edit.** Scanned `00-04` at L42/L45/L47/L48/L142/L148/L160/L161/L168/L171/L191/L207/L208/L211/L215/L216/L266/L267/L273 and grepped the whole phase dir: `Simulate` appears in `00-04` ONLY in negated/absent-assertion contexts (L45/L148/L160/L171/L273) — no positive use of the broken discriminator remains; `-ceq` appears only in the "do not copy the inverted comparison / NOT present" guards (L158/L168) while all operative comparisons are `-cne` (L42/L143/L158/L168/L266). No regression in 00-01/02/03/05 (the edit touched only 00-04). The only residual items are reference-artifact stale snippets in `00-RESEARCH.md`/`00-PATTERNS.md` (excluded from the count per instruction; non-execution-affecting).
+
+### Adjudication summary (this cycle)
+
+| ID | Severity | Verdict | Evidence |
+|----|----------|---------|----------|
+| C4-H1 (=C3-H1) | HIGH | **ALREADY-ADDRESSED (RESOLVED)** | `[bool]$WhatIfPreference` at `00-04:160`; real-`-WhatIf` Tests 5/7 (`00-04:148/191`); L171 grep (boolean-cast PRESENT + string ABSENT); probe + docs above. |
+| C4-L1 | LOW | **ALREADY-ADDRESSED (RESOLVED)** | `00-04:42` now `(-cne)`; matches `00-04:158/168`. |
+| C2-H1 / C2-M1 / C2-M2 / C2-L1 / C3-L1 / C1-series | mixed | ALREADY-ADDRESSED (HOLD) | re-verified file:line (see check 3 + codex body). |
+| C5 new-defect scan | n/a | **INVALID (none found)** | codex + independent scan: no surviving/new HIGH or actionable PLAN.md item. |
+
+```
+CYCLE_SUMMARY: current_high=0 current_actionable=0
+```
+
+**VERDICT: CONVERGED (0/0, codex-verified).** No remaining valid actionable PLAN.md items. (Per the standing stop-and-review gate, this report does NOT execute; the human decides whether to mark Phase 0 planned and proceed.)
