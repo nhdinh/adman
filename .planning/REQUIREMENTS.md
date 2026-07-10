@@ -3,7 +3,7 @@
 **Defined:** 2026-07-10
 **Core Value:** Any admin on the team can perform common AD/local-user & computer tasks correctly and safely — every destructive action is previewed (`-WhatIf`), confirmed, scoped to a managed OU, blocked from protected accounts, and written to an audit log.
 
-> Phase assignments in Traceability are a **proposed** mapping (from research SUMMARY.md) for coverage review; the roadmapper validates/finalizes them.
+> Phase assignments in Traceability are the **final** mapping — validated by the roadmapper on 2026-07-10 against the research SUMMARY.md skeleton; 58/58 v1 requirements mapped, 0 unmapped, 0 duplicates.
 
 ## v1 Requirements
 
@@ -147,7 +147,7 @@ Explicitly excluded in v1. Documented to prevent scope creep.
 
 ## Traceability
 
-Proposed mapping (validates during roadmap creation). Phases follow the research skeleton: **0 Foundation/Safety → 1 Read-only reporting → 2 Single-object writes → 3 Remoting → 4 Bulk/workflows → 5 Hardening**.
+Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 Foundation/Safety → 1 Read-only reporting → 2 Single-object writes → 3 Remoting → 4 Bulk/workflows → 5 Hardening**.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -210,11 +210,13 @@ Proposed mapping (validates during roadmap creation). Phases follow the research
 | DOC-02 | Phase 5 | Pending |
 | DOC-03 | Phase 5 | Pending |
 
-**Coverage:**
+**Coverage (validated 2026-07-10):**
 - v1 requirements: 58 total
 - Mapped to phases: 58
 - Unmapped: 0 ✓
+- Duplicates (any req in >1 phase): 0 ✓
+- Per-phase counts: P0=17, P1=13, P2=13, P3=4, P4=8, P5=3
 
 ---
 *Requirements defined: 2026-07-10*
-*Last updated: 2026-07-10 after initial definition*
+*Last updated: 2026-07-10 — traceability finalized during roadmap creation*
