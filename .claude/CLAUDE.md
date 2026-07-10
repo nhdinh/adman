@@ -64,7 +64,7 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 | Capability | Built-in cmdlet/API | Why not add a dependency |
 |------------|--------------------|--------------------------|
 | **Encrypted config** (project requirement) | `ConvertTo-SecureString`/`ConvertFrom-SecureString` (Windows **DPAPI**, user- or machine-scoped) | No extra module, works on 5.1+7 on Windows. Scope to the installing user for a single-admin config, or machine key for shared jump hosts. DPAPI is Windows-only and key-bound — fine for on-prem. HIGH. |
-| **Audit log** | hand-rolled `Write-Log` writing **JSON-lines** (`ConvertTo-Json -Compress` per entry, append) | Structured, parseable, zero deps. Defer a logging framework (e.g. PSFramework) to a later milestone. MEDIUM. |
+| **Audit log** | hand-rolled, synchronous `Write-AdmanAudit` writing **JSON-lines** (`ConvertTo-Json -Compress -Depth 5` per entry, append, `Flush($true)`) | Structured, parseable, zero deps; **kept hand-rolled and synchronous on purpose** (Phase 0 / D-01) so fail-closed ('throw before AD if the record can't be written') is enforceable — PSFramework's durable logging is asynchronous and is NOT used for audit. PSFramework 1.14.457 IS adopted in Phase 0 for config + diagnostic/ops logging; only the audit sink is excluded from it. HIGH. |
 | **Credential capture** | `Get-Credential` → `[pscredential]`; pass via `-Credential` to AD/CIM/remoting cmdlets | Never store plaintext; never log credentials; only momentarily marshal a `SecureString` when an API requires it. HIGH. |
 | **Console tables / CSV / HTML reports** | `Format-Table`/`Out-String`, `Export-Csv`, `ConvertTo-Html` (with an embedded CSS fragment for "self-contained" HTML) | Covers the "console + CSV + HTML" reporting requirement with no packages. HIGH. |
 
@@ -106,7 +106,7 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 | CIM over WSMan, DCOM fallback | Plain `Get-WmiObject` everywhere | Only on a pure-5.1-forever, never-PS7 environment — which contradicts the "ideally 7.x" goal. |
 | Microsoft.PowerShell.PlatyPS **1.0.2** | legacy **platyPS 0.14.2** | If the team already has a large 0.x Markdown corpus and a working `New-MarkdownHelp` pipeline, stay on 0.14.2 temporarily. Greenfield should start on 1.0.2. |
 | `Microsoft.PowerShell.PSResourceGet` 1.2.0 | `PowerShellGet` 2.2.5 / `PackageManagement` | Only on a locked-down image where PSResourceGet cannot be installed; PowerShellGet 2.2.5 still functions but is the legacy line. |
-| JSON-lines audit log (hand-rolled) | **PSFramework** logging/config | When the tool grows to need runspaces, centralized config schema, and logging providers — a natural v2 upgrade. |
+| JSON-lines audit log (hand-rolled, synchronous) | **PSFramework** for the audit sink | PSFramework's durable logging is asynchronous (background runspace; first-record loss; process-exit-before-drain) and would break audit fail-closed, so the audit writer stays hand-rolled/synchronous (D-01). PSFramework 1.14.457 IS adopted in Phase 0 for config + diagnostic/ops logging; only the audit use of PSFramework is rejected. |
 
 ## What NOT to Use
 
