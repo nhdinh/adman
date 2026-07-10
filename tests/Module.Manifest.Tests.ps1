@@ -83,6 +83,14 @@ Describe 'adman module boundary (SAFE-08 / T-00-01)' {
         { Import-Module $script:ManifestPath -Force -ErrorAction Stop } | Should -Not -Throw
 
         Should -Invoke Get-ADDomain -Times 0 -Because 'module import must not touch the domain'
-        Get-Module 'ActiveDirectory' | Should -BeNullOrEmpty
+
+        # Prove the REAL RSAT ActiveDirectory module was not loaded by adman's import.
+        # The offline mock at tests/Mocks/ActiveDirectory.psm1 is ALSO named 'ActiveDirectory'
+        # (filename-derived) and may already be loaded by Harness.Tests.ps1 in the same Pester
+        # run, so a bare `Get-Module 'ActiveDirectory'` collides with the mock. Filter out any
+        # module living under the repo tests/ tree so we assert only on the genuine RSAT module.
+        $realAd = Get-Module 'ActiveDirectory' |
+            Where-Object { $_.ModuleBase -notmatch '[\\/]tests[\\/]' }
+        $realAd | Should -BeNullOrEmpty -Because 'adman import must not load the real RSAT ActiveDirectory module'
     }
 }
