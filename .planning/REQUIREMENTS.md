@@ -19,11 +19,11 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Configuration & Credential Store (CONF)
 
-- [ ] **CONF-01**: Tool loads a portable plain-JSON **non-secret** config (managed-OU roots, deny-list, bulk cap, audit/report paths, transport order/timeouts) at startup
-- [ ] **CONF-02**: Tool fails closed (refuses writes) if managed-OU is empty or the deny-list/config fails to load
-- [ ] **CONF-03**: Admin can save and reload the config for backup/restore (portable, diff-friendly across machines)
+- [x] **CONF-01**: Tool loads a portable plain-JSON **non-secret** config (managed-OU roots, deny-list, bulk cap, audit/report paths, transport order/timeouts) at startup
+- [x] **CONF-02**: Tool fails closed (refuses writes) if managed-OU is empty or the deny-list/config fails to load
+- [x] **CONF-03**: Admin can save and reload the config for backup/restore (portable, diff-friendly across machines)
 - [ ] **CONF-04**: On explicit "remember me," the tool writes a **separate** DPAPI-encrypted credential file in `.store/`; restore on a different machine/user re-prompts for the credential
-- [ ] **CONF-05**: Both config and credential files live in the gitignored `.store/` folder; the tool never writes secrets to the repo or to logs
+- [x] **CONF-05**: Both config and credential files live in the gitignored `.store/` folder; the tool never writes secrets to the repo or to logs
 - [ ] **CONF-06**: Tool uses the logged-in admin's credentials by default (pass-through); checks rights before each task and prompts for domain-admin creds only when rights are insufficient
 
 ### Safety Guardrails (SAFE) — cross-cutting, v1 must-have
@@ -156,11 +156,11 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | MENU-03 | Phase 1 | Pending |
 | MENU-04 | Phase 1 | Pending |
 | MENU-05 | Phase 0 | Complete |
-| CONF-01 | Phase 0 | Pending |
-| CONF-02 | Phase 0 | Pending |
-| CONF-03 | Phase 0 | Pending |
+| CONF-01 | Phase 0 | Complete |
+| CONF-02 | Phase 0 | Complete |
+| CONF-03 | Phase 0 | Complete |
 | CONF-04 | Phase 0 | Pending |
-| CONF-05 | Phase 0 | Pending |
+| CONF-05 | Phase 0 | Complete |
 | CONF-06 | Phase 0 | Pending |
 | SAFE-01 | Phase 0 | Pending |
 | SAFE-02 | Phase 0 | Pending |

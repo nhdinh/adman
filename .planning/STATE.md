@@ -6,14 +6,14 @@ current_phase: 00
 current_phase_name: foundation-safety-harness
 status: executing
 stopped_at: plan→execute boundary — Phase 0 CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5) on 2026-07-10; awaiting user stop-and-review before /gsd-execute-phase 0
-last_updated: "2026-07-10T21:29:38.903Z"
+last_updated: "2026-07-10T23:19:58.292Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 ## Current Position
 
 Phase: 00 (foundation-safety-harness) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 00 execution started
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 00 P01 | ~1h5m | 3 tasks | 17 files |
+| Phase 00-foundation-safety-harness P02 | 1h13m | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: SAFE-08: explicit FunctionsToExport; single non-exported gate Invoke-AdmanMutation; one banned-verb source drives both the PSScriptAnalyzer rule and the Pester AST guard.
 - [Phase ?]: PSFramework exact-pinned via RequiredVersion='1.14.457'; ActiveDirectory is a prerequisite (never in RequiredModules); CompatiblePSEditions=@('Desktop') until the Phase 5 CI matrix passes on 7.6.
 - [Phase ?]: Guard alias resolution uses Get-Alias (no module auto-load) so lint/tests never pull in RSAT (T-00-11); the custom PSSA rule emits on the root AST only (no duplicate diagnostics).
+- [Phase ?]: Fail-closed is framework-independent (D-01/T-00-07)
+- [Phase ?]: Single validator Test-AdmanConfigValid + single save Save-AdmanConfig -Depth 5 reused by Initialize/Set/Import (D-04/T-00-13)
+- [Phase ?]: Deny-list seeded once (RID 500/501/502); file is source of truth thereafter (D-05)
+- [Phase ?]: Export/Import keep plain-JSON safety file authoritative; PSFramework mirror path .psf.json (CONF-03)
+- [Phase ?]: credentialPolicy.allowRememberMe allow-listed as non-secret; no-secret rule bans only real secret names/values (C2-M1)
 
 ### Pending Todos
 
@@ -92,7 +98,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-10T21:26:44.217Z
+Last session: 2026-07-10T23:19:01.883Z
 Stopped at: plan→execute boundary — Phase 0 CONVERGED 0/0 (codex-verified); awaiting user stop-and-review before execute
 Resume file: .planning/HANDOFF.json + .planning/phases/00-foundation-safety-harness/.continue-here.md
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.
