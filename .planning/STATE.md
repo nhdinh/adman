@@ -6,14 +6,14 @@ current_phase: 00
 current_phase_name: foundation-safety-harness
 status: executing
 stopped_at: plan→execute boundary — Phase 0 CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5) on 2026-07-10; awaiting user stop-and-review before /gsd-execute-phase 0
-last_updated: "2026-07-10T23:19:58.292Z"
+last_updated: "2026-07-11T00:59:28.915Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 ## Current Position
 
 Phase: 00 (foundation-safety-harness) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 00 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 | Phase 00 P01 | ~1h5m | 3 tasks | 17 files |
 | Phase 00-foundation-safety-harness P02 | 1h13m | 3 tasks | 12 files |
+| Phase 00-foundation-safety-harness P03 | 59m | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Deny-list seeded once (RID 500/501/502); file is source of truth thereafter (D-05)
 - [Phase ?]: Export/Import keep plain-JSON safety file authoritative; PSFramework mirror path .psf.json (CONF-03)
 - [Phase ?]: credentialPolicy.allowRememberMe allow-listed as non-secret; no-secret rule bans only real secret names/values (C2-M1)
+- [Phase 00-03]: Rights-first credential decision (CONF-06): pass-through when rights sufficient, prompt only when insufficient; stored DPAPI only when insufficient+allowRememberMe.
+- [Phase 00-03]: DPAPI restore-failure (CONF-04/D-06): CryptographicException 0x8009000B OR empty/null password OR non-PSCredential => delete bad file + Get-Credential; Export-Clixml CurrentUser only.
+- [Phase 00-03]: Rights probed non-destructively (read managed OU + whoami /groups); never an AD write (MENU-05/CONF-06/T-00-15).
+- [Phase 00-03]: Protected set from live SIDs (DomainSID-512, forest-root-518/519 A3, S-1-5-32-544/-548/-551/-549, DomainSID-525, +AdmanProtectedGroup); DenyRids {500,501,502}; no hard-coded SID (D-02/D-05).
+- [Phase 00-03]: Initialize-Adman fixed six-step order; -SetupMode runs config load only (wizard mutation-free) (D-04).
+- [Phase 00-03]: Test-AdmanAuditWritable writes ZERO bytes (open-append+Flush(true)+dispose) so 00-05 strict-JSONL Find-AdmanAuditOrphans never sees a non-JSON line.
 
 ### Pending Todos
 
@@ -98,7 +105,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-10T23:19:01.883Z
+Last session: 2026-07-11T00:54:49.420Z
 Stopped at: plan→execute boundary — Phase 0 CONVERGED 0/0 (codex-verified); awaiting user stop-and-review before execute
 Resume file: .planning/HANDOFF.json + .planning/phases/00-foundation-safety-harness/.continue-here.md
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.
