@@ -11,7 +11,7 @@
 
 .NOTES
     Pester 6. PSFramework stub on $TestDrive. The six step functions are mocked (-ModuleName
-    adman); order is recorded into a MODULE-scope list ($script:AdmanOrder) so no $global: is
+    adman); order is recorded into a TEST-script-scope list ($script:AdmanOrder) so no $global: is
     used (lint PSAvoidGlobalVars). Named binding into the module-scope scriptblock (PS 5.1).
 #>
 
@@ -52,10 +52,18 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Get-AdmanProtectedIdentity { }
 
     function Reset-AdmanOrder {
-        & (Get-Module adman) { $script:AdmanOrder = [System.Collections.Generic.List[string]]::new() }
+        # Test-script-scope recorder: -ModuleName adman mock bodies execute in the TEST file's
+        # script scope (verified empirically), so the recorder MUST live here - NOT in the adman
+        # module scope - for the mocks' .Add() calls to be visible to Get-AdmanOrder. Keeping it
+        # on $script: (not $global:) stays lint-clean (PSAvoidGlobalVars).
+        $script:AdmanOrder = [System.Collections.Generic.List[string]]::new()
     }
     function Get-AdmanOrder {
-        & (Get-Module adman) { , $script:AdmanOrder.ToArray() }
+        # Emit the flat array (no comma-wrap): the test-scope recorder unrolls into the pipeline
+        # as N elements so 'Should -Be @(...)' compares element-wise. (The previous module-scope
+        # version needed a leading comma to survive the & (Get-Module adman) boundary unrolling;
+        # the test-scope version does not cross that boundary.)
+        $script:AdmanOrder.ToArray()
     }
     function Set-AdmanMinimalConfig {
         & (Get-Module adman) {
