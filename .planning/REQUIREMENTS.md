@@ -30,8 +30,8 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 - [x] **SAFE-01**: Every destructive action supports `-WhatIf`/dry-run that previews exactly what would change, per object
 - [x] **SAFE-02**: Every destructive action requires confirmation scaled to blast radius (y/n for single; typed token + count for bulk)
-- [ ] **SAFE-03**: Every action (including dry-runs) appends a structured audit record (who/what/when/scope/target/count/WhatIf/result); never logs passwords/secrets
-- [ ] **SAFE-04**: Audit logging is fail-closed — if the audit record cannot be written, the destructive action is refused rather than run unaudited
+- [x] **SAFE-03**: Every action (including dry-runs) appends a structured audit record (who/what/when/scope/target/count/WhatIf/result); never logs passwords/secrets
+- [x] **SAFE-04**: Audit logging is fail-closed — if the audit record cannot be written, the destructive action is refused rather than run unaudited
 - [x] **SAFE-05**: A startup-loaded deny-list hard-blocks matching targets before any action
 - [x] **SAFE-06**: Protected-account guard refuses targets that are (recursively) members of Domain/Enterprise/Schema Admins, Account/Backup/Server Operators, or local Administrators, plus gMSA/service accounts — via runtime well-known-SID resolution, never `adminCount` alone
 - [x] **SAFE-07**: Managed-OU scoping refuses any target whose DN is not under a configured managed-OU root
@@ -164,8 +164,8 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | CONF-06 | Phase 0 | Complete |
 | SAFE-01 | Phase 0 | Complete |
 | SAFE-02 | Phase 0 | Complete |
-| SAFE-03 | Phase 0 | Pending |
-| SAFE-04 | Phase 0 | Pending |
+| SAFE-03 | Phase 0 | Complete |
+| SAFE-04 | Phase 0 | Complete |
 | SAFE-05 | Phase 0 | Complete |
 | SAFE-06 | Phase 0 | Complete |
 | SAFE-07 | Phase 0 | Complete |

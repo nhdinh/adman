@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 00
 current_phase_name: foundation-safety-harness
-status: executing
-stopped_at: Completed 00-04-PLAN.md
-last_updated: "2026-07-13T02:07:21.656Z"
+status: verifying
+stopped_at: Completed 00-05-PLAN.md (phase 00 complete)
+last_updated: "2026-07-13T02:47:14.994Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 0
+  completed_plans: 5
+  percent: 17
 ---
 
 # Project State
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 
 Phase: 00 (foundation-safety-harness) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-10 — Phase 00 execution started
 
 Progress: [██████░░░░] 60%
@@ -59,6 +59,7 @@ Progress: [██████░░░░] 60%
 | Phase 00-foundation-safety-harness P02 | 1h13m | 3 tasks | 12 files |
 | Phase 00-foundation-safety-harness P03 | 59m | 2 tasks | 12 files |
 | Phase 00 P04 | 38min | 3 tasks | 15 files |
+| Phase 00-foundation-safety-harness P05 | 24min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 00]: 00-04: -WhatIf detection is [bool]$WhatIfPreference (boolean cast), NEVER the string 'Simulate' (C3-H1/C4-H1)
 - [Phase 00]: 00-04: confirm-first audit — a declined action writes ZERO records (no orphan PENDING); the GATE owns the decline throw + all audit writes
 - [Phase 00]: 00-04: bulk-cap enforcement deferred to Phase 4 (BULK-02); Phase 0 Assert-AdmanBulkPolicy only reads values + exposes -EnforceCap forward-compat
+- [Phase ?]: 00-05: Write-AdmanAudit is the ONLY audit sink (D-01); fail-closed throw gated on the PENDING pre-write only, OUTCOME failure escalates without rollback (D-03)
+- [Phase ?]: 00-05: audit I/O via three private seams (mutex/file/eventlog) so fail-closed is test-provable without mocking raw .NET statics; named-mutex literal lives in the New-AdmanAuditMutex seam
+- [Phase ?]: 00-05: integration tests doubly gated (-Tag Integration + ADMAN_TEST_OU); SAFE-08/09 guard passes trivially now (no Public write verbs) and is re-proven in Phase 2 when write verbs land
 
 ### Pending Todos
 
@@ -109,7 +113,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-13T02:07:21.648Z
-Stopped at: Completed 00-04-PLAN.md
+Last session: 2026-07-13T02:47:14.986Z
+Stopped at: Completed 00-05-PLAN.md (phase 00 complete)
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.
