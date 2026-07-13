@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 00
 current_phase_name: foundation-safety-harness
 status: executing
-stopped_at: plan→execute boundary — Phase 0 CONVERGED 0 HIGH / 0 actionable (codex-verified, cycle 5) on 2026-07-10; awaiting user stop-and-review before /gsd-execute-phase 0
-last_updated: "2026-07-11T00:59:28.915Z"
+stopped_at: Completed 00-04-PLAN.md
+last_updated: "2026-07-13T02:07:21.656Z"
 last_activity: 2026-07-10
 last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 ## Current Position
 
 Phase: 00 (foundation-safety-harness) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-07-10 — Phase 00 execution started
 
@@ -58,6 +58,7 @@ Progress: [██████░░░░] 60%
 | Phase 00 P01 | ~1h5m | 3 tasks | 17 files |
 | Phase 00-foundation-safety-harness P02 | 1h13m | 3 tasks | 12 files |
 | Phase 00-foundation-safety-harness P03 | 59m | 2 tasks | 12 files |
+| Phase 00 P04 | 38min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 00-03]: Protected set from live SIDs (DomainSID-512, forest-root-518/519 A3, S-1-5-32-544/-548/-551/-549, DomainSID-525, +AdmanProtectedGroup); DenyRids {500,501,502}; no hard-coded SID (D-02/D-05).
 - [Phase 00-03]: Initialize-Adman fixed six-step order; -SetupMode runs config load only (wizard mutation-free) (D-04).
 - [Phase 00-03]: Test-AdmanAuditWritable writes ZERO bytes (open-append+Flush(true)+dispose) so 00-05 strict-JSONL Find-AdmanAuditOrphans never sees a non-JSON line.
+- [Phase 00]: 00-04: -WhatIf detection is [bool]$WhatIfPreference (boolean cast), NEVER the string 'Simulate' (C3-H1/C4-H1)
+- [Phase 00]: 00-04: confirm-first audit — a declined action writes ZERO records (no orphan PENDING); the GATE owns the decline throw + all audit writes
+- [Phase 00]: 00-04: bulk-cap enforcement deferred to Phase 4 (BULK-02); Phase 0 Assert-AdmanBulkPolicy only reads values + exposes -EnforceCap forward-compat
 
 ### Pending Todos
 
@@ -105,7 +109,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-11T00:54:49.420Z
-Stopped at: plan→execute boundary — Phase 0 CONVERGED 0/0 (codex-verified); awaiting user stop-and-review before execute
-Resume file: .planning/HANDOFF.json + .planning/phases/00-foundation-safety-harness/.continue-here.md
+Last session: 2026-07-13T02:07:21.648Z
+Stopped at: Completed 00-04-PLAN.md
+Resume file: None
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.

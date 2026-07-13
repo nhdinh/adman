@@ -37,7 +37,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The gate refuses deny-listed targets (SAFE-05), recursive members of protected groups plus gMSA/service accounts resolved via well-known SIDs at check time (never `adminCount` alone) (SAFE-06), and any DN outside a managed-OU root (SAFE-07) — and each refusal is logged.
   5. Every action (including dry-runs) appends a structured audit record (who/what/when/scope/target/count/WhatIf/result) that never contains secrets and refuses the destructive action if the record cannot be written (SAFE-03/04); the DPAPI credential file is written only on explicit "remember me" and re-prompts on cross-machine/user restore (CONF-04/06), with `.store/` never committed and no secrets in the repo or logs (CONF-05).
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 0`):
@@ -45,7 +45,7 @@ Plans (finalized during `/gsd-plan-phase 0`):
 - [x] 00-01-PLAN.md — Module scaffold + PSFramework 1.14.457 build-time re-verification (Assumption A1) + Pester 6 / PSScriptAnalyzer 1.25.0 harness with the custom SAFE-08 rule + AD mocks; `adman.psd1/.psm1`, Public/Private loader, explicit `FunctionsToExport`, `$ErrorActionPreference='Stop'`, `-Server`-pinning helper, PSFramework config+diagnostic-logging backbone (audit stays synchronous/hand-rolled per D-01). (MENU-05, SAFE-08)
 - [x] 00-02-PLAN.md — Non-secret config: shared schema + shipped defaults + TRACKED annotated example; fail-closed `Initialize-AdmanConfig` (empty managed-OU / failed deny-list throw; setup-mode exempt) pinned with `Import-PSFConfig -Path`; SID-seeded deny-list; thin `Get/Set/Export/Import-AdmanConfig` verbs; `.store/` gitignored + no secret fields. (CONF-01/02/03/05)
 - [x] 00-03-PLAN.md — Credential decision (pass-through default; opt-in DPAPI `Export-Clixml` CurrentUser with delete-and-re-prompt on 0x8009000B/empty; reject keyed-AES) + `Test-AdmanCapability` startup probe (MENU-05) + `Initialize-Adman` orchestration + startup protected-SID/deny-RID resolution. (MENU-05, CONF-04/06)
-- [ ] 00-04-PLAN.md — Safety core: `Resolve-AdmanTarget` (single shared preview/execute resolver), `Test-AdmanTargetAllowed` (component-boundary scope + RID deny + gMSA pre-filter + IN_CHAIN protected, never adminCount), `Confirm-AdmanAction` (ShouldProcess + typed-count bulk + -Force), `Assert-AdmanBulkPolicy` (cap placeholder), `Invoke-AdmanMutation` (THE GATE, fixed order) + gate-only `Adman.AD.Write.*` wrappers (9-verb allow-list, no hard-delete). (SAFE-01/02/05/06/07/08/09/10)
+- [x] 00-04-PLAN.md — Safety core: `Resolve-AdmanTarget` (single shared preview/execute resolver), `Test-AdmanTargetAllowed` (component-boundary scope + RID deny + gMSA pre-filter + IN_CHAIN protected, never adminCount), `Confirm-AdmanAction` (ShouldProcess + typed-count bulk + -Force), `Assert-AdmanBulkPolicy` (cap placeholder), `Invoke-AdmanMutation` (THE GATE, fixed order) + gate-only `Adman.AD.Write.*` wrappers (9-verb allow-list, no hard-delete). (SAFE-01/02/05/06/07/08/09/10)
 - [ ] 00-05-PLAN.md — Fail-closed append-only audit (`Write-AdmanAudit` write-ahead PENDING→throw→mutate→OUTCOME, `Mutex Global\adman-audit`, JSON-lines, no secrets) + audit-integrity orphan sweep + read-only recovery-posture reporter + phase exit gate (full mocked Unit suite green + ScriptAnalyzer clean + SAFE-08/09 AST guard proven against Public/). (SAFE-03/04/08/09)
 
 ### Phase 1: AD Query & Reporting (read-only)
@@ -161,7 +161,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Foundation & Safety Harness | 3/5 | In Progress|  |
+| 0. Foundation & Safety Harness | 4/5 | In Progress|  |
 | 1. AD Query & Reporting (read-only) | 0/4 | Not started | - |
 | 2. Single-Object Lifecycle (writes begin) | 0/4 | Not started | - |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |

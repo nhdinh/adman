@@ -28,16 +28,16 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Safety Guardrails (SAFE) — cross-cutting, v1 must-have
 
-- [ ] **SAFE-01**: Every destructive action supports `-WhatIf`/dry-run that previews exactly what would change, per object
-- [ ] **SAFE-02**: Every destructive action requires confirmation scaled to blast radius (y/n for single; typed token + count for bulk)
+- [x] **SAFE-01**: Every destructive action supports `-WhatIf`/dry-run that previews exactly what would change, per object
+- [x] **SAFE-02**: Every destructive action requires confirmation scaled to blast radius (y/n for single; typed token + count for bulk)
 - [ ] **SAFE-03**: Every action (including dry-runs) appends a structured audit record (who/what/when/scope/target/count/WhatIf/result); never logs passwords/secrets
 - [ ] **SAFE-04**: Audit logging is fail-closed — if the audit record cannot be written, the destructive action is refused rather than run unaudited
-- [ ] **SAFE-05**: A startup-loaded deny-list hard-blocks matching targets before any action
-- [ ] **SAFE-06**: Protected-account guard refuses targets that are (recursively) members of Domain/Enterprise/Schema Admins, Account/Backup/Server Operators, or local Administrators, plus gMSA/service accounts — via runtime well-known-SID resolution, never `adminCount` alone
-- [ ] **SAFE-07**: Managed-OU scoping refuses any target whose DN is not under a configured managed-OU root
+- [x] **SAFE-05**: A startup-loaded deny-list hard-blocks matching targets before any action
+- [x] **SAFE-06**: Protected-account guard refuses targets that are (recursively) members of Domain/Enterprise/Schema Admins, Account/Backup/Server Operators, or local Administrators, plus gMSA/service accounts — via runtime well-known-SID resolution, never `adminCount` alone
+- [x] **SAFE-07**: Managed-OU scoping refuses any target whose DN is not under a configured managed-OU root
 - [x] **SAFE-08**: All write verbs route through one **non-exported** mutation gate (`Invoke-AdmanMutation`); no public/exported function calls AD write cmdlets directly (enforced by a lint + Pester guard)
-- [ ] **SAFE-09**: "Delete" is reversible — disable + move to quarantine OU + record original location/groups for restore; the tool ships **no** hard-delete verb
-- [ ] **SAFE-10**: The gate uses identical target resolution for preview and execute, so the preview cannot lie
+- [x] **SAFE-09**: "Delete" is reversible — disable + move to quarantine OU + record original location/groups for restore; the tool ships **no** hard-delete verb
+- [x] **SAFE-10**: The gate uses identical target resolution for preview and execute, so the preview cannot lie
 
 ### AD User Lifecycle (USER)
 
@@ -162,16 +162,16 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | CONF-04 | Phase 0 | Complete |
 | CONF-05 | Phase 0 | Complete |
 | CONF-06 | Phase 0 | Complete |
-| SAFE-01 | Phase 0 | Pending |
-| SAFE-02 | Phase 0 | Pending |
+| SAFE-01 | Phase 0 | Complete |
+| SAFE-02 | Phase 0 | Complete |
 | SAFE-03 | Phase 0 | Pending |
 | SAFE-04 | Phase 0 | Pending |
-| SAFE-05 | Phase 0 | Pending |
-| SAFE-06 | Phase 0 | Pending |
-| SAFE-07 | Phase 0 | Pending |
+| SAFE-05 | Phase 0 | Complete |
+| SAFE-06 | Phase 0 | Complete |
+| SAFE-07 | Phase 0 | Complete |
 | SAFE-08 | Phase 0 | Complete |
-| SAFE-09 | Phase 0 | Pending |
-| SAFE-10 | Phase 0 | Pending |
+| SAFE-09 | Phase 0 | Complete |
+| SAFE-10 | Phase 0 | Complete |
 | USER-01 | Phase 1 | Pending |
 | USER-02 | Phase 2 | Pending |
 | USER-03 | Phase 2 | Pending |
