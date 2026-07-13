@@ -109,10 +109,12 @@ Describe 'SAFE-09: Adman.AD.Write wrappers are the sole, gate-only callers of re
     It 'every wrapper declares SupportsShouldProcess ConfirmImpact=High, pins -Server, forwards -Confirm:$false' {
         Test-Path -LiteralPath $script:WritePath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:WritePath -Raw
-        @($src | Select-String -Pattern 'SupportsShouldProcess' -AllMatches).Count | Should -BeGreaterOrEqual 9
-        @($src | Select-String -Pattern 'ConfirmImpact' -AllMatches).Count | Should -BeGreaterOrEqual 9
-        @($src | Select-String -Pattern '\-Confirm:\$false' -AllMatches).Count | Should -BeGreaterOrEqual 9
-        @($src | Select-String -Pattern '\-Server ' -AllMatches).Count | Should -BeGreaterOrEqual 9
+        # Count actual occurrences (Select-String over a -Raw string returns one MatchInfo per
+        # pattern, not per occurrence); use [regex]::Matches for a true occurrence count.
+        [regex]::Matches($src, 'SupportsShouldProcess').Count | Should -BeGreaterOrEqual 9
+        [regex]::Matches($src, 'ConfirmImpact').Count | Should -BeGreaterOrEqual 9
+        [regex]::Matches($src, [regex]::Escape('-Confirm:$false')).Count | Should -BeGreaterOrEqual 9
+        [regex]::Matches($src, '-Server ').Count | Should -BeGreaterOrEqual 9
     }
 
     It 'a wrapper forwards -WhatIf:$WhatIfPreference and calls the real AD cmdlet (Disable-ADAccount)' {
