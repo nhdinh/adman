@@ -118,7 +118,7 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
 
     It 'Test 1: runs the fixed order Resolve -> Allow -> BulkPolicy -> Confirm -> Audit(PENDING) -> Write -> Audit(OUTCOME)' {
         $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
-        Mock Resolve-AdmanTarget -ModuleName adman { $script:AdmanOrder.Add('resolve'); , @($t1) }
+        Mock Resolve-AdmanTarget -ModuleName adman { $script:AdmanOrder.Add('resolve'); $t1 }
         Mock Test-AdmanTargetAllowed -ModuleName adman { $script:AdmanOrder.Add('allow'); @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { $script:AdmanOrder.Add('bulkpolicy'); @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { $script:AdmanOrder.Add('confirm'); @{ Outcome = 'Proceed'; WhatIf = $false } }
@@ -158,7 +158,8 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
     It 'Test 3: a refused target writes a Refused audit record and skips the AD write wrapper' {
         $tAllowed = New-AdmanTarget -Dn 'CN=Ok,OU=Managed,DC=mock,DC=local'
         $tDenied = New-AdmanTarget -Dn 'CN=Bad,OU=Managed,DC=mock,DC=local' -Sid 'S-1-5-21-111-222-333-1001'
-        Mock Resolve-AdmanTarget -ModuleName adman { , @($tAllowed, $tDenied) }
+        $script:WrittenDns = $null
+        Mock Resolve-AdmanTarget -ModuleName adman { $tAllowed; $tDenied }
         Mock Test-AdmanTargetAllowed -ModuleName adman {
             param($Object)
             if ($Object.DistinguishedName -eq 'CN=Bad,OU=Managed,DC=mock,DC=local') {
@@ -168,22 +169,26 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Proceed'; WhatIf = $false } }
         Mock Write-AdmanAudit -ModuleName adman { }
-        Mock Adman.AD.Write.Disable-ADAccount -ModuleName adman { }
+        Mock Adman.AD.Write.Disable-ADAccount -ModuleName adman {
+            param($Objects, $Parameters)
+            $script:WrittenDns = @($Objects | ForEach-Object { $_.DistinguishedName })
+        }
 
         $null = & (Get-Module adman) { Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets @('ok', 'bad') -Confirm:$false }
 
         Should -Invoke Write-AdmanAudit -ModuleName adman -Times 1 -ParameterFilter {
             $Result -eq 'Refused' -and $Reason -match 'deny-listed'
         } -Because 'a refused target is logged with its Reason'
-        # The write wrapper runs only for the allowed target (1 call), not the denied one.
-        Should -Invoke Adman.AD.Write.Disable-ADAccount -ModuleName adman -Times 1 -ParameterFilter {
-            (@($Objects).Count -eq 1) -and ($Objects[0].DistinguishedName -eq 'CN=Ok,OU=Managed,DC=mock,DC=local')
-        } -Because 'the denied target must not reach the AD write wrapper'
+        # The write wrapper runs once, and ONLY for the allowed target (the denied DN never reaches it).
+        Should -Invoke Adman.AD.Write.Disable-ADAccount -ModuleName adman -Times 1 `
+            -Because 'the write wrapper runs once for the allowed set'
+        $script:WrittenDns | Should -Be @('CN=Ok,OU=Managed,DC=mock,DC=local') `
+            -Because 'the denied target must not reach the AD write wrapper'
     }
 
     It 'Test 4: PENDING is written BEFORE the write; if PENDING throws, the write never runs' {
         $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
-        Mock Resolve-AdmanTarget -ModuleName adman { , @($t1) }
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Proceed'; WhatIf = $false } }
@@ -202,7 +207,7 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
     It 'Test 5: -WhatIf flow -> PENDING(whatIf=$true) -> wrapper WITH -WhatIf:$true -> OUTCOME(whatIf=$true); NO decline throw' {
         $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
         $script:WrapperWhatIf = $null
-        Mock Resolve-AdmanTarget -ModuleName adman { , @($t1) }
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'DryRun'; WhatIf = $true } }
@@ -226,7 +231,7 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
 
     It 'Test 5 (negative): a genuine decline -> gate throws the decline message and writes ZERO audit records' {
         $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
-        Mock Resolve-AdmanTarget -ModuleName adman { , @($t1) }
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Declined'; WhatIf = $false } }
@@ -243,7 +248,7 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
     It 'Test 6: returns a canonical result with a non-empty CorrelationId shared by PENDING + OUTCOME' {
         $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
         $script:AuditCids = [System.Collections.Generic.List[string]]::new()
-        Mock Resolve-AdmanTarget -ModuleName adman { , @($t1) }
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Proceed'; WhatIf = $false } }
@@ -269,28 +274,41 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
         Test-Path -LiteralPath $script:GatePath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:GatePath -Raw
 
-        # Not exported.
-        $manifest = Get-Content -LiteralPath $script:ManifestPath -Raw
-        @($manifest | Select-String -Pattern 'Invoke-AdmanMutation').Count | Should -Be 0 `
+        # Not exported: the gate must be absent from the manifest's FunctionsToExport array
+        # (comments may mention it; only the export list is the boundary). Test-ModuleManifest
+        # works on PS 5.1 (Import-PowerShellDataFile does not) and returns the exported commands;
+        # the PSFramework stub on $TestDrive (BeforeAll) makes the exact-pinned dependency resolvable.
+        $manifest = Test-ModuleManifest -Path $script:ManifestPath -ErrorAction Stop
+        $exported = @($manifest.ExportedFunctions.Keys)
+        $exported | Should -Not -Contain 'Invoke-AdmanMutation' `
             -Because 'the gate is Private/ and NOT in FunctionsToExport (SAFE-08)'
 
-        # Fixed order present.
+        # Fixed order present. ($src is a -Raw string; Select-String over a single string binds
+        # one MatchInfo per pattern, not per occurrence, and can fail to bind - use [regex]::Matches.)
         foreach ($tok in @('Resolve-AdmanTarget', 'Test-AdmanTargetAllowed', 'Assert-AdmanBulkPolicy', 'Confirm-AdmanAction', "'PENDING'", 'Adman.AD.Write', "'Success'")) {
-            @($src | Select-String -Pattern [regex]::Escape($tok)).Count | Should -BeGreaterOrEqual 1 -Because "$tok must appear in the gate"
+            [regex]::Matches($src, [regex]::Escape($tok)).Count | Should -BeGreaterOrEqual 1 -Because "$tok must appear in the gate"
         }
-        # PENDING textually precedes the write call.
-        $pendingIdx = $src.IndexOf("'PENDING'")
-        $writeIdx = $src.IndexOf('Adman.AD.Write.')
+        # PENDING textually precedes the write call. Use the actual CALL sites (the doc comment
+        # also mentions 'PENDING' and the wrapper invocation, so a naive IndexOf on the bare token
+        # would match the comment first). Anchor on the real statements: the PENDING audit call and
+        # the dynamic wrapper invocation with its -Objects argument (unique to the code, not the doc).
+        $pendingIdx = $src.IndexOf("-Result 'PENDING'")
+        $writeIdx = $src.IndexOf('& "Adman.AD.Write.$Verb" -Objects')
+        $pendingIdx | Should -BeGreaterOrEqual 0 -Because 'the gate writes a PENDING audit reservation'
+        $writeIdx | Should -BeGreaterOrEqual 0 -Because 'the gate invokes the Adman.AD.Write.<Verb> wrapper'
         $pendingIdx | Should -BeLessThan $writeIdx -Because 'the PENDING audit reservation precedes the write (write-ahead)'
 
-        # No direct AD write cmdlet in the gate (only via Adman.AD.Write.*).
-        @($src | Select-String -Pattern '\bSet-ADUser\b|\bSet-ADComputer\b|\bDisable-ADAccount\b|\bEnable-ADAccount\b|\bMove-ADObject\b|\bSet-ADAccountPassword\b|\bUnlock-ADAccount\b|\bAdd-ADGroupMember\b|\bRemove-ADGroupMember\b|\bNew-ADUser\b|\bNew-ADComputer\b').Count |
+        # No direct AD write cmdlet CALL in the gate (only via Adman.AD.Write.*). The ValidateSet
+        # lists the 9 verbs as quoted string literals and the doc comment names them - neither is a
+        # call. A real invocation is the verb followed by a parameter (' -'); a quoted list entry or
+        # comment mention is not. Require the verb be immediately followed by whitespace + '-'.
+        [regex]::Matches($src, '\b(?:Set-ADUser|Set-ADComputer|Disable-ADAccount|Enable-ADAccount|Move-ADObject|Set-ADAccountPassword|Unlock-ADAccount|Add-ADGroupMember|Remove-ADGroupMember|New-ADUser|New-ADComputer)\s+-').Count |
             Should -Be 0 -Because 'the gate only calls Adman.AD.Write.*, never a real AD write cmdlet directly'
 
         # Outcome branching (C3-H1): branches on $confirm.Outcome; throws the decline message on Declined;
         # forwards -WhatIf:$confirm.WhatIf to PENDING/OUTCOME/write.
-        @($src | Select-String -Pattern '\$confirm\.Outcome|Outcome\s+-eq\s+''Declined''').Count | Should -BeGreaterOrEqual 1
-        @($src | Select-String -Pattern "throw\s+['\`"]Operator declined").Count | Should -BeGreaterOrEqual 1
+        [regex]::Matches($src, '\$confirm\.Outcome|Outcome\s+-eq\s+''Declined''').Count | Should -BeGreaterOrEqual 1
+        [regex]::Matches($src, "throw\s+['\`"]Operator declined").Count | Should -BeGreaterOrEqual 1
         [regex]::Matches($src, '\$confirm\.WhatIf').Count | Should -BeGreaterOrEqual 3 `
             -Because 'PENDING, OUTCOME, and the write all forward the confirm WhatIf flag'
     }
