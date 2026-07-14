@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 Phase: 00 (foundation-safety-harness) — EXECUTING
 Plan: 5 of 5
 Status: Phase complete — ready for verification
-Last activity: 2026-07-10 — Phase 00 execution started
+Last activity: 2026-07-14 - Completed quick task 260714-ek6: Fix Invoke-AdmanMutation module-scope invocation in the two lab integration test files
 
 Progress: [██████░░░░] 60%
 
@@ -102,6 +102,12 @@ None yet.
 - Phase 0 research flag (HIGH): verify exact PSFramework 1.14.457 config/logging cmdlet signatures; DPAPI/`Export-Clixml` behavior across 5.1 vs 7.6; precise well-known-SID set for this environment's protected groups; RSAT server feature name vs target SKUs. Run `/gsd-plan-phase 0 --research-phase 0` if deeper research is needed.
 - Phase 3 research flag (MEDIUM): confirm environment firewall reality for DCOM (135 + RPC dynamic) vs WinRM (5985/5986) before defaulting the ladder order.
 - Phase 4 research flag (MEDIUM): confirm exact protected-group set, break-glass override policy, managed-OU roots, default max-count cap, and which offboarding cleanup items are checklist-only vs automated.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260714-ek6 | Fix Invoke-AdmanMutation module-scope invocation in the two lab integration test files | 2026-07-14 | feac682 | [260714-ek6-fix-invoke-admanmutation-module-scope-in](./quick/260714-ek6-fix-invoke-admanmutation-module-scope-in/) |
 
 ## Deferred Items
 
