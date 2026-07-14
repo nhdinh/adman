@@ -1,43 +1,45 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-10T19:05:00.000Z",
+  "timestamp": "2026-07-14T04:27:03.686Z",
+  "context": "phase",
   "phase": "00",
   "phase_name": "foundation-safety-harness",
   "phase_dir": ".planning/phases/00-foundation-safety-harness",
-  "plan": null,
-  "task": "CONVERGED — stopped at plan→execute boundary awaiting user review",
-  "total_tasks": null,
-  "status": "converged-awaiting-user-review",
-  "workflow": "/gsd-plan-review-convergence 0 --codex",
-  "completed_tasks": [
-    {"id": 1, "name": "Cycle-1..4 review→replan loop", "status": "done", "detail": "8→4→2→2 findings across cycles 1-4; each codex-verified + source-grounded. Commits 262b8ee/e39f684/aa9ba0b/0e250c1/1634637."},
-    {"id": 2, "name": "Cycle-4 stall recovery (one-token fix)", "status": "done", "detail": "User chose 'apply the one-token fix, then confirming review'. Empirically grounded on WinPS 5.1.26100: under real -WhatIf, $WhatIfPreference=SwitchParameter(True), [bool]=$true, -eq 'Simulate'=$false. Edited 00-04-PLAN.md (11/11 lines): discriminator -> [bool]$WhatIfPreference at L47/160/171/208/L267/L273; Tests 5/7 drive a REAL -WhatIf; L171 grep asserts boolean-cast PRESENT + string ABSENT; L42 -> -cne. Committed 76e6467."},
-    {"id": 3, "name": "Cycle-5 confirming review (codex) — CONVERGED", "status": "done", "detail": "Trust gate PASSED (codex success, empty_output=false, 6,047-byte grounded review + in-sandbox probe). CYCLE_SUMMARY: current_high=0 current_actionable=0. C4-H1 resolved 3 independent ways (codex probe + local probe 5.1+PS7 + MS Learn). No new findings; structural checks 3a-3f re-verified HOLD; C4-L1 (-cne) resolved. Committed eed0086."},
-    {"id": 4, "name": "State marked planned", "status": "done", "detail": "gsd-tools state planned-phase --phase 0 --name foundation-safety-harness --plans 5 -> {phase:0, plan_count:5}. STATE.md frontmatter status=planned, stopped_at=plan→execute boundary."}
+  "activity": "UAT / verify-work (lab integration testing of the safety gate)",
+  "status": "paused",
+  "uat_state": {
+    "test_1": {"name": "Approve PSFramework/Pester/PSScriptAnalyzer install", "result": "pass"},
+    "test_2": {"name": "Run -Tag Integration tests vs disposable lab OU (SAFE-01/06/10)", "result": "issue — 3 defects found; #1 and #2 fixed+validated, #3 pending a design decision"},
+    "test_3": {"name": "DPAPI cross-machine/cross-user re-prompt (CONF-04)", "result": "pending — needs a second machine/user"}
+  },
+  "completed_this_session": [
+    {"item": "Diagnosed lab connectivity: host joined to pgs.ptsc.com.vn not lab.local; fixed via runas /netonly with lab creds", "type": "env"},
+    {"item": "Installed pinned PSFramework 1.14.457 in PS7 session", "type": "env"},
+    {"item": "Provisioned lab OU + fixtures (lab-nested-admin nested Domain Admins member, 2 users)", "type": "env"},
+    {"item": "Issue #1 fixed: integration tests called non-exported Invoke-AdmanMutation directly -> wrapped in module scope & (Get-Module adman){param($t)...}", "quick_task": "260714-ek6", "commits": ["feac682", "bc3c6d7"]},
+    {"item": "Issue #2 fixed: integration tests never initialized the module -> now Initialize-Adman against a $TestDrive lab config (AdmanProtectedGroup = live Domain Admins DN; new required env var ADMAN_TEST_DC)", "quick_task": "260714-fbx", "commits": ["259f4d9", "385db4e"]},
+    {"item": "VALIDATED LIVE: Safety.Protected.Integration.Tests.ps1 PASSES (nested-admin refused + Refused audit record = SAFE-06 proven). gMSA/RID-500 Inconclusive (acceptable)", "type": "validation"},
+    {"item": "Issue #3 found + documented: WhatIf test OU-target crash + design fork", "commit": "6b9da8f"}
   ],
-  "remaining_tasks": [
-    {"id": 5, "name": "USER STOP-AND-REVIEW (gate)", "status": "awaiting_user", "detail": "Per user memory (feedback_review_before_execute): do NOT auto-chain to /gsd-execute-phase 0. Present the converged plans + REVIEWS for explicit go/no-go."},
-    {"id": 6, "name": "Execute Phase 0 (ONLY on explicit user go-ahead)", "status": "not_started", "detail": "/gsd-execute-phase 0 — build the safety spine (5 plans). Requires explicit user approval at the boundary."}
+  "remaining_work": [
+    {"item": "DECIDE issue #3 fork: (a) WhatIf test targets child USER fixtures under the OU (recommended, matches gate resolve-as-is semantics) vs (b) gate expands OU targets into child objects (product change / scope creep)"},
+    {"item": "Apply the WhatIf test fix (option a) + optionally harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent"},
+    {"item": "Re-run both integration files on the lab to confirm green"},
+    {"item": "Flip UAT test 2 issue -> pass once green; run/skip test 3 (DPAPI); close out phase 00 UAT (status complete) and advance phase"}
   ],
-  "blockers": [],
-  "async_jobs": [],
+  "blockers": [
+    {"description": "Issue #3 requires a product decision (test fix vs gate OU-expansion) before coding", "type": "human_action", "workaround": "Recommended: option (a) test fix"},
+    {"description": "Test 3 (DPAPI cross-machine) needs a second machine/user", "type": "human_action", "workaround": "can be marked blocked/skipped"}
+  ],
   "human_actions_pending": [
-    "Review the 5 converged Phase-0 PLAN.md files + 00-REVIEWS.md and decide: execute (/gsd-execute-phase 0) or request changes."
+    {"action": "Decide issue #3 option (a) vs (b)", "context": "WhatIf test expects Succeeded == OU child count but gate resolves identity as-is without OU expansion", "blocking": true},
+    {"action": "Run lab validation after fix (lab only reachable from interactive runas /netonly PS7 session on D:\\adman)", "context": "agent cannot reach D: or the lab", "blocking": true}
   ],
   "decisions": [
-    {"decision": "Reviewer = codex", "rationale": "User explicitly chose --codex and re-authed; never swapped.", "phase": "00"},
-    {"decision": "One-token surgical fix over another replan cycle", "rationale": "Cycle-4 stall at 2→2 was a single verified discriminator token; empirical 5.1 probe grounded the correct token ([bool]$WhatIfPreference); editing directly avoided another thrashing replan. User approved this path.", "phase": "00"},
-    {"decision": "STOP at plan→execute boundary", "rationale": "Standing user rule: review plans before executing safety-sensitive phases; never silently chain into execute.", "phase": "00"}
+    {"decision": "Option A for issue #2 (Initialize-Adman end-to-end) over module-scope injection", "rationale": "true end-to-end, also exercises the init path; AdmanProtectedGroup must be a DN", "phase": "00"},
+    {"decision": "Recommended option (a) for issue #3", "rationale": "OU-expansion is not a stated phase-00 requirement; gate resolve-as-is is the design", "phase": "00"}
   ],
-  "uncommitted_files": [".planning/config.json (workflow.plan_review_convergence=true — intended local tooling flag)", ".gsd/ (untracked tooling state, pre-existing)"],
-  "environment": {
-    "node": "C:\\Program Files\\nodejs\\node.exe (v25.x) — NOT on default bash PATH",
-    "npm_global_prefix": "C:\\Users\\nhdinh\\AppData\\Roaming\\npm — holds codex/gsd-tools shims; NOT on default bash PATH",
-    "codex": "codex-cli 0.144.1; auth at ~/.codex/auth.json WORKING",
-    "gsd_tools_shim": "C:\\Users\\nhdinh\\.claude\\gsd-core\\bin\\gsd-tools.cjs",
-    "path_fix_for_every_bash_call": "export PATH=\"/c/Program Files/nodejs:$HOME/AppData/Roaming/npm:$PATH\"",
-    "temp_dir": "$HOME/AppData/Local/Temp (/tmp is NOT writable on this host)"
-  },
-  "next_action": "STOP. Present convergence to the user and await explicit go-ahead. On approval: /gsd-execute-phase 0. On changes-requested: capture feedback and (if needed) run another --reviews replan cycle.",
-  "context_notes": "Convergence reached cleanly across 5 codex-verified cycles (8→4→2→2→0). The loop caught two distinct plausible-but-wrong error classes that static checks missed: an AD parameter-set mix (Identity+-SearchBase) and a ShouldProcess/-WhatIf discriminator token; both resolved and source-grounded. Greenfield repo (0 *.ps1) so all plan symbols are forward refs (UNCHECKABLE/new, not MISSING). Two LOW doc-hygiene residuals (stale snippets in 00-RESEARCH.md / 00-PATTERNS.md) live in reference artifacts, not plans, and were correctly excluded from the count. Commits this session: 262b8ee c2-review, e39f684 c2-replan, aa9ba0b c3-review, 0e250c1 c3-replan, 1634637 c4-review, 76e6467 one-token fix, eed0086 c5-confirming-review (CONVERGED)."
+  "uncommitted_files": [],
+  "next_action": "Run /gsd-verify-work 0 (resumes UAT). Confirm issue #3 option (a), apply WhatIf test fix via /gsd-quick, re-run lab, then close phase 00 UAT.",
+  "context_notes": "Lab integration testing of the phase-00 safety gate. Three latent defects surfaced only on first real lab run (tests were blocked every prior run). Two fixed and the Protected test (SAFE-06) is proven live. Context was exhausted at 76% before issue #3 could be fixed. All state is in 00-UAT.md Gaps section and the two quick-task dirs."
 }
