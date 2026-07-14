@@ -74,3 +74,19 @@ blocked: 0
   missing:
     - "Initialize the module in each integration test before invoking the gate. Two options: (A) call Initialize-Adman against a lab .store/config.json (DC=lab-dc01.lab.local, ManagedOUs=[lab OU], AdmanProtectedGroup=Domain Admins, writable AuditDir/ReportDir) — true end-to-end, also covers the init path; (B) inject $script:Config + $script:DenyRids + $script:ProtectedGroupDns + $script:DomainSid via module scope like the unit tests' Set-AdmanSafetyState — no config file but does not exercise Initialize-Adman."
   debug_session: ""
+  resolution: "FIXED in quick task 260714-fbx (commits 259f4d9 + 385db4e). Tests now Initialize-Adman against a $TestDrive lab config; AdmanProtectedGroup resolved to the live Domain Admins DN (non-vacuous). PARTIAL PASS on re-run: Safety.Protected.Integration.Tests.ps1 PASSES (nested-admin refused + Refused audit record = SAFE-06 proven live; gMSA/RID-500 Inconclusive, acceptable). Safety.WhatIf.Integration.Tests.ps1 still fails — see gap #3."
+
+- truth: "A gated -WhatIf against the lab OU leaves AD unchanged; audit target list == resolved list; operator-shown count == resolved count (SAFE-01/10)"
+  status: failed
+  reason: "User reported (after issues #1/#2 fixed): PropertyNotFoundException 'The property Value cannot be found on this object' at Test-AdmanTargetAllowed.ps1:52. Protected test passes; only the WhatIf file fails."
+  severity: major
+  test: 2
+  root_cause: "TWO layered problems. (1) CRASH: the WhatIf test targets the OU DN directly (@($TestOu)); Resolve-AdmanTarget binds -Identity and resolves the OU OBJECT itself, and an OU has no objectSid, so step (b) line 52 `[SecurityIdentifier]$Object.objectSid).Value` throws under StrictMode (null .Value). (2) SEMANTIC MISMATCH: the gate resolves the given identity as-is and does NOT enumerate OU children, yet the test asserts `$result.Succeeded -eq @($before).Count` where $before is the OU's child objects — expecting OU expansion the gate does not do. The Protected test passes precisely because it targets user DNs (which have objectSid), not the OU."
+  artifacts:
+    - path: "tests/Safety.WhatIf.Integration.Tests.ps1"
+      issue: "targets the OU DN (@($script:TestOu)) and expects Succeeded == child-object count, but the gate resolves the OU object (no objectSid, no child enumeration)"
+    - path: "Private/Safety/Test-AdmanTargetAllowed.ps1"
+      issue: "line 52 assumes every resolved object has objectSid; non-security-principals (OU/container) have none -> null .Value throws under StrictMode"
+  missing:
+    - "DESIGN DECISION NEEDED: either (a) the WhatIf test should target the child USER fixtures under the OU (matching gate semantics: resolve identity as-is), or (b) the gate should expand OU targets into child objects. Option (a) is the minimal correct fix; (b) is a product-scope change. Separately, harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent (robustness for non-principal targets)."
+  debug_session: ""
