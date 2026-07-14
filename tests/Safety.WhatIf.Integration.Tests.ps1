@@ -29,14 +29,62 @@ BeforeAll {
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
     $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
     $script:TestOu = $env:ADMAN_TEST_OU
-    $script:LabConfigured = -not [string]::IsNullOrWhiteSpace($script:TestOu)
+    $script:TestDc = $env:ADMAN_TEST_DC
+    $script:LabConfigured = -not [string]::IsNullOrWhiteSpace($script:TestOu) -and
+        -not [string]::IsNullOrWhiteSpace($script:TestDc)
+
+    # Initialize the adman module against a LAB config written under $TestDrive so the mutation
+    # gate has the config + derived safety state ($script:Config / ProtectedGroupDns / DenyRids)
+    # it needs. Runs ONLY in the lab-configured path (never when the env vars are unset).
+    function Initialize-AdmanLab {
+        [CmdletBinding()]
+        param()
+
+        # 1. Per-test store dir under $TestDrive (+ audit/reports subdirs).
+        $testStore = Join-Path $TestDrive 'adman-store'
+        New-Item -ItemType Directory -Path $testStore -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testStore 'audit') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $testStore 'reports') -Force | Out-Null
+
+        # 2. Live lab Domain Admins DN -> makes the protected-group set non-empty (non-vacuous).
+        $daDn = (Get-ADGroup -Identity 'Domain Admins' -Server $script:TestDc -ErrorAction Stop).DistinguishedName
+
+        # 3. Lab config satisfying config/adman.schema.json exactly (DenyList omitted -> seeded
+        #    from config/adman.defaults.json by Initialize-AdmanConfig).
+        $labConfig = [pscustomobject]@{
+            ManagedOUs          = @($script:TestOu)
+            DC                  = $script:TestDc
+            AdmanProtectedGroup = $daDn
+            AuditDir            = (Join-Path $testStore 'audit')
+            ReportDir           = (Join-Path $testStore 'reports')
+            safety              = [pscustomobject]@{ bulkConfirmThreshold = 5 }
+            bulk                = [pscustomobject]@{ maxCount = 50 }
+            transport           = [pscustomobject]@{
+                order    = @('WinRM', 'CimWsman', 'CimDcom', 'Skip')
+                timeouts = [pscustomobject]@{ WinRM = 15; CIM = 20 }
+            }
+            credentialPolicy    = [pscustomobject]@{ allowRememberMe = $false }
+            delegatedAdminGroup = ''
+        }
+
+        # 4. Serialize + write the lab config.json under $TestDrive.
+        $labConfig | ConvertTo-Json -Depth 5 |
+            Set-Content -LiteralPath (Join-Path $testStore 'config.json') -Encoding UTF8
+
+        # 5. Inject $script:StorePath BEFORE Initialize-Adman so Initialize-AdmanConfig reads the
+        #    lab config.json (it only defaults to '.store' when StorePath is unset).
+        & (Get-Module adman) { param($p) $script:StorePath = $p } -p $testStore
+
+        # 6. Initialize the module (rights-first pass-through under runas /netonly; no prompt).
+        & (Get-Module adman) { Initialize-Adman }
+    }
 }
 
 Describe 'SAFE-01/10: end-to-end -WhatIf preview == execute against a disposable lab OU' -Tag 'Integration' {
 
     It 'is skipped unless ADMAN_TEST_OU points at a disposable lab OU' -Tag 'Integration' {
         if (-not $script:LabConfigured) {
-            Set-ItResult -Skipped -Because 'ADMAN_TEST_OU is not set; lab-only integration test (never auto-run destructive).'
+            Set-ItResult -Skipped -Because 'ADMAN_TEST_OU and ADMAN_TEST_DC are not set; lab-only integration test (never auto-run destructive).'
             return
         }
         $script:LabConfigured | Should -BeTrue
@@ -44,11 +92,16 @@ Describe 'SAFE-01/10: end-to-end -WhatIf preview == execute against a disposable
 
     It 'a gated -WhatIf leaves AD unchanged, audit target == resolved, shown count == resolved.Count' -Tag 'Integration' {
         if (-not $script:LabConfigured) {
-            Set-ItResult -Skipped -Because 'ADMAN_TEST_OU is not set; lab-only integration test.'
+            Set-ItResult -Skipped -Because 'ADMAN_TEST_OU and ADMAN_TEST_DC are not set; lab-only integration test.'
             return
         }
 
         Import-Module $script:ManifestPath -Force -ErrorAction Stop
+
+        # Initialize the module against a $TestDrive lab config so the gate has config + derived
+        # safety state (ProtectedGroupDns / DenyRids). Non-vacuous: AdmanProtectedGroup is the
+        # live lab Domain Admins DN.
+        Initialize-AdmanLab
 
         # Snapshot the lab OU state before the dry-run.
         $before = @(Get-ADObject -SearchBase $script:TestOu -SearchScope OneLevel -Filter * |
