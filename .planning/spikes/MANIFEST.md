@@ -23,4 +23,4 @@ Design decisions captured as they emerge from user choices during spiking. Non-n
 | 002 | local-admin-inventory | standard | Enumerate local admins (incl. renamed RID-500) with enabled/lastlogon/password-age via the working transport | **BLOCKED** (fixture) | remoting, localaccounts |
 | 003 | local-admin-mutation-via-gate | standard | Disable/reset/create local admin via `Invoke-Command` + `LocalAccounts` through the existing gate, without double-hop | **BLOCKED** (fixture) | remoting, localaccounts, safety |
 | 004 | secure-password-generation | standard | CSPRNG-backed passwords (len 20, 4 classes, no ambiguous), 1000/1000 unique, works on PS 5.1 + 7 | **VALIDATED** | crypto, passwords |
-| 005 | dpapi-vault-roundtrip | standard | Rotation-record store in `.store/`, same-user retrieve, cross-user fail, 500-record query < 100ms, history preserved | PENDING | dpapi, secrets, storage |
+| 005 | dpapi-vault-roundtrip | standard | Rotation-record store in `.store/`, same-user retrieve, cross-user fail, 500-record query <5ms indexed, history preserved | **VALIDATED** | dpapi, secrets, storage |

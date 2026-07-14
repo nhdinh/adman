@@ -1,0 +1,26 @@
+﻿{
+    "Edition":  "Desktop",
+    "PSVersion":  "5.1.26100.8737",
+    "RecordCount":  500,
+    "VaultPath":  "C:\\Users\\nhdinh\\dev\\adman\\.planning\\spikes\\005-dpapi-vault-roundtrip\\vault-test.clixml",
+    "VaultFileSize":  549761,
+    "BuildMs":  140,
+    "SaveMs":  113.7,
+    "LoadMs":  125.3,
+    "IndexBuildMs":  8.24,
+    "SingleScanMs":  14.45,
+    "SingleIndexedMs":  2.588,
+    "BatchScanMs":  466,
+    "BatchIndexedMs":  3.3,
+    "QueryPairsResolved":  "150 / 150",
+    "Tests":  {
+                  "RoundTrip":  true,
+                  "SecureStringRT":  true,
+                  "NoPlaintext":  true,
+                  "QueryPerf":  true,
+                  "HistoryPreserved":  true,
+                  "NewestWins":  true,
+                  "EncryptionActive":  true
+              },
+    "Verdict":  "PASS"
+}
