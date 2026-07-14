@@ -61,8 +61,10 @@ Describe 'SAFE-06: protected-account refusal against lab fixtures (nested admin,
             return
         }
 
-        $result = Invoke-AdmanMutation -Verb 'Disable-ADAccount' `
-            -Targets @($fixture.DistinguishedName) -Confirm:$false -Force
+        $result = & (Get-Module adman) {
+            param($t)
+            Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets $t -Confirm:$false -Force
+        } @($fixture.DistinguishedName)
 
         # The gate refuses the protected target (Denied >= 1) and never mutates it.
         $result.Denied | Should -BeGreaterOrEqual 1 `
@@ -92,8 +94,10 @@ Describe 'SAFE-06: protected-account refusal against lab fixtures (nested admin,
         $gmsa = Get-ADServiceAccount -SearchBase $script:TestOu -SearchScope Subtree `
             -Filter * -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($gmsa) {
-            $r = Invoke-AdmanMutation -Verb 'Disable-ADAccount' `
-                -Targets @($gmsa.DistinguishedName) -Confirm:$false -Force
+            $r = & (Get-Module adman) {
+                param($t)
+                Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets $t -Confirm:$false -Force
+            } @($gmsa.DistinguishedName)
             $r.Denied | Should -BeGreaterOrEqual 1 `
                 -Because 'a gMSA is refused by the objectClass pre-filter (SAFE-06)'
         } else {
@@ -105,8 +109,10 @@ Describe 'SAFE-06: protected-account refusal against lab fixtures (nested admin,
             -Properties objectSid -ErrorAction SilentlyContinue |
             Where-Object { $_.objectSid.Value -match '-500$' } | Select-Object -First 1
         if ($rid500) {
-            $r2 = Invoke-AdmanMutation -Verb 'Disable-ADAccount' `
-                -Targets @($rid500.DistinguishedName) -Confirm:$false -Force
+            $r2 = & (Get-Module adman) {
+                param($t)
+                Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets $t -Confirm:$false -Force
+            } @($rid500.DistinguishedName)
             $r2.Denied | Should -BeGreaterOrEqual 1 `
                 -Because 'RID-500 is deny-listed by objectSid RID even when renamed (SAFE-05/06)'
         } else {

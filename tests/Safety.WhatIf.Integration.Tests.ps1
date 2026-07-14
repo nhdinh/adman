@@ -55,8 +55,10 @@ Describe 'SAFE-01/10: end-to-end -WhatIf preview == execute against a disposable
             Select-Object -ExpandProperty DistinguishedName)
 
         # Run a gated -WhatIf mutation against the lab OU (preview only; no real change).
-        $result = Invoke-AdmanMutation -Verb 'Disable-ADAccount' `
-            -Targets @($script:TestOu) -WhatIf -Confirm:$false
+        $result = & (Get-Module adman) {
+            param($t)
+            Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets $t -WhatIf -Confirm:$false
+        } @($script:TestOu)
 
         # (a) AD is UNCHANGED after the dry-run.
         $after = @(Get-ADObject -SearchBase $script:TestOu -SearchScope OneLevel -Filter * |
