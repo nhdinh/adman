@@ -49,9 +49,18 @@ function Test-AdmanTargetAllowed {
     }
 
     # (b) flat deny-list by RID - the hard floor (D-05); match objectSid, never by account name.
-    $rid = ([System.Security.Principal.SecurityIdentifier]$Object.objectSid).Value.Split('-')[-1]
-    if ($rid -in $script:DenyRids) {
-        $reasons.Add("deny-listed RID $rid")
+    #     Guard: non-security-principals (OU/container/other) have NO objectSid, so the RID check
+    #     is SKIPPED for them (robustness - a null/absent objectSid must not throw under
+    #     StrictMode). Such a target is NOT silently allowed: it is still subject to step (c)
+    #     managed-OU scope and step (d) protected-membership. Any object WITH an objectSid (users,
+    #     groups, computers, gMSA) runs the exact prior RID-deny check - a renamed RID-500 is still
+    #     refused. The guard never allows a principal that would otherwise be denied.
+    $sid = if ($Object.PSObject.Properties['objectSid']) { $Object.objectSid } else { $null }
+    if ($null -ne $sid) {
+        $rid = ([System.Security.Principal.SecurityIdentifier]$sid).Value.Split('-')[-1]
+        if ($rid -in $script:DenyRids) {
+            $reasons.Add("deny-listed RID $rid")
+        }
     }
 
     # (c) managed-OU scope (Pitfall 5) - component-boundary anchored; NEVER a -like substring.
