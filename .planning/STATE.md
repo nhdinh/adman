@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 Phase: 00 (foundation-safety-harness) — EXECUTING
 Plan: 5 of 5
 Status: Phase complete — ready for verification
-Last activity: 2026-07-14 - Completed quick task 260714-ek6: Fix Invoke-AdmanMutation module-scope invocation in the two lab integration test files
+Last activity: 2026-07-14 - Completed quick task 260714-fbx: Initialize module in integration tests via Initialize-Adman against a lab config
 
 Progress: [██████░░░░] 60%
 
@@ -108,6 +108,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260714-ek6 | Fix Invoke-AdmanMutation module-scope invocation in the two lab integration test files | 2026-07-14 | feac682 | [260714-ek6-fix-invoke-admanmutation-module-scope-in](./quick/260714-ek6-fix-invoke-admanmutation-module-scope-in/) |
+| 260714-fbx | Initialize module in integration tests via Initialize-Adman against a lab config | 2026-07-14 | 259f4d9 | [260714-fbx-initialize-module-in-integration-tests-v](./quick/260714-fbx-initialize-module-in-integration-tests-v/) |
 
 ## Deferred Items
 
