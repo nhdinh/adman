@@ -3,7 +3,7 @@ status: complete
 phase: 00-foundation-safety-harness
 source: [00-VERIFICATION.md]
 started: 2026-07-13T00:00:00.000Z
-updated: 2026-07-14T13:00:00.000Z
+updated: 2026-07-14T16:10:00.000Z
 ---
 
 ## Current Test
@@ -20,9 +20,8 @@ result: pass
 ### 2. Optionally run the -Tag Integration tests against a disposable lab OU (set ADMAN_TEST_OU) to confirm SAFE-01/06/10 end-to-end -WhatIf and protected-account refusal
 expected: AD is unchanged after a gated -WhatIf; the audit target list equals the resolved list; nested-DA / gMSA / renamed-RID-500 fixtures are Refused with precise reasons.
 why_human: Lab-only by design (T-00-18); requires a real disposable domain/OU. Excluded from the default Unit run and cannot be auto-proven on a host with no live AD (VALIDATION manual-only).
-result: issue
-reported: "Lab DC reachable via runas /netonly (host is joined to pgs.ptsc.com.vn, not lab.local; needed lab creds). After installing pinned PSFramework 1.14.457 and provisioning the lab OU + fixtures, both integration files fail with CommandNotFoundException: Invoke-AdmanMutation not recognized (WhatIf line 58; Protected lines 64/95/107). Root cause: the gate is deliberately NOT exported (adman.psd1 FunctionsToExport excludes it per SAFE-08), but the Integration tests call it directly instead of via & (Get-Module adman){ Invoke-AdmanMutation ... } — the pattern the passing Unit tests use (Safety.GateOrder.Tests.ps1). Latent defect in the TEST files, surfaced only on the first real lab run (test was blocked on all prior runs). gMSA/RID-500 case correctly returns Inconclusive (fixtures not provisioned)."
-severity: major
+result: pass
+verified: "Operator lab re-run 2026-07-14 (runas /netonly PS 5.1 + Pester 6.0.0 on D:\adman, OU=adman-test,DC=lab,DC=local, DC=lab-dc01.lab.local). WhatIf: Passed 2/0 (gated -WhatIf: AD unchanged, Succeeded==2, Denied==0, audit target DN set == resolved set — SAFE-01/10 live). Protected: Passed 2/0, Inconclusive 1 (nested-admin refused + Refused audit = SAFE-06 live; gMSA/RID-500 Inconclusive, fixtures absent, acceptable). No regression from 00-06 step-(b) hardening. Gap #3 closed end-to-end."
 
 ### 3. Confirm DPAPI cross-machine/cross-user re-prompt (CONF-04)
 expected: A stored credential restored on a different machine/user throws CryptographicException 0x8009000B (or yields an empty password); the bad file is deleted and Get-Credential is invoked as fallback.
@@ -32,8 +31,8 @@ result: pass
 ## Summary
 
 total: 3
-passed: 2
-issues: 1
+passed: 3
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -86,4 +85,4 @@ blocked: 0
   missing:
     - "DESIGN DECISION NEEDED: either (a) the WhatIf test should target the child USER fixtures under the OU (matching gate semantics: resolve identity as-is), or (b) the gate should expand OU targets into child objects. Option (a) is the minimal correct fix; (b) is a product-scope change. Separately, harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent (robustness for non-principal targets)."
   debug_session: ""
-  resolution: "DESIGN DECISION (user, 2026-07-14): option (a) — WhatIf test targets the child user fixtures under the OU; gate keeps resolve-identity-as-is semantics (no OU expansion). Also harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent."
+  resolution: "DESIGN DECISION (user, 2026-07-14): option (a) — WhatIf test targets the child user fixtures under the OU; gate keeps resolve-identity-as-is semantics (no OU expansion). Also harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent. IMPLEMENTED in plan 00-06 (commits ad3cb9f + 6624974). CONFIRMED GREEN by operator lab re-run 2026-07-14: WhatIf Passed 2/0 (SAFE-01/10 live), Protected Passed 2/0 + 1 Inconclusive (SAFE-06 live). FIXED end-to-end."
