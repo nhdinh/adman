@@ -1,11 +1,12 @@
 ---
 phase: 01
 slug: ad-query-reporting-read-only
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 tool: powershell-console-tui
 created: 2026-07-14
+reviewed_at: 2026-07-14T00:00:00Z
 ---
 
 # Phase 01 — UI Design Contract: AD Query & Reporting (read-only)
@@ -110,7 +111,7 @@ All text is plain English, professional, no emoji, no marketing language. Verbs 
 |---------|------|
 | Primary CTA (top-level prompt) | `Select: ` |
 | Primary CTA (output format prompt) | `Output: ` |
-| Empty state heading | `No results` |
+| Empty state heading | `No matching AD objects` |
 | Empty state body | `No objects matched the search criteria. Try a different term or verify the managed OU scope.` |
 | Error state | `[Error] {problem}. {actionable next step}.` |
 | Destructive confirmation | Not applicable — Phase 1 is read-only. Destructive actions begin in Phase 2. |
