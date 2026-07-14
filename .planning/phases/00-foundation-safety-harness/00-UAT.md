@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 00-foundation-safety-harness
 source: [00-VERIFICATION.md]
 started: 2026-07-13T00:00:00.000Z
-updated: 2026-07-14T00:00:00.000Z
+updated: 2026-07-14T13:00:00.000Z
 ---
 
 ## Current Test
 
-number: 2
-name: Optionally run the -Tag Integration tests against a disposable lab OU (set ADMAN_TEST_OU) to confirm SAFE-01/06/10 end-to-end -WhatIf and protected-account refusal
-expected: |
-  AD is unchanged after a gated -WhatIf; the audit target list equals the resolved list; nested-DA / gMSA / renamed-RID-500 fixtures are Refused with precise reasons.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -31,14 +27,14 @@ severity: major
 ### 3. Confirm DPAPI cross-machine/cross-user re-prompt (CONF-04)
 expected: A stored credential restored on a different machine/user throws CryptographicException 0x8009000B (or yields an empty password); the bad file is deleted and Get-Credential is invoked as fallback.
 why_human: DPAPI is key-bound to user/machine; the cross-machine restore failure cannot be exercised on a single host and needs a second machine/user.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 1
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
@@ -90,3 +86,4 @@ blocked: 0
   missing:
     - "DESIGN DECISION NEEDED: either (a) the WhatIf test should target the child USER fixtures under the OU (matching gate semantics: resolve identity as-is), or (b) the gate should expand OU targets into child objects. Option (a) is the minimal correct fix; (b) is a product-scope change. Separately, harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent (robustness for non-principal targets)."
   debug_session: ""
+  resolution: "DESIGN DECISION (user, 2026-07-14): option (a) — WhatIf test targets the child user fixtures under the OU; gate keeps resolve-identity-as-is semantics (no OU expansion). Also harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent."
