@@ -103,26 +103,73 @@ Describe 'SAFE-01/10: end-to-end -WhatIf preview == execute against a disposable
         # live lab Domain Admins DN.
         Initialize-AdmanLab
 
-        # Snapshot the lab OU state before the dry-run.
-        $before = @(Get-ADObject -SearchBase $script:TestOu -SearchScope OneLevel -Filter * |
-            Select-Object -ExpandProperty DistinguishedName)
+        # Provision dedicated NON-PROTECTED user fixtures idempotently (resolve-identity-as-is:
+        # the gate resolves each given identity as-is and does NOT enumerate OU children, so we
+        # target child USER fixtures, NOT the OU DN). These are deliberately non-protected: not
+        # Domain Admins (or any protected group), not gMSA, not RID 500/501/502 -> the gate
+        # ALLOWS them and they land in Succeeded. Do NOT reuse lab-nested-admin / gMSA / RID-500
+        # fixtures (those are protected and would produce Denied, failing the Succeeded assertion
+        # for the wrong reason).
+        $fixtureNames = @('lab-whatif-1', 'lab-whatif-2')
+        foreach ($name in $fixtureNames) {
+            $u = Get-ADUser -SearchBase $script:TestOu -SearchScope Subtree `
+                -LDAPFilter "(sAMAccountName=$name)" -Server $script:TestDc -ErrorAction SilentlyContinue
+            if (-not $u) {
+                try {
+                    New-ADUser -Name $name -SamAccountName $name -Path $script:TestOu `
+                        -Server $script:TestDc -Enabled $true `
+                        -AccountPassword (ConvertTo-SecureString 'Lab!Passw0rd1' -AsPlainText -Force) `
+                        -ErrorAction Stop | Out-Null
+                } catch {
+                    Set-ItResult -Inconclusive `
+                        -Because "could not provision fixture '$name' under ADMAN_TEST_OU (insufficient lab rights?): $($_.Exception.Message)"
+                    return
+                }
+            }
+        }
 
-        # Run a gated -WhatIf mutation against the lab OU (preview only; no real change).
+        # Resolve the fixture DNs into $targets (the two lab-whatif-* DistinguishedNames).
+        $targets = @()
+        foreach ($name in $fixtureNames) {
+            $dn = (Get-ADUser -SearchBase $script:TestOu -SearchScope Subtree `
+                -LDAPFilter "(sAMAccountName=$name)" -Server $script:TestDc -ErrorAction SilentlyContinue).DistinguishedName
+            if ($dn) { $targets += $dn }
+        }
+        if ($targets.Count -lt $fixtureNames.Count) {
+            Set-ItResult -Inconclusive `
+                -Because 'lab-whatif-* fixtures could not be provisioned under ADMAN_TEST_OU.'
+            return
+        }
+
+        # Snapshot AD state for the TARGETED USERS before the dry-run (not the whole OU): capture
+        # each fixture's Enabled state into a map keyed by DN.
+        $before = @{}
+        foreach ($dn in $targets) {
+            $before[$dn] = (Get-ADUser -Identity $dn -Server $script:TestDc -Properties Enabled).Enabled
+        }
+
+        # Run a gated -WhatIf mutation against the USER fixtures (preview only; no real change).
         $result = & (Get-Module adman) {
             param($t)
             Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets $t -WhatIf -Confirm:$false
-        } @($script:TestOu)
+        } $targets
 
-        # (a) AD is UNCHANGED after the dry-run.
-        $after = @(Get-ADObject -SearchBase $script:TestOu -SearchScope OneLevel -Filter * |
-            Select-Object -ExpandProperty DistinguishedName)
-        @($after | Sort-Object) | Should -Be @($before | Sort-Object) `
-            -Because 'a -WhatIf dry-run must not mutate AD (SAFE-01)'
+        # (a) AD is UNCHANGED after the dry-run: every targeted user is STILL Enabled (a -WhatIf
+        #     dry-run must not disable them, SAFE-01). Do NOT assert on OU child-object count.
+        foreach ($dn in $targets) {
+            $enabledAfter = (Get-ADUser -Identity $dn -Server $script:TestDc -Properties Enabled).Enabled
+            $enabledAfter | Should -Be $before[$dn] `
+                -Because "a -WhatIf dry-run must not mutate AD (SAFE-01): $dn Enabled unchanged"
+            $enabledAfter | Should -BeTrue `
+                -Because "a -WhatIf dry-run must not disable the target (SAFE-01): $dn still Enabled"
+        }
 
         # (c) operator-shown count equals the resolved count.
         $result.WhatIf | Should -BeTrue -Because 'the result reflects a dry-run'
-        $result.Succeeded | Should -Be @($before).Count `
-            -Because 'the operator-shown count equals the resolved target count (SAFE-10)'
+        $result.Succeeded | Should -Be $targets.Count `
+            -Because 'each non-protected user fixture resolves as-is and is allowed (SAFE-10)'
+        $result.Denied | Should -Be 0 `
+            -Because 'no fixture is protected/deny-listed, so none is refused'
 
         # (b) the audit record's target list equals the resolved list.
         $auditDir = & (Get-Module adman) { $script:Config.AuditDir }
@@ -135,5 +182,11 @@ Describe 'SAFE-01/10: end-to-end -WhatIf preview == execute against a disposable
         foreach ($rec in $cidRecords) {
             $rec.whatIf | Should -BeTrue -Because 'every audit record for a dry-run carries whatIf=$true'
         }
+        # The union of the audit records' target DNs equals the resolved set ($targets). The
+        # audit 'targets' field is an array of {dn,sid,objectClass} objects -> extract .dn.
+        $auditTargets = @($cidRecords | ForEach-Object { @($_.targets) | ForEach-Object { $_.dn } } |
+            Where-Object { $_ } | Select-Object -Unique)
+        @($auditTargets | Sort-Object) | Should -Be @($targets | Sort-Object) `
+            -Because 'the audit target list equals the resolved target set (SAFE-10)'
     }
 }
