@@ -92,7 +92,7 @@ Each task was committed atomically:
 2. **Task 2: Harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent** - `6624974` (fix)
 3. **Task 3: Verify — full Unit suite green + lint clean (automated steps 1-3)** - no code commit (verification only; lab steps 4-5 pending operator)
 
-**Plan metadata:** _pending_ (docs: complete plan — final commit)
+**Plan metadata:** `43c4478` (docs: complete plan)
 
 ## Files Created/Modified
 - `tests/Safety.WhatIf.Integration.Tests.ps1` - Gated -WhatIf It block retargeted at two provisioned non-protected `lab-whatif-*` user fixtures; assertions match gate semantics (AD-unchanged via fixture Enabled state; Succeeded == fixture count; Denied == 0; audit targets == resolved set). Initialize-AdmanLab init + module-scope invocation + Integration gate unchanged.
