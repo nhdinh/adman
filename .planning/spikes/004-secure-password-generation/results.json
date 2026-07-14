@@ -1,0 +1,174 @@
+﻿{
+    "Edition":  "Desktop",
+    "PSVersion":  "5.1.26100.8737",
+    "DotNet":  ".NET Framework 4.8.9337.0",
+    "Count":  1000,
+    "Length":  20,
+    "AlphabetSize":  80,
+    "PolicyFailures":  0,
+    "DuplicateCount":  0,
+    "AmbiguousCharHits":  0,
+    "PerClassPresence":  {
+                             "Upper":  1000,
+                             "Lower":  1000,
+                             "Digit":  1000,
+                             "Symbol":  1000
+                         },
+    "DurationMs":  544.1308,
+    "PasswordsPerSecond":  1838,
+    "SamplePasswords":  [
+                            "RmatwrAH9:\u0026MB\u0026w[N-nV",
+                            "m|+TDEuD7cTTME#eH=:9",
+                            "F[X8M3n?J{\u003eM]s_AzG@-",
+                            "qb#E{BdsEq|64]rvL}!-",
+                            "Qi*r*w^;[}7Pm:z4aL5y",
+                            "Jf7LMu3H{NG]*^Hq\u003e9iq",
+                            "tU}eR:9vT5b}!LxT;a\u003cG",
+                            "6H#8yVisg@a_j;\u003c7zz\u003c|",
+                            "?7ewrH_Mcyk5Z.;,8.\u003c.",
+                            "Km{ax_R=}Gt9:Lbc-9U="
+                        ],
+    "PositionClassDist":  {
+                              "16":  {
+                                         "Unknown":  0,
+                                         "Symbol":  297,
+                                         "Lower":  285,
+                                         "Digit":  140,
+                                         "Upper":  278
+                                     },
+                              "3":  {
+                                        "Unknown":  0,
+                                        "Symbol":  303,
+                                        "Lower":  283,
+                                        "Digit":  121,
+                                        "Upper":  293
+                                    },
+                              "5":  {
+                                        "Unknown":  0,
+                                        "Symbol":  294,
+                                        "Lower":  296,
+                                        "Digit":  118,
+                                        "Upper":  292
+                                    },
+                              "18":  {
+                                         "Unknown":  0,
+                                         "Symbol":  278,
+                                         "Lower":  295,
+                                         "Digit":  136,
+                                         "Upper":  291
+                                     },
+                              "12":  {
+                                         "Unknown":  0,
+                                         "Symbol":  292,
+                                         "Lower":  281,
+                                         "Digit":  120,
+                                         "Upper":  307
+                                     },
+                              "10":  {
+                                         "Unknown":  0,
+                                         "Symbol":  307,
+                                         "Lower":  274,
+                                         "Digit":  140,
+                                         "Upper":  279
+                                     },
+                              "2":  {
+                                        "Unknown":  0,
+                                        "Symbol":  303,
+                                        "Lower":  283,
+                                        "Digit":  131,
+                                        "Upper":  283
+                                    },
+                              "8":  {
+                                        "Unknown":  0,
+                                        "Symbol":  310,
+                                        "Lower":  270,
+                                        "Digit":  131,
+                                        "Upper":  289
+                                    },
+                              "0":  {
+                                        "Unknown":  0,
+                                        "Symbol":  276,
+                                        "Lower":  306,
+                                        "Digit":  113,
+                                        "Upper":  305
+                                    },
+                              "11":  {
+                                         "Unknown":  0,
+                                         "Symbol":  297,
+                                         "Lower":  278,
+                                         "Digit":  152,
+                                         "Upper":  273
+                                     },
+                              "1":  {
+                                        "Unknown":  0,
+                                        "Symbol":  280,
+                                        "Lower":  287,
+                                        "Digit":  144,
+                                        "Upper":  289
+                                    },
+                              "17":  {
+                                         "Unknown":  0,
+                                         "Symbol":  293,
+                                         "Lower":  255,
+                                         "Digit":  131,
+                                         "Upper":  321
+                                     },
+                              "9":  {
+                                        "Unknown":  0,
+                                        "Symbol":  290,
+                                        "Lower":  303,
+                                        "Digit":  135,
+                                        "Upper":  272
+                                    },
+                              "14":  {
+                                         "Unknown":  0,
+                                         "Symbol":  275,
+                                         "Lower":  295,
+                                         "Digit":  130,
+                                         "Upper":  300
+                                     },
+                              "7":  {
+                                        "Unknown":  0,
+                                        "Symbol":  295,
+                                        "Lower":  300,
+                                        "Digit":  118,
+                                        "Upper":  287
+                                    },
+                              "15":  {
+                                         "Unknown":  0,
+                                         "Symbol":  296,
+                                         "Lower":  307,
+                                         "Digit":  135,
+                                         "Upper":  262
+                                     },
+                              "6":  {
+                                        "Unknown":  0,
+                                        "Symbol":  299,
+                                        "Lower":  290,
+                                        "Digit":  129,
+                                        "Upper":  282
+                                    },
+                              "4":  {
+                                        "Unknown":  0,
+                                        "Symbol":  278,
+                                        "Lower":  302,
+                                        "Digit":  129,
+                                        "Upper":  291
+                                    },
+                              "19":  {
+                                         "Unknown":  0,
+                                         "Symbol":  282,
+                                         "Lower":  288,
+                                         "Digit":  134,
+                                         "Upper":  296
+                                     },
+                              "13":  {
+                                         "Unknown":  0,
+                                         "Symbol":  308,
+                                         "Lower":  271,
+                                         "Digit":  124,
+                                         "Upper":  297
+                                     }
+                          },
+    "Verdict":  "PASS"
+}
