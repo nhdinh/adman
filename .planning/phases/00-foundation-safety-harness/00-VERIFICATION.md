@@ -1,7 +1,7 @@
 ---
 phase: 00-foundation-safety-harness
 verified: 2026-07-14T00:00:00Z
-status: human_needed
+status: passed
 score: 17/17 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -10,6 +10,7 @@ re_verification:
   previous_score: 17/17
   trigger: "Gap-closure plan 00-06 (UAT gap #3): retarget tests/Safety.WhatIf.Integration.Tests.ps1 at non-protected child user fixtures + harden Private/Safety/Test-AdmanTargetAllowed.ps1 step (b) to skip RID-deny when objectSid is absent"
   gaps_closed:
+
     - "UAT gap #3 code-side closure: WhatIf integration test no longer crashes on the OU-DN target and now matches the gate's resolve-identity-as-is semantics (targets lab-whatif-* user fixtures, asserts Succeeded == fixture count / Denied == 0 / audit targets == resolved)"
     - "Test-AdmanTargetAllowed step (b) no longer throws under StrictMode on a non-security-principal target (OU/container); RID-deny skipped only when objectSid is absent, principal RID denial unweakened"
   gaps_remaining: []
@@ -20,12 +21,15 @@ re_verification:
     lint_edited_file: "Invoke-ScriptAnalyzer on Private/Safety/Test-AdmanTargetAllowed.ps1 = 0 findings"
     files_changed_in_00_06: "tests/Safety.WhatIf.Integration.Tests.ps1, Private/Safety/Test-AdmanTargetAllowed.ps1 (ONLY these two; Safety.Protected.Integration.Tests.ps1 untouched)"
 human_verification:
+
   - test: "Approve and run the PSFramework/Pester/PSScriptAnalyzer install on a real workstation (00-01 user_setup / T-00-SC)"
     expected: "Install-PSResource -Name PSFramework -Version 1.14.457 -Scope CurrentUser (plus Pester 6.0.0 / PSScriptAnalyzer 1.25.0) installs cleanly; the module still imports and the Unit suite stays green against the REAL PSFramework (tests currently use a throwaway stub)."
     why_human: "The package-legitimacy seam did not run in this environment; the first PSFramework install is a deliberate human-approved supply-chain gate, never auto-approved."
+
   - test: "Run the -Tag Integration tests against the disposable lab OU (set ADMAN_TEST_OU + ADMAN_TEST_DC) from the operator's runas /netonly PS7 session on D:\\adman — this is the 00-06 Task 3 steps 4-5 manual lab re-run that closes UAT gap #3 end-to-end"
     expected: "Safety.WhatIf.Integration.Tests.ps1 gated -WhatIf It block PASSES: AD unchanged (both lab-whatif-* users still Enabled), Succeeded == 2, Denied == 0, audit target DN set == resolved set (SAFE-01/10). Safety.Protected.Integration.Tests.ps1 still PASSES (nested-admin refused + Refused audit record; gMSA/RID-500 may be Inconclusive if fixtures absent — acceptable). On green, flip UAT test 2 to pass and mark gap #3 FIXED in 00-UAT.md."
     why_human: "Lab-only by design (T-00-18); requires a reachable lab DC (lab-dc01.lab.local) from the operator's interactive runas /netonly session — the agent cannot reach the lab. The 00-06 code-side closure is automated-only until this live run confirms SAFE-01/10 against real AD."
+
   - test: "Confirm DPAPI cross-machine/cross-user re-prompt (CONF-04)"
     expected: "A stored credential restored on a different machine/user throws CryptographicException 0x8009000B (or yields an empty password); the bad file is deleted and Get-Credential is invoked as fallback."
     why_human: "DPAPI is key-bound to user/machine; the cross-machine restore failure cannot be exercised on a single host and needs a second machine/user."
@@ -97,6 +101,7 @@ None blocking. The two `'Simulate'` string matches in `Confirm-AdmanAction.ps1` 
 
 1. Named-mutex literal `Global\adman-audit` lives in the `New-AdmanAuditMutex` seam (not the writer body) — the plan's own seam mandate governs; the named mutex IS used and test-proven. Acceptable.
 2. StrictMode-safe `.PSObject.Properties[name]` reads in `Get-AdmanRecoveryPosture` — correctness fix. Acceptable.
+
 3-4. Pester 6 naming/result-parsing hygiene in test tooling — harness-only. Acceptable.
 
 ---
@@ -175,6 +180,7 @@ _Verifier: Claude (gsd-verifier)_
 **Report:** C:\Users\nhdinh\dev\adman\.planning\phases\00-foundation-safety-harness\00-VERIFICATION.md
 
 All automated checks passed. The phase goal — the load-bearing safety spine proven before any real write can merge — is achieved in code and independently re-verified:
+
 - Unit suite **138 passed / 0 failed**; repo-wide PSScriptAnalyzer **0 findings** (incl. custom SAFE-08 rule); SAFE-08 AST guard **4 passed / 0 failed**.
 - **0** AD write verbs in `Public/`; **0** `Remove-ADObject` anywhere in `Public/` + `Private/AD/`; exactly **9** gate-only wrappers.
 - `-WhatIf` discriminator is `[bool]$WhatIfPreference` (the two `'Simulate'` matches are negative-documentation comments only).
@@ -183,7 +189,9 @@ All automated checks passed. The phase goal — the load-bearing safety spine pr
 **Gap-closure plan 00-06 re-verified (2026-07-14):** UAT gap #3 code-side closure confirmed — the WhatIf test now targets non-protected `lab-whatif-*` user fixtures (resolve-identity-as-is) and `Test-AdmanTargetAllowed` step (b) skips RID-deny only for objectSid-absent targets. Principal RID denial is **unweakened** (Safety.DenyList/Protected/Scope regression **29 passed / 0 failed**; renamed RID-500 still refused). Full Unit suite **138/0**, lint **0 findings**. Only the two intended files changed; `Safety.Protected.Integration.Tests.ps1` untouched. No new anti-patterns.
 
 ### Human Verification Required
+
 3 deliberate end-of-phase gates (not gaps):
+
 1. **PSFramework real-install approval** (T-00-SC supply-chain gate) — tests use a throwaway stub; the real install stays a human-approved action.
 2. **Lab integration re-run** (SAFE-01/06/10 end-to-end; 00-06 Task 3 steps 4-5) — from the operator's runas /netonly PS7 session on `D:\adman` with `ADMAN_TEST_OU` + `ADMAN_TEST_DC` set, run both `-Tag Integration` files; on a green WhatIf run flip UAT test 2 to `pass` and mark gap #3 FIXED in `00-UAT.md`. This is the gate that closes UAT gap #3 end-to-end.
 3. **DPAPI cross-machine re-prompt** (CONF-04) — needs a second machine/user to exercise the 0x8009000B restore-failure path.

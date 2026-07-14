@@ -164,7 +164,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Foundation & Safety Harness | 6/6 | Complete   | 2026-07-13 |
+| 0. Foundation & Safety Harness | 6/6 | Complete    | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 0/4 | Not started | - |
 | 2. Single-Object Lifecycle (writes begin) | 0/4 | Not started | - |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |
