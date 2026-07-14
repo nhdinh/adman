@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 00
 current_phase_name: foundation-safety-harness
-status: verifying
-stopped_at: Completed 00-05-PLAN.md (phase 00 complete)
-last_updated: "2026-07-13T02:47:14.994Z"
-last_activity: 2026-07-10
+status: executing
+stopped_at: context exhaustion at 76% (2026-07-14)
+last_updated: "2026-07-14T08:02:08.167Z"
+last_activity: 2026-07-14
 last_activity_desc: Phase 00 execution started
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 6
+  completed_plans: 6
   percent: 17
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-10)
 ## Current Position
 
 Phase: 00 (foundation-safety-harness) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-07-14 - Completed quick task 260714-fbx: Initialize module in integration tests via Initialize-Adman against a lab config
+Plan: 2 of 6
+Status: Ready to execute
+Last activity: 2026-07-14 — Phase 00 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -60,6 +60,7 @@ Progress: [██████░░░░] 60%
 | Phase 00-foundation-safety-harness P03 | 59m | 2 tasks | 12 files |
 | Phase 00 P04 | 38min | 3 tasks | 15 files |
 | Phase 00-foundation-safety-harness P05 | 24min | 3 tasks | 10 files |
+| Phase 00-foundation-safety-harness P06 | 18min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: 00-05: Write-AdmanAudit is the ONLY audit sink (D-01); fail-closed throw gated on the PENDING pre-write only, OUTCOME failure escalates without rollback (D-03)
 - [Phase ?]: 00-05: audit I/O via three private seams (mutex/file/eventlog) so fail-closed is test-provable without mocking raw .NET statics; named-mutex literal lives in the New-AdmanAuditMutex seam
 - [Phase ?]: 00-05: integration tests doubly gated (-Tag Integration + ADMAN_TEST_OU); SAFE-08/09 guard passes trivially now (no Public write verbs) and is re-proven in Phase 2 when write verbs land
+- [Phase 00]: UAT gap #3 resolved via option (a): WhatIf test targets child USER fixtures under the lab OU; gate keeps resolve-identity-as-is semantics (no OU-expansion product change).
+- [Phase 00]: Test-AdmanTargetAllowed step (b) skips RID-deny ONLY when objectSid is absent/null; any object WITH an objectSid runs the exact prior deny check (renamed RID-500 still refused).
 
 ### Pending Todos
 
@@ -120,7 +123,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-13T02:47:14.986Z
-Stopped at: Completed 00-05-PLAN.md (phase 00 complete)
+Last session: 2026-07-14T08:02:08.160Z
+Stopped at: context exhaustion at 76% (2026-07-14)
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.

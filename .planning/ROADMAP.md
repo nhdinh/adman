@@ -37,7 +37,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The gate refuses deny-listed targets (SAFE-05), recursive members of protected groups plus gMSA/service accounts resolved via well-known SIDs at check time (never `adminCount` alone) (SAFE-06), and any DN outside a managed-OU root (SAFE-07) — and each refusal is logged.
   5. Every action (including dry-runs) appends a structured audit record (who/what/when/scope/target/count/WhatIf/result) that never contains secrets and refuses the destructive action if the record cannot be written (SAFE-03/04); the DPAPI credential file is written only on explicit "remember me" and re-prompts on cross-machine/user restore (CONF-04/06), with `.store/` never committed and no secrets in the repo or logs (CONF-05).
 
-**Plans:** 5/5 plans complete
+**Plans:** 6/6 plans complete
+
+- [x] 00-06-PLAN.md
+
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 0`):
@@ -161,7 +164,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Foundation & Safety Harness | 5/5 | Complete   | 2026-07-13 |
+| 0. Foundation & Safety Harness | 6/6 | Complete   | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 0/4 | Not started | - |
 | 2. Single-Object Lifecycle (writes begin) | 0/4 | Not started | - |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |
