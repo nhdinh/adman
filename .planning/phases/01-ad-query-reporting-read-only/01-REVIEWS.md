@@ -10,6 +10,9 @@ cycles:
   - cycle: 2
     reviewed_at: 2026-07-15T02:00:00Z
     reviewers: [codex]
+  - cycle: 3
+    reviewed_at: 2026-07-15T03:00:00Z
+    reviewers: [codex]
 ---
 
 # Cross-AI Plan Review — Phase 1
@@ -322,3 +325,94 @@ Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findin
 3. **Tighten T-01-02 threat register (LOW).** Top-level allows only `1..N/Q`; action prompts allow `B/Q`.
 4. **Clean up stale notes (LOW).** Remove the "future pass" note from 01-03; reconcile recovery-posture warning-vs-verbose.
 5. **Clarify 01-01/01-02 wave coordination (LOW).** State explicitly that 01-01 menu tests use mocked public verbs until 01-02 lands.
+
+---
+
+## Cycle 3 (2026-07-15T03:00:00Z) — Replan Verification
+
+Single-reviewer cycle (Codex). Reviewer was given the Cycle 2 finding list and asked to verify resolution + catch regressions.
+
+### Codex Review
+
+### Cycle 2 Finding Verdicts
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| CSV streaming design is not implementation-safe | 01-04 | UNRESOLVED | `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:89` still says to pipe `$InputObject` directly to `Export-Csv` inside `process`; it does not specify first-row header creation plus subsequent `-Append`. `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:99` keeps the grep-only acceptance check, which would not catch overwrite/header behavior. |
+| Empty-result CSV/HTML underspecified | 01-04 | UNRESOLVED | `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:91` requires "empty CSV with headers only" and empty HTML table from an empty pipeline, but the renderer signatures at `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:82`, `:88`, and `:117` have no `-Schema`, `-Properties`, or explicit empty-result schema source. |
+| Threat register drift in 01-01 | 01-01 | UNRESOLVED | The task text is corrected at `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:103`, but the threat register still says "reject everything except 1..N, B, and Q" at `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:160`. |
+| Stale "future pass" note in 01-03 | 01-03 | UNRESOLVED | The stale note remains at `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:88` and again at `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:258`, despite `.planning/phases/01-ad-query-reporting-read-only/01-CONTEXT.md:64` already containing the superseded-source amendment. |
+| Recovery-posture warning-vs-verbose mismatch | 01-03 | UNRESOLVED | `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:100` says to use `Write-PSFMessage -Level Verbose` for posture read failures, but the existing helper documents and emits warnings at `Private/Foundation/Get-AdmanRecoveryPosture.ps1:13`, `:14`, `:41`, `:50`, `:76`, and `:80`. The plan does not state that the helper will be changed or that warnings are accepted. |
+| Wave coordination between 01-01 and 01-02 | 01-01 | RESOLVED | `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:76` tells menu tests to use an in-memory function table instead of real AD calls, and `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:133` explicitly says not to add real AD cmdlets under `Public/` for this plan. That covers mocking/stubbing verbs until 01-02 lands. |
+
+### New Issues
+
+**LOW — 01-CONTEXT D-08 still conflicts with the recovery posture helper's actual shape.**
+`.planning/phases/01-ad-query-reporting-read-only/01-CONTEXT.md:69` says recovery posture includes `ms-DS-Logon-Time-Sync-Interval`, but the existing helper returns `RecycleBinEnabled`, `ForestFunctionalLevel`, and `TombstoneLifetime` at `Private/Foundation/Get-AdmanRecoveryPosture.ps1:83`. The current 01-03 plan aligns with the helper at `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:121`, so the remaining context drift can mislead implementers reading D-08.
+
+### Strengths
+
+- 01-01 now clearly separates top-level menu inputs from action-prompt inputs in the task body, especially `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:103`.
+- 01-01 correctly coordinates Wave 1 menu tests with not-yet-created verbs by using in-memory functions, avoiding RSAT/live-domain coupling.
+- 01-03's preflight plan is concrete about updating both dynamic and static startup-order tests at `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:109` through `:112`, matching the current six-step assertions in `tests/Initialize.Adman.Tests.ps1:99` through `:106` and `:128` through `:144`.
+- 01-03 has strong AD semantics for stale and account-state reports: `lastLogonTimestamp` only, `whenCreated` grace check, and four separate `Search-ADAccount` switches at `.planning/phases/01-ad-query-reporting-read-only/01-03-PLAN.md:141` through `:149`.
+
+### Risk Assessment
+
+Overall phase risk: **MEDIUM**.
+
+The AD semantics plans are mostly specific and source-aware, but the renderer plan still has two implementation-level holes: streaming CSV headers and empty-result schemas. Those are likely to produce broken Phase 1 output even if tests exist, because the current acceptance criteria can pass while the implementation is wrong. The remaining 01-01 and 01-03 drift is lower risk but should be cleaned up before execution to avoid contradictory instructions.
+
+### Top Actions for the Next Planning Pass
+
+1. Rewrite 01-04 CSV streaming to use a concrete first-row strategy: first object writes headers normally, later objects use `Export-Csv -Append`, with tests proving multi-row output is not overwritten and headers appear exactly once.
+2. Add an explicit schema mechanism for empty results, such as `-Properties` or `-Schema`, and require CSV/HTML/console empty-result tests to pass that schema.
+3. Fix 01-01 threat register T-01-02 so top-level input allows only `1..N/Q`; reserve `B` only for action/output prompts.
+4. Remove the stale 01-03 "CONTEXT.md should be amended in a future pass" notes.
+5. Reconcile recovery-posture logging: either change the helper to verbose or state that the existing warning behavior is intentional.
+6. Amend 01-CONTEXT D-08 so recovery posture consistently means `RecycleBinEnabled`, `ForestFunctionalLevel`, and `TombstoneLifetime`.
+
+---
+
+## Cycle 3 Consensus Summary
+
+Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findings.
+
+### Cycle 2 Finding Verdicts
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| CSV streaming design is not implementation-safe (MEDIUM) | 01-04 | UNRESOLVED | `01-04-PLAN.md:89` still pipes `$InputObject` directly to `Export-Csv` inside `process` without first-row/`-Append` strategy; `:99` grep-only acceptance check would not catch overwrite/header bugs |
+| Empty-result CSV/HTML underspecified (MEDIUM) | 01-04 | UNRESOLVED | `01-04-PLAN.md:91` requires "empty CSV with headers only" but renderer signatures at `:82`, `:88`, `:117` have no `-Schema`/`-Properties` parameter |
+| Threat register drift in 01-01 (LOW) | 01-01 | UNRESOLVED | Task text corrected at `01-01-PLAN.md:103` but T-01-02 at `:160` still says "reject everything except 1..N, B, and Q" |
+| Stale "future pass" note in 01-03 (LOW) | 01-03 | UNRESOLVED | Note remains at `01-03-PLAN.md:88` and `:258` despite `01-CONTEXT.md:64` already amended |
+| Recovery-posture warning-vs-verbose mismatch (LOW) | 01-03 | UNRESOLVED | `01-03-PLAN.md:100` says verbose; helper emits warnings at `Private/Foundation/Get-AdmanRecoveryPosture.ps1:13,14,41,50,76,80`; plan does not reconcile |
+| Wave coordination between 01-01 and 01-02 (LOW) | 01-01 | RESOLVED | `01-01-PLAN.md:76` (in-memory function table) and `:133` (no real AD cmdlets under Public/) cover mocking until 01-02 lands |
+
+### Agreed Strengths (Cycle 3)
+
+- 01-01 task body now correctly separates top-level (`1..N/Q`) from action-prompt (`B/Q`) reserved inputs.
+- 01-01 menu tests use in-memory function tables, avoiding RSAT/live-domain coupling during Wave 1.
+- 01-03 preflight plan concretely updates both dynamic and static startup-order tests to the eight-step sequence.
+- 01-03 AD semantics are correct: `lastLogonTimestamp` only, `whenCreated` grace check, four `Search-ADAccount` switches.
+
+### Agreed Concerns (Cycle 3)
+
+- **MEDIUM — CSV streaming design is not implementation-safe (01-04).** Still unresolved from Cycle 2. Piping `$InputObject` directly to `Export-Csv` inside `process` without a first-row/header strategy will overwrite or mishandle headers. The acceptance grep would not catch this.
+- **MEDIUM — Empty-result CSV/HTML underspecified (01-04).** Still unresolved from Cycle 2. "Empty CSV with headers only" cannot be inferred from an empty pipeline; the renderer needs an explicit schema or property list.
+- **LOW — Threat register drift in 01-01.** Still unresolved from Cycle 2. T-01-02 still mentions `B` at top level; task text correctly reserves `B` for action prompts only.
+- **LOW — Stale "future pass" note in 01-03.** Still unresolved from Cycle 2. CONTEXT.md is already amended; the note is redundant.
+- **LOW — Recovery-posture warning-vs-verbose mismatch (01-03).** Still unresolved from Cycle 2. Plan says verbose; existing helper logs warnings.
+- **LOW — 01-CONTEXT D-08 conflicts with helper shape (NEW).** CONTEXT says recovery posture includes `ms-DS-Logon-Time-Sync-Interval`, but the helper returns `RecycleBinEnabled`, `ForestFunctionalLevel`, `TombstoneLifetime`.
+
+### Divergent Views
+
+(Single-reviewer cycle — no divergence to record.)
+
+### Top Actions for /gsd-plan-phase 1 --reviews (Cycle 3)
+
+1. **Fix 01-04 CSV streaming (MEDIUM).** Specify a concrete algorithm: first input object writes `Export-Csv -NoTypeInformation`; subsequent objects use `Export-Csv -Append -NoTypeInformation`, with file existence controlled in `begin`. Add tests that prove multi-row output is not overwritten and headers appear exactly once.
+2. **Define empty-result schema strategy (MEDIUM).** Add an optional `-Properties` or `-Schema` parameter to renderers so empty-result files can include headers.
+3. **Tighten T-01-02 threat register (LOW).** Top-level allows only `1..N/Q`; action prompts allow `B/Q`.
+4. **Clean up stale notes (LOW).** Remove the "future pass" note from 01-03; reconcile recovery-posture warning-vs-verbose.
+5. **Amend 01-CONTEXT D-08 (LOW, NEW).** Recovery posture consistently means `RecycleBinEnabled`, `ForestFunctionalLevel`, `TombstoneLifetime`.
