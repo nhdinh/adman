@@ -8,12 +8,38 @@
     returns a canned PSCustomObject (tagged with an AdmanMock.* TypeName so tests can prove the
     mock - not real AD - answered) or $null for write verbs. No stub performs a network call.
     Import with: Import-Module tests/Mocks/ActiveDirectory.psm1 -Force
+
+    Phase 1 (Plan 01-02): Get-ADUser and Get-ADComputer now accept the scoped paged-read
+    parameter set used by the Find verbs (-Filter, -SearchBase, -SearchScope, -ResultPageSize,
+    -Properties, -Server). The mocks return a small array of AdmanMock-tagged PSCustomObjects
+    whose properties include the requested -Properties list, honor -SearchBase by returning
+    objects whose DistinguishedName ends with the supplied DN, and ALWAYS include at least one
+    object whose DistinguishedName is OUTSIDE the ManagedOUs scope so the read-side scope
+    re-check (Test-AdmanInManagedScope) can be exercised. The captured -Filter/-SearchBase
+    arguments are stashed on $script:CapturedCalls so tests can assert exact filter construction
+    (e.g. doubled single quotes for O'Brien).
 #>
 
 Set-StrictMode -Version Latest
 
 $script:MockSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333-1000'
 $script:MockDomainSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333'
+
+# Captured call log so tests can assert the exact -Filter/-SearchBase/-ResultPageSize/-Server
+# arguments the Find verbs constructed. Reset per test via Reset-AdmanMockCapture.
+$script:CapturedCalls = [System.Collections.Generic.List[hashtable]]::new()
+
+function Reset-AdmanMockCapture {
+    [CmdletBinding()]
+    param()
+    $script:CapturedCalls.Clear()
+}
+
+function Get-AdmanMockCapture {
+    [CmdletBinding()]
+    param()
+    return $script:CapturedCalls.ToArray()
+}
 
 function New-AdmanMockObject {
     [CmdletBinding()]
@@ -35,9 +61,150 @@ function New-AdmanMockObject {
     return $o
 }
 
+# Build a scoped-read result row. Honors the requested -Properties list by ensuring each
+# requested property exists on the returned object (defaults to $null when no canned value).
+function New-AdmanMockScopedRow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$TypeName,
+        [Parameter(Mandatory)][string]$DistinguishedName,
+        [Parameter(Mandatory)][string]$SamAccountName,
+        [string[]]$Properties = @(),
+        [hashtable]$ExtraProps = @{}
+    )
+    $canned = [ordered]@{
+        Name                       = ($DistinguishedName -replace '^CN=([^,]+),.*$', '$1')
+        SamAccountName             = $SamAccountName
+        Enabled                    = $true
+        DistinguishedName          = $DistinguishedName
+        ObjectSid                  = $script:MockSid
+        ObjectGuid                 = [guid]'11111111-2222-3333-4444-555555555555'
+        DisplayName                = 'Mock Display'
+        UserPrincipalName          = "$SamAccountName@mock.local"
+        LockedOut                  = $false
+        PasswordExpired            = $false
+        PasswordLastSet            = [datetime]'2026-01-01T00:00:00Z'
+        AccountExpirationDate      = $null
+        OperatingSystem            = 'Windows 11 Pro'
+        OperatingSystemVersion     = '10.0 (26200)'
+        OperatingSystemServicePack = ''
+        IPv4Address                = '10.0.0.10'
+        DNSHostName                = 'mockpc.mock.local'
+        LastLogonDate              = [datetime]'2026-07-01T00:00:00Z'
+        whenCreated                = [datetime]'2025-01-01T00:00:00Z'
+        whenChanged                = [datetime]'2026-06-01T00:00:00Z'
+        objectClass                = @('top', 'person', 'organizationalPerson', 'user')
+        memberOf                   = @()
+    }
+    foreach ($k in $ExtraProps.Keys) { $canned[$k] = $ExtraProps[$k] }
+
+    # Ensure every requested property is present (default $null when not in the canned set).
+    $row = [ordered]@{}
+    foreach ($k in $canned.Keys) { $row[$k] = $canned[$k] }
+    foreach ($p in @($Properties)) {
+        if ([string]::IsNullOrWhiteSpace([string]$p)) { continue }
+        if (-not $row.Contains($p)) { $row[$p] = $null }
+    }
+
+    $o = [pscustomobject]$row
+    $o.PSObject.TypeNames.Insert(0, $TypeName)
+    return $o
+}
+
 # --- Read stubs (no ShouldProcess needed) ---------------------------------------------------
-function Get-ADUser { [CmdletBinding()] param($Identity, $Properties, $Server) New-AdmanMockObject }
-function Get-ADComputer { [CmdletBinding()] param($Identity, $Properties, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'person', 'organizationalPerson', 'user', 'computer'); SamAccountName = 'MOCKPC$' } }
+
+function Get-ADUser {
+    [CmdletBinding()]
+    param(
+        $Identity,
+        $Filter,
+        $SearchBase,
+        $SearchScope,
+        $ResultPageSize,
+        $Properties,
+        $Server
+    )
+    # Legacy single-object call shape (Identity-only) keeps prior behavior.
+    if ($Identity -and -not $Filter) {
+        return (New-AdmanMockObject -TypeName 'AdmanMock.ADUser')
+    }
+
+    # Scoped paged read (Filter parameter set). Capture the call for filter-construction tests.
+    [void]$script:CapturedCalls.Add(@{
+        Cmdlet         = 'Get-ADUser'
+        Filter         = $Filter
+        SearchBase     = $SearchBase
+        SearchScope    = $SearchScope
+        ResultPageSize = $ResultPageSize
+        Properties     = $Properties
+        Server         = $Server
+    })
+
+    $sb = [string]$SearchBase
+    if ([string]::IsNullOrWhiteSpace($sb)) { $sb = 'OU=Managed,DC=mock,DC=local' }
+
+    # In-scope rows: DN ends with the supplied SearchBase.
+    $inScope1 = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADUser' `
+        -DistinguishedName "CN=Alice InScope,$sb" `
+        -SamAccountName 'alice.inscope' -Properties $Properties
+    $inScope2 = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADUser' `
+        -DistinguishedName "CN=Bob InScope,OU=Sub,$sb" `
+        -SamAccountName 'bob.inscope' -Properties $Properties
+    # Out-of-scope row: DN does NOT end with the SearchBase (sibling OU).
+    $outScope = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADUser' `
+        -DistinguishedName 'CN=Carol OutScope,OU=NotManaged,DC=mock,DC=local' `
+        -SamAccountName 'carol.outscope' -Properties $Properties
+
+    return @($inScope1, $inScope2, $outScope)
+}
+
+function Get-ADComputer {
+    [CmdletBinding()]
+    param(
+        $Identity,
+        $Filter,
+        $SearchBase,
+        $SearchScope,
+        $ResultPageSize,
+        $Properties,
+        $Server
+    )
+    if ($Identity -and -not $Filter) {
+        return (New-AdmanMockObject -TypeName 'AdmanMock.ADComputer' -Props @{
+            objectClass    = @('top', 'person', 'organizationalPerson', 'user', 'computer')
+            SamAccountName = 'MOCKPC$'
+        })
+    }
+
+    [void]$script:CapturedCalls.Add(@{
+        Cmdlet         = 'Get-ADComputer'
+        Filter         = $Filter
+        SearchBase     = $SearchBase
+        SearchScope    = $SearchScope
+        ResultPageSize = $ResultPageSize
+        Properties     = $Properties
+        Server         = $Server
+    })
+
+    $sb = [string]$SearchBase
+    if ([string]::IsNullOrWhiteSpace($sb)) { $sb = 'OU=Managed,DC=mock,DC=local' }
+
+    $inScope1 = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADComputer' `
+        -DistinguishedName "CN=PC-INSCOPE-01,$sb" `
+        -SamAccountName 'PC-INSCOPE-01$' -Properties $Properties `
+        -ExtraProps @{ objectClass = @('top', 'person', 'organizationalPerson', 'user', 'computer') }
+    $inScope2 = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADComputer' `
+        -DistinguishedName "CN=PC-INSCOPE-02,OU=Sub,$sb" `
+        -SamAccountName 'PC-INSCOPE-02$' -Properties $Properties `
+        -ExtraProps @{ objectClass = @('top', 'person', 'organizationalPerson', 'user', 'computer') }
+    $outScope = New-AdmanMockScopedRow -TypeName 'AdmanMock.ADComputer' `
+        -DistinguishedName 'CN=PC-OUTSCOPE-01,OU=NotManaged,DC=mock,DC=local' `
+        -SamAccountName 'PC-OUTSCOPE-01$' -Properties $Properties `
+        -ExtraProps @{ objectClass = @('top', 'person', 'organizationalPerson', 'user', 'computer') }
+
+    return @($inScope1, $inScope2, $outScope)
+}
+
 function Get-ADObject { [CmdletBinding()] param($Identity, $Properties, $Server, $LDAPFilter) New-AdmanMockObject }
 function Get-ADGroup { [CmdletBinding()] param($Identity, $Properties, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'group') } }
 function Get-ADGroupMember { [CmdletBinding()] param($Identity, $Recursive, $Server) @(New-AdmanMockObject) }
@@ -102,5 +269,6 @@ Export-ModuleMember -Function @(
     'Set-ADUser', 'Set-ADComputer', 'Set-ADObject', 'Set-ADAccountPassword',
     'Disable-ADAccount', 'Enable-ADAccount', 'Unlock-ADAccount', 'Move-ADObject',
     'New-ADUser', 'New-ADComputer', 'Add-ADGroupMember', 'Remove-ADGroupMember',
-    'Get-CimInstance', 'New-CimSession', 'Invoke-Command', 'New-PSSession', 'Test-WSMan'
+    'Get-CimInstance', 'New-CimSession', 'Invoke-Command', 'New-PSSession', 'Test-WSMan',
+    'Reset-AdmanMockCapture', 'Get-AdmanMockCapture'
 )
