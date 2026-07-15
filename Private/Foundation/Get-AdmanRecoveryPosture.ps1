@@ -28,7 +28,15 @@ function Get-AdmanRecoveryPosture {
     [OutputType([pscustomobject])]
     param()
 
-    $dc = $script:Config.DC
+    # WR-03: tolerate an uninitialized $script:Config (the report verb promises to work
+    # pre-init). Read DC via PSObject.Properties so a missing property yields $null instead
+    # of a StrictMode PropertyNotFoundException. Each AD read below is already wrapped in
+    # try/catch and degrades to $null + Write-PSFMessage, so a $null DC simply produces an
+    # all-null posture with warnings — never a throw.
+    $dc = $null
+    if ($script:Config -and $script:Config.PSObject.Properties['DC']) {
+        $dc = $script:Config.DC
+    }
 
     # Recycle Bin optional feature (warning-only; never a blocker).
     $recycleBinEnabled = $null
