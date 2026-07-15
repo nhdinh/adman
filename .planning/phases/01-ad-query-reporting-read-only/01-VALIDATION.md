@@ -2,8 +2,8 @@
 phase: 01
 slug: ad-query-reporting-read-only
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-07-14
 ---
 
@@ -47,7 +47,8 @@ created: 2026-07-14
 | 01-02-03 | 01-02 | 1 | D-03 schema | T-02-03 | `ConvertTo-AdmanResult` emits fixed property set per type | unit | `Invoke-Pester -Path tests/Result.Schema.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 01-03-01 | 01-03 | 2 | RPT-04 | T-03-01 | Stale report buckets Stale vs NeverLoggedOn; never per-DC lastLogon | unit | `Invoke-Pester -Path tests/Report.Stale.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 01-03-02 | 01-03 | 2 | RPT-05 | T-03-02 | Account-state report uses Search-ADAccount four switches; never UAC bit math | unit | `Invoke-Pester -Path tests/Report.AccountState.Tests.ps1` | ❌ W0 | ⬜ pending |
-| 01-03-03 | 01-03 | 2 | RPT-07 | T-03-03 | Recovery posture preflight caches interval + posture | unit | `Invoke-Pester -Path tests/Report.Recovery.Tests.ps1` | ❌ W0 | ⬜ pending |
+| 01-03-03 | 01-03 | 2 | RPT-07 | T-03-03 | Recovery posture preflight caches interval + posture | unit | `Invoke-Pester -Path tests/Preflight.Tests.ps1` | ❌ W0 | ⬜ pending |
+| 01-03-04 | 01-03 | 2 | RPT-07 | T-03-03 | Recovery posture report wrapper exposes posture + freshness | unit | `Invoke-Pester -Path tests/Report.Recovery.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 01-04-01 | 01-04 | 2 | RPT-01 | T-04-01 | Console table + Out-GridView/ConsoleGridView fallback | unit | `Invoke-Pester -Path tests/Render.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 01-04-02 | 01-04 | 2 | RPT-02 | T-04-02 | CSV export `-NoTypeInformation` UTF8 | unit | `Invoke-Pester -Path tests/Render.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 01-04-03 | 01-04 | 2 | RPT-03 | T-04-03 | HTML self-contained single file; no `-CssUri`/`-Charset`/`-Meta`/`-Transitional` | unit | `Invoke-Pester -Path tests/Render.Tests.ps1` | ❌ W0 | ⬜ pending |
@@ -67,6 +68,7 @@ created: 2026-07-14
 - [ ] `tests/Report.AccountState.Tests.ps1` — RPT-05 four states
 - [ ] `tests/Report.Inventory.Tests.ps1` — RPT-06 OS/inventory
 - [ ] `tests/Report.Recovery.Tests.ps1` — RPT-07 recovery posture
+- [ ] `tests/Preflight.Tests.ps1` — D-07/D-08 Initialize-Adman sync-interval and recovery-posture caching
 - [ ] `tests/Render.Tests.ps1` — RPT-01/02/03 renderer parity
 - [ ] `tests/Menu.Tests.ps1` — MENU-01..04 dispatch + B/Q reserved inputs
 

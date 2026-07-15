@@ -574,24 +574,24 @@ $rows | ConvertTo-Html -Head $cssFragment -Title 'adman report' | Out-File $Path
 
 **Note:** All load-bearing AD-semantics and cmdlet-parameter claims in this research are `[VERIFIED]` or `[CITED]` — the four `[ASSUMED]` items above are low-risk implementation details within Claude's documented discretion, not architectural choices.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **ROADMAP 01-03 "all-DC `lastLogon` aggregation helper" conflicts with D-05/RPT-04.**
+1. **RESOLVED — ROADMAP 01-03 "all-DC `lastLogon` aggregation helper" conflicts with D-05/RPT-04.**
    - What we know: ROADMAP's suggested 01-03 plan mentions building an "all-DC `lastLogon` aggregation helper (built once)". CONTEXT.md D-05 and RPT-04 both state "never per-DC `lastLogon`" and mandate replicated `lastLogonTimestamp` only. The Deferred Ideas list explicitly calls this out as superseded.
    - What's unclear: Nothing technical — the two documents conflict and CONTEXT.md (the later, decision-locking artifact) wins.
    - Recommendation: **Do NOT build the per-DC aggregation helper.** The planner must ignore that ROADMAP line. If a forensic-grade per-DC report is ever wanted, it is a v2 deferred idea requiring an RPT-04 amendment.
 
-2. **D-07 sync-interval read location (Configuration partition vs. domain NC head).**
+2. **RESOLVED — D-07 sync-interval read location (Configuration partition vs. domain NC head).**
    - What we know: CONTEXT.md D-07 says read `msDS-LogonTimeSyncInterval` from `CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,...`. The AD schema places this attribute on the `Sam-Domain` class (domain NC head), exposed by `Get-ADDomain.LastLogonReplicationInterval`. The Configuration-partition `Directory Service` object holds `tombstoneLifetime`, a different attribute.
    - What's unclear: Whether the CONTEXT.md path was a deliberate choice or a slip. The schema is unambiguous that the attribute lives on the domain NC head.
    - Recommendation: Read via `(Get-ADDomain -Server $script:Config.DC).LastLogonReplicationInterval` (domain NC head), fall back to 14 on failure (D-07). Flag the CONTEXT.md path as a documentation correction; the intent (read the sync interval, self-tune the grace) is unchanged.
 
-3. **Scope-only re-check helper for reads (SAFE-07 step (c) in isolation).**
+3. **RESOLVED — Scope-only re-check helper for reads (SAFE-07 step (c) in isolation).**
    - What we know: D-02 mandates the managed-OU boundary check on reads but NOT the deny-list/protected checks. `Test-AdmanTargetAllowed` (Phase 0) accumulates ALL reasons (gMSA, deny-RID, out-of-scope, protected-member) and returns `Allowed = $false` if any is present — so calling it wholesale on reads would wrongly drop in-scope protected accounts.
    - What's unclear: Whether to (a) extract the step (c) DN-boundary logic into a dedicated `Test-AdmanInManagedScope` helper, or (b) add a switch to `Test-AdmanTargetAllowed` that runs only step (c).
    - Recommendation: Option (a) — a small `Test-AdmanInManagedScope` private helper reusing `ConvertTo-AdmanNormalizedDn`, so the read path never invokes the mutation gate. Keeps the mutation gate's semantics untouched (Phase 0 tests stay green). Planner should confirm; either satisfies D-02.
 
-4. **Existing `Search-ADAccount` mock is insufficient for Phase 1.**
+4. **RESOLVED — Existing `Search-ADAccount` mock is insufficient for Phase 1.**
    - What we know: `tests/Mocks/ActiveDirectory.psm1` currently mocks `Search-ADAccount` with signature `param($Identity, $Server)` — it does not accept the state switches (`-AccountDisabled`/`-AccountExpired`/`-LockedOut`/`-PasswordExpired`) or `-SearchBase`/`-UsersOnly`/`-ComputersOnly`.
    - What's unclear: Nothing — the mock must be extended for the RPT-05 unit tests to run offline.
    - Recommendation: Planner adds a Wave 0 task to extend the `Search-ADAccount` mock with the four state switches and the scoping parameters, returning `AdmanMock.*`-tagged objects per state.
@@ -726,11 +726,11 @@ All other Phase 1 behaviors have automated verification via mocked AD unit tests
 | Architecture | HIGH | Clear query/presentation/dispatch layers with D-03 canonical schema |
 | Pitfalls | HIGH | Microsoft Learn + AD schema verification for all load-bearing semantics |
 
-### Open Questions
-1. ROADMAP 01-03 all-DC `lastLogon` helper conflicts with D-05/RPT-04 — planner must ignore.
-2. D-07 sync-interval read location — use `(Get-ADDomain).LastLogonReplicationInterval` (domain NC head) instead of Configuration-partition path.
-3. Scope-only helper — planner chooses `Test-AdmanInManagedScope` extraction vs. adding a switch to `Test-AdmanTargetAllowed`.
-4. `Search-ADAccount` mock must be extended in Wave 0 for RPT-05 unit tests.
+### Open Questions (all RESOLVED)
+1. RESOLVED — ROADMAP 01-03 all-DC `lastLogon` helper conflicts with D-05/RPT-04 — planner must ignore.
+2. RESOLVED — D-07 sync-interval read location — use `(Get-ADDomain).LastLogonReplicationInterval` (domain NC head) instead of Configuration-partition path.
+3. RESOLVED — Scope-only helper — planner chooses `Test-AdmanInManagedScope` extraction vs. adding a switch to `Test-AdmanTargetAllowed`.
+4. RESOLVED — `Search-ADAccount` mock must be extended in Wave 0 for RPT-05 unit tests.
 
 ### Ready for Planning
 Research complete. Planner can now create PLAN.md files.

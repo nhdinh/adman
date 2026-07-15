@@ -10,6 +10,7 @@
   "ref_search": false,
   "perplexity": false,
   "jina": false,
+  "context_window": 200000,
   "git": {
     "branching_strategy": "none",
     "create_tag": true,
@@ -45,7 +46,9 @@
     "post_planning_gaps": true,
     "security_enforcement": true,
     "security_asvs_level": 1,
-    "security_block_on": "high"
+    "security_block_on": "high",
+    "_auto_chain_active": false,
+    "plan_review_convergence": true
   },
   "ship": {
     "pr_body_sections": [
