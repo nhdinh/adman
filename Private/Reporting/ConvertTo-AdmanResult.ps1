@@ -42,7 +42,9 @@ function ConvertTo-AdmanResult {
 
     # Helper: safely read a property that may not exist on the source object.
     # Returns $null when the property is absent (never throws under StrictMode).
-    function script:Get-AdmanProp {
+    # WR-04: local function (no scope modifier) so it does NOT leak into the module's
+    # script scope after this function returns.
+    function Get-AdmanProp {
         param($Obj, [string]$Name)
         if ($null -eq $Obj) { return $null }
         if ($Obj.PSObject.Properties[$Name]) { return $Obj.$Name }
