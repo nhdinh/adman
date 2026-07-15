@@ -88,10 +88,16 @@ function Test-AdmanTargetAllowed {
         $or += "(memberOf:1.2.840.113556.1.4.1941:=$gEsc)"
     }
     if (-not [string]::IsNullOrEmpty($or)) {
-        $hit = Get-ADObject -Server $script:Config.DC `
-            -LDAPFilter "(&(distinguishedName=$dnEsc)(|$or))" -ErrorAction Stop
-        if ($hit) {
-            $reasons.Add('recursive member of protected group')
+        # WR-02: contract is a hashtable return, not a throw. If the DC is unreachable,
+        # record a refusal reason instead of letting the exception propagate.
+        try {
+            $hit = Get-ADObject -Server $script:Config.DC `
+                -LDAPFilter "(&(distinguishedName=$dnEsc)(|$or))" -ErrorAction Stop
+            if ($hit) {
+                $reasons.Add('recursive member of protected group')
+            }
+        } catch {
+            $reasons.Add("protected-membership check failed: $($_.Exception.Message)")
         }
     }
 
