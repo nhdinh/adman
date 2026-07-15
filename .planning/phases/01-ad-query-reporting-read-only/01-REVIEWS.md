@@ -16,6 +16,9 @@ cycles:
   - cycle: 4
     reviewed_at: 2026-07-15T04:00:00Z
     reviewers: [codex]
+  - cycle: 5
+    reviewed_at: 2026-07-15T05:00:00Z
+    reviewers: [codex]
 ---
 
 # Cross-AI Plan Review — Phase 1
@@ -513,3 +516,71 @@ Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findin
 1. **Add an explicit output schema source for each verb (MEDIUM).** Either extend `Get-AdmanMenuDefinition` metadata with a `Properties` field per verb, or add a dedicated helper such as `Get-AdmanReportProperties -Verb <name>`.
 2. **Update 01-04 Task 3 so `Start-Adman` passes `-Properties` to renderers (MEDIUM).** Wire the schema source into the renderer dispatch path.
 3. **Add menu-level tests for empty-result schema propagation (MEDIUM).** Mock a verb returning zero rows and assert CSV/HTML receive the expected `-Properties` list.
+
+---
+
+## Cycle 5 (2026-07-15T05:00:00Z) — Replan Verification
+
+Single-reviewer cycle (Codex). Reviewer was given the Cycle 4 finding and asked to verify resolution + catch regressions.
+
+### Codex Review
+
+#### Summary
+
+Cycle-4 is **resolved at the plan level**: the replan adds menu `Properties`, wires `Start-Adman` to pass them to renderers, and specifies menu-level zero-row tests. Replan is mostly clean, but it introduces one schema risk for `Get-AdmanAccountStateReport`: the menu metadata has one static user-shaped `Properties` list even though the report can emit either user or computer-shaped rows.
+
+#### Cycle 4 Finding Verdict
+
+**RESOLVED**
+
+- Properties field on menu entries: specified in `.planning/phases/01-ad-query-reporting-read-only/01-01-PLAN.md:104-112`, with pinned arrays per verb. Acceptance criteria require six entries with `Properties` and matching pinned lists at `01-01-PLAN.md:126-128`.
+- `Start-Adman` dispatch wiring: specified in `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:180-181`; acceptance requires passing menu-entry `Properties`, not a re-derived list, at `01-04-PLAN.md:199`.
+- Menu-level zero-row tests: specified in `.planning/phases/01-ad-query-reporting-read-only/01-04-PLAN.md:184-188`; acceptance covers CSV, HTML, console, and mock-capture of `-Properties` at `01-04-PLAN.md:200-203`.
+
+#### Strengths
+
+- The chosen schema source is explicit and centralized in menu metadata, avoiding an untracked second lookup table: `01-01-PLAN.md:112`.
+- Renderer contracts consistently support `-Properties` for empty pipelines: console `01-04-PLAN.md:83-87`, CSV `01-04-PLAN.md:90-95`, HTML `01-04-PLAN.md:134-139`.
+- The zero-row menu tests verify both behavior and binding, not just file contents: `01-04-PLAN.md:184-188`.
+- Recovery posture schema matches the planned report shape: menu fields at `01-01-PLAN.md:111`; report returns those fields at `01-03-PLAN.md:176` and `01-03-PLAN.md:185`.
+
+#### Concerns
+
+- **MEDIUM — Account-state menu schema is static but report output is parameter-dependent.**
+  `01-01-PLAN.md:109` pins `Get-AdmanAccountStateReport` to the user schema plus `Bucket`. But `Get-AdmanAccountStateReport` accepts `-ObjectType ('User'|'Computer')` and uses either `-UsersOnly` or `-ComputersOnly` per that parameter at `01-03-PLAN.md:146-148`. The D-03 user and computer schemas differ: user fields are listed at `01-02-PLAN.md:294`, computer fields at `01-02-PLAN.md:295`. Since `Start-Adman` must pass the static `$entry.Properties` at `01-04-PLAN.md:180-181`, a zero-row menu run for computer account-state would render user headers instead of computer headers. Fix by splitting menu entries by object type or making `Properties` selected from `PromptSpec`/returned params.
+
+#### Risk Assessment
+
+**MEDIUM.** The original cycle-4 issue is addressed with concrete implementation and test criteria. Remaining risk is limited but real: one report has a dynamic result schema while the replan's new menu schema metadata is static per verb.
+
+---
+
+## Cycle 5 Consensus Summary
+
+Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findings.
+
+### Cycle 4 Finding Verdict
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| Menu renderer dispatch does not propagate the new empty-result schema (MEDIUM) | 01-01, 01-04 | RESOLVED | `01-01-PLAN.md:104-112` (Properties field pinned per verb), `01-04-PLAN.md:180-181` (Start-Adman passes $entry.Properties), `01-04-PLAN.md:184-188,200-203` (menu-level zero-row tests) |
+
+### Agreed Strengths (Cycle 5)
+
+- Cycle 4 finding is verifiably resolved with `path:line` evidence in the replan.
+- Schema source is centralized in menu metadata (no second lookup table).
+- Renderer contracts consistently support `-Properties` for empty pipelines.
+- Zero-row menu tests verify both behavior and binding.
+- Recovery posture schema matches the planned report shape.
+
+### Agreed Concerns (Cycle 5)
+
+- **MEDIUM — Account-state menu schema is static but report output is parameter-dependent (NEW).** `Get-AdmanAccountStateReport` accepts `-ObjectType ('User'|'Computer')` at `01-03-PLAN.md:146`, but the menu metadata at `01-01-PLAN.md:109` pins a static user-shaped `Properties` list. A zero-row menu run for computer account-state would render user headers instead of computer headers.
+
+### Divergent Views
+
+(Single-reviewer cycle — no divergence to record.)
+
+### Top Actions for /gsd-plan-phase 1 --reviews (Cycle 5)
+
+1. **Fix account-state menu schema mismatch (MEDIUM).** Either split the account-state menu entry into user/computer variants with their own `Properties` arrays, or make `Properties` dynamic based on the `-ObjectType` parameter collected in `PromptSpec`, or explicitly defer computer account-state from the menu in v1.
