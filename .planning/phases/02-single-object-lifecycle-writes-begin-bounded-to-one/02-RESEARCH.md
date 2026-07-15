@@ -528,22 +528,22 @@ Should -Invoke Resolve-AdmanTarget -ModuleName adman -Times 1
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **FGPP (Fine-Grained Password Policy) interaction with generated passwords**
+1. **FGPP (Fine-Grained Password Policy) interaction with generated passwords** — RESOLVED (deferred with rationale)
    - What we know: The Spike 004 generator produces 20-char passwords with 4 character classes. AD password policy can be customized via FGPP with different length/complexity requirements per group.
    - What's unclear: Whether the target domain has FGPPs that would reject the generated passwords (e.g., minimum length > 20, specific symbol requirements).
-   - Recommendation: The planner should include a pre-flight check that reads the effective password policy for the target OU/user and validates the generated password against it before calling New-ADUser. If FGPP is detected, warn the operator.
+   - **Resolution:** Explicitly deferred. Rationale: the D-05 generated password (length 20, 4 character classes, no ambiguous glyphs) exceeds the default domain password policy on every supported Windows Server version. When an FGPP with stricter requirements is present, `New-ADUser` / `Set-ADAccountPassword` throws `ADPasswordComplexityException` and the gate's OUTCOME audit write records `Result='Failed'` with the exception message — closing the gap with a Failed audit record rather than a silent bypass. The operator sees the precise failure reason and can either (a) adjust the FGPP, (b) raise `security.passwordGeneration.length` in config, or (c) use the Prompt path with a manually compliant password. A dedicated FGPP pre-flight (read effective policy via `Get-ADUserResultantPasswordPolicy` / `Get-ADDefaultDomainPasswordPolicy` and pre-validate) is a Phase 3+ enhancement; it is NOT load-bearing for Phase 2 safety.
 
-2. **Local Administrators group membership check for D-02(b)**
+2. **Local Administrators group membership check for D-02(b)** — RESOLVED (implemented as recommended)
    - What we know: D-02 requires refusing targets that are members of the local Administrators S-1-5-32-544 group where the action would weaken that protection boundary.
    - What's unclear: The exact mechanism for checking local group membership when Get-LocalGroupMember may fail on orphaned SIDs. Should the check use WMI/ADSI as primary, or try Get-LocalGroupMember first with fallback?
-   - Recommendation: Use Get-LocalGroupMember with try/catch + WMI fallback (Win32_GroupUser). The check should be defensive: if enumeration fails entirely, refuse the action (fail-closed).
+   - **Resolution:** Implemented per the recommendation. `Test-AdmanLocalTargetAllowed` check (b) calls `Get-LocalGroupMember -Name 'Administrators'` first; on `0x80070534` / `0x534` (ERROR_NONE_MAPPED, orphaned SID) it falls back to `Get-CimInstance Win32_GroupUser` filtered by `GroupComponent.Name='Administrators'`; on total enumeration failure it ADDS a refusal reason (fail-closed). Plan 02-01 Task 3 specifies this exact mechanism and Test 4 covers all three branches.
 
-3. **Audit schema extension for `group` field and `MACHINE\username` target shape**
+3. **Audit schema extension for `group` field and `MACHINE\username` target shape** — RESOLVED (implemented as recommended)
    - What we know: D-04 requires a `group` field alongside `target`. D-02 requires `MACHINE\username` + local SID in the target field.
    - What's unclear: The exact JSON schema for the extended audit record. Should `group` be a nested object (dn, sid, objectClass) like `targets`, or a flat string?
-   - Recommendation: Keep `group` as a flat DN string for simplicity, matching the existing `target` field shape. The `targets` array already carries per-target detail. The no-secret-key regex test must be extended to cover the new fields.
+   - **Resolution:** Implemented per the recommendation. `group` is a flat DN string (matches the existing `target` field shape — simple, diff-friendly). The `targets` array carries per-target detail and gains a local-target variant `@{machine,name,sid}` (vs the AD `@{dn,sid,objectClass}`). The no-secret-key regex test (Test 2c/2d) is extended to cover the new `group`, `machine`, `name` keys. Plan 02-01 Task 3 specifies the exact schema additions and Tests 1b/1c/2d cover them.
 
 ## Environment Availability
 
