@@ -6,14 +6,14 @@ current_phase: 01
 current_phase_name: ad-query-reporting-read-only
 status: executing
 stopped_at: Phase 01 plans verified and ready to execute
-last_updated: "2026-07-15T04:49:12.411Z"
+last_updated: "2026-07-15T05:31:25.758Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
   percent: 17
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (ad-query-reporting-read-only) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
@@ -62,6 +62,8 @@ Progress: [██░░░░░░░░] 17% (Phase 1 of 6, 0 of 4 Phase 1 pla
 | Phase 00-foundation-safety-harness P05 | 24min | 3 tasks | 10 files |
 | Phase 00-foundation-safety-harness P06 | 18min | 3 tasks | 2 files |
 | Phase 01 P01 | 15m | - tasks | - files |
+| Phase 01 P02 | 20m | - tasks | - files |
+| Phase 01 P02 | 20m | 5 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -96,6 +98,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: 00-05: integration tests doubly gated (-Tag Integration + ADMAN_TEST_OU); SAFE-08/09 guard passes trivially now (no Public write verbs) and is re-proven in Phase 2 when write verbs land
 - [Phase 00]: UAT gap #3 resolved via option (a): WhatIf test targets child USER fixtures under the lab OU; gate keeps resolve-identity-as-is semantics (no OU-expansion product change).
 - [Phase 00]: Test-AdmanTargetAllowed step (b) skips RID-deny ONLY when objectSid is absent/null; any object WITH an objectSid runs the exact prior deny check (renamed RID-500 still refused).
+- [Phase ?]: Phase 01-02: HIGH-1 resolved via dedicated Escape-AdmanAdFilterLiteral helper for -Filter string literals (single-quote doubling + backslash doubling); Escape-AdmanLdapFilterValue remains RFC4515-only for -LDAPFilter. The two are structurally independent and NOT interchangeable.
+- [Phase ?]: Phase 01-02: MEDIUM-3 resolved — ConvertTo-AdmanNormalizedDn extracted from Test-AdmanTargetAllowed into Private/Utility/ as the single source for DN normalization; both write path (Test-AdmanTargetAllowed step (c)) and read path (Test-AdmanInManagedScope) call it with no logic duplication.
+- [Phase ?]: Phase 01-02: D-03 schema contract pinned — ConvertTo-AdmanResult emits fixed-schema PSCustomObject per type (User: 16 columns, Computer: 15 columns); timestamps as [datetime] or $null; never-logged-on sentinel deferred to report layer.
 
 ### Pending Todos
 
@@ -125,7 +130,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-15T04:49:12.404Z
+Last session: 2026-07-15T05:30:41.824Z
 Stopped at: Phase 01 UI-SPEC approved
 Resume file: C:/Users/nhdinh/dev/adman/.planning/phases/01-ad-query-reporting-read-only/01-UI-SPEC.md
 Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.

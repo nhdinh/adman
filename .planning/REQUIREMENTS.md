@@ -41,7 +41,7 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### AD User Lifecycle (USER)
 
-- [ ] **USER-01**: Admin can search/view users by name, `sAMAccountName`, or display name (scoped to managed OU)
+- [x] **USER-01**: Admin can search/view users by name, `sAMAccountName`, or display name (scoped to managed OU)
 - [ ] **USER-02**: Admin can create a single user with required attributes (name, `sAMAccountName`, UPN, OU, password, must-change-at-next-logon, enabled)
 - [ ] **USER-03**: Admin can disable and enable a user (through the gate)
 - [ ] **USER-04**: Admin can reset a user's password (optionally force change at next logon and unlock) without ever echoing or logging the password
@@ -55,7 +55,7 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### AD Computer Lifecycle (COMP)
 
-- [ ] **COMP-01**: Admin can search/view computers by name (scoped to managed OU)
+- [x] **COMP-01**: Admin can search/view computers by name (scoped to managed OU)
 - [ ] **COMP-02**: Admin can disable/enable a computer (through the gate)
 - [ ] **COMP-03**: Admin can move a computer to another OU within managed scope
 - [ ] **COMP-04**: Admin can reset a computer account / repair the secure channel (with guidance on which method applies)
@@ -172,7 +172,7 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | SAFE-08 | Phase 0 | Complete |
 | SAFE-09 | Phase 0 | Complete |
 | SAFE-10 | Phase 0 | Complete |
-| USER-01 | Phase 1 | Pending |
+| USER-01 | Phase 1 | Complete |
 | USER-02 | Phase 2 | Pending |
 | USER-03 | Phase 2 | Pending |
 | USER-04 | Phase 2 | Pending |
@@ -180,7 +180,7 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | USER-06 | Phase 2 | Pending |
 | LUSR-01 | Phase 2 | Pending |
 | LUSR-02 | Phase 2 | Pending |
-| COMP-01 | Phase 1 | Pending |
+| COMP-01 | Phase 1 | Complete |
 | COMP-02 | Phase 2 | Pending |
 | COMP-03 | Phase 2 | Pending |
 | COMP-04 | Phase 2 | Pending |
