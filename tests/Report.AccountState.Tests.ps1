@@ -149,4 +149,12 @@ Describe 'Get-AdmanAccountStateReport: four-state bucketing (D-06)' -Tag 'Unit' 
         $result[0].ObjectType | Should -Be 'User'
         $result[0].PSObject.Properties['Bucket'] | Should -Not -BeNullOrEmpty
     }
+
+    It 'populates ObjectSid on every row (CR-02: real Search-ADAccount returns SID, not ObjectSid)' {
+        $result = Invoke-AccountStateReport
+        $result.Count | Should -BeGreaterOrEqual 1
+        foreach ($row in $result) {
+            $row.ObjectSid | Should -Not -BeNullOrEmpty -Because 'D-03 schema requires ObjectSid; production maps SID->ObjectSid after Search-ADAccount'
+        }
+    }
 }

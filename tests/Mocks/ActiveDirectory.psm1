@@ -275,24 +275,45 @@ function Search-ADAccount {
 
     # Return one in-scope row tagged with the requested state bucket, plus one out-of-scope row
     # so the read-side Test-AdmanInManagedScope re-check can be exercised.
-    $inScope = New-AdmanMockScopedRow -TypeName $typeName `
-        -DistinguishedName ("CN=Mock{0},{1}" -f $bucket, $sb) `
-        -SamAccountName ("mock.{0}{1}" -f $bucket.ToLower(), $samSuffix) `
-        -ExtraProps @{
-            Enabled               = ($bucket -ne 'Disabled')
-            LockedOut             = ($bucket -eq 'Locked')
-            PasswordExpired       = ($bucket -eq 'PasswordExpired')
-            AccountExpirationDate = if ($bucket -eq 'Expired') { [datetime]'2026-01-01T00:00:00Z' } else { $null }
-        }
-    $outScope = New-AdmanMockScopedRow -TypeName $typeName `
-        -DistinguishedName ("CN=OutScope{0},OU=NotManaged,DC=mock,DC=local" -f $bucket) `
-        -SamAccountName ("outscope.{0}{1}" -f $bucket.ToLower(), $samSuffix) `
-        -ExtraProps @{
-            Enabled               = ($bucket -ne 'Disabled')
-            LockedOut             = ($bucket -eq 'Locked')
-            PasswordExpired       = ($bucket -eq 'PasswordExpired')
-            AccountExpirationDate = if ($bucket -eq 'Expired') { [datetime]'2026-01-01T00:00:00Z' } else { $null }
-        }
+    # CR-02: real Search-ADAccount returns a FIXED property set (no -Properties parameter)
+    # and exposes 'SID' (NOT 'ObjectSid'). Build the row to match the real cmdlet shape so
+    # the production SID->ObjectSid mapping is exercised by the tests.
+    $fixedProps = [ordered]@{
+        Name                  = $null  # filled from DN below
+        SamAccountName        = $null  # filled below
+        DistinguishedName     = $null  # filled below
+        Enabled               = ($bucket -ne 'Disabled')
+        SID                   = $script:MockSid
+        ObjectGUID            = [guid]'11111111-2222-3333-4444-555555555555'
+        UserPrincipalName     = $null  # filled below
+        LastLogonDate         = [datetime]'2026-07-01T00:00:00Z'
+        LockedOut             = ($bucket -eq 'Locked')
+        PasswordExpired       = ($bucket -eq 'PasswordExpired')
+        PasswordLastSet       = [datetime]'2026-01-01T00:00:00Z'
+        AccountExpirationDate = if ($bucket -eq 'Expired') { [datetime]'2026-01-01T00:00:00Z' } else { $null }
+        whenCreated           = [datetime]'2025-01-01T00:00:00Z'
+        whenChanged           = [datetime]'2026-06-01T00:00:00Z'
+    }
+
+    $inScopeDn = "CN=Mock{0},{1}" -f $bucket, $sb
+    $inScopeSam = "mock.{0}{1}" -f $bucket.ToLower(), $samSuffix
+    $inScopeProps = [ordered]@{} + $fixedProps
+    $inScopeProps['Name'] = ($inScopeDn -replace '^CN=([^,]+),.*$', '$1')
+    $inScopeProps['SamAccountName'] = $inScopeSam
+    $inScopeProps['DistinguishedName'] = $inScopeDn
+    $inScopeProps['UserPrincipalName'] = "$inScopeSam@mock.local"
+    $inScope = [pscustomobject]$inScopeProps
+    $inScope.PSObject.TypeNames.Insert(0, $typeName)
+
+    $outScopeDn = "CN=OutScope{0},OU=NotManaged,DC=mock,DC=local" -f $bucket
+    $outScopeSam = "outscope.{0}{1}" -f $bucket.ToLower(), $samSuffix
+    $outScopeProps = [ordered]@{} + $fixedProps
+    $outScopeProps['Name'] = ($outScopeDn -replace '^CN=([^,]+),.*$', '$1')
+    $outScopeProps['SamAccountName'] = $outScopeSam
+    $outScopeProps['DistinguishedName'] = $outScopeDn
+    $outScopeProps['UserPrincipalName'] = "$outScopeSam@mock.local"
+    $outScope = [pscustomobject]$outScopeProps
+    $outScope.PSObject.TypeNames.Insert(0, $typeName)
 
     return @($inScope, $outScope)
 }
