@@ -78,8 +78,8 @@ function Get-AdmanStaleReport {
             }
             else {
                 # Replicated timestamp: convert and compare.
-                $lastLogon = [datetime]::FromFileTimeUtc([int64]$llt)
-                if ($lastLogon -lt $staleCutoff) {
+                $lastLogonDateTime = [datetime]::FromFileTimeUtc([int64]$llt)
+                if ($lastLogonDateTime -lt $staleCutoff) {
                     $bucket = 'Stale'
                 }
             }
