@@ -11,10 +11,10 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Menu & Navigation (MENU)
 
-- [ ] **MENU-01**: Admin can launch the tool (`Start-Adman`) and see a numbered menu of available actions
-- [ ] **MENU-02**: Admin can select an action by number and be prompted for required inputs with validation
-- [ ] **MENU-03**: Admin can navigate back and quit from any prompt
-- [ ] **MENU-04**: Every menu action routes to the same parameterized function a senior can call directly (one code path, two speeds)
+- [x] **MENU-01**: Admin can launch the tool (`Start-Adman`) and see a numbered menu of available actions
+- [x] **MENU-02**: Admin can select an action by number and be prompted for required inputs with validation
+- [x] **MENU-03**: Admin can navigate back and quit from any prompt
+- [x] **MENU-04**: Every menu action routes to the same parameterized function a senior can call directly (one code path, two speeds)
 - [x] **MENU-05**: On startup the tool probes capabilities (RSAT present, domain reachable, current rights, transport availability) and shows actionable guidance if something is missing
 
 ### Configuration & Credential Store (CONF)
@@ -151,10 +151,10 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MENU-01 | Phase 1 | Pending |
-| MENU-02 | Phase 1 | Pending |
-| MENU-03 | Phase 1 | Pending |
-| MENU-04 | Phase 1 | Pending |
+| MENU-01 | Phase 1 | Complete |
+| MENU-02 | Phase 1 | Complete |
+| MENU-03 | Phase 1 | Complete |
+| MENU-04 | Phase 1 | Complete |
 | MENU-05 | Phase 0 | Complete |
 | CONF-01 | Phase 0 | Complete |
 | CONF-02 | Phase 0 | Complete |
