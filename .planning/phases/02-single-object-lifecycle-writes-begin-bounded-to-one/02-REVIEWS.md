@@ -1,68 +1,71 @@
 ---
 phase: 02
 reviewers: [codex]
-reviewed_at: 2026-07-15T19:57:55Z
+reviewed_at: 2026-07-15T20:30:10Z
 plans_reviewed: [02-01-PLAN.md, 02-02-PLAN.md, 02-03-PLAN.md, 02-04-PLAN.md, 02-05-PLAN.md, 02-06-PLAN.md]
+cycle: 2
 ---
 
-# Cross-AI Plan Review — Phase 02
+# Cross-AI Plan Review — Phase 02 (Cycle 2)
 
 ## Codex Review
 
 ## Summary
 
-The phase split is directionally strong: Plan 02-01 centralizes the risky shared gate work, and the later plans keep most Public verbs thin. The main risks are implementation-order and mechanism gaps. Several plans rely on behavior the current repo does not yet have: failure outcome auditing around wrapper throws, per-verb `-Server` override handling, manifest exports during Wave 2 tests, fixed menu parameters, and updated existing config fixtures. These are fixable, but they should be addressed in the plans before execution because they affect testability and safety guarantees.
+The revised Phase 02 plan set is much stronger than cycle 1. The seven prior issues are materially addressed in the plan text, with tests added around the critical paths. I would mark the cycle-1 fixes resolved. The main new risk is in Plan 02-06's menu/password wiring: the prompt parameter names and generated `*Source` markers do not line up with the Public verb signatures, so several menu password actions can fail even though direct senior calls work.
 
 ## Strengths
 
-- The plan correctly builds on the existing gate shape. `Invoke-AdmanMutation` already has the fixed resolve → allow → confirm → PENDING audit → wrapper → OUTCOME audit order at [Private/Safety/Invoke-AdmanMutation.ps1](C:/Users/nhdinh/dev/adman/Private/Safety/Invoke-AdmanMutation.ps1:50).
-- The existing AD wrappers already follow the intended one-wrapper-per-write pattern with `SupportsShouldProcess`, pinned `-Server`, `-WhatIf`, `-Confirm:$false`, and `-ErrorAction Stop`, e.g. [Private/AD/Adman.AD.Write.ps1](C:/Users/nhdinh/dev/adman/Private/AD/Adman.AD.Write.ps1:23).
-- The audit writer already supports `Failure` as a result value, so the desired failure-audit model has a schema foothold at [Private/Audit/Write-AdmanAudit.ps1](C:/Users/nhdinh/dev/adman/Private/Audit/Write-AdmanAudit.ps1:37).
-- The menu architecture is a good fit for Phase 2: entries are data-driven in `Get-AdmanMenuDefinition`, and dispatch is generic via `& $Verb @params` at [Public/Start-Adman.ps1](C:/Users/nhdinh/dev/adman/Public/Start-Adman.ps1:133).
-- The safety guard is already strong and testable. The banned AD write set includes `New-ADUser`, group membership writes, and hard delete at [rules/AdmanSafetyRules.psm1](C:/Users/nhdinh/dev/adman/rules/AdmanSafetyRules.psm1:21).
+- Plan 02-01 now puts failure-outcome auditing at the actual enforcement point: the gate wrapper call is wrapped and writes `Result 'Failure'` before rethrowing (`02-01-PLAN.md:183`, `02-01-PLAN.md:188`, `02-01-PLAN.md:223`, `02-01-PLAN.md:226`).
+- Manifest export sequencing is fixed. Wave 2 plans now update `adman.psd1` in the same plan that creates each Public verb, instead of deferring exports to 02-06 (`02-02-PLAN.md:109`, `02-03-PLAN.md:89`, `02-03-PLAN.md:118`, `02-04-PLAN.md:99`, `02-04-PLAN.md:127`, `02-05-PLAN.md:89`).
+- The Set-ADAccountPassword wrapper fix is correctly placed in Plan 02-01, where the actual bad splat exists today at `Private/AD/Adman.AD.Write.ps1:101` (`02-01-PLAN.md:185`, `02-01-PLAN.md:188`).
+- The menu `FixedParameters` fix is now explicit and tested, matching the current dispatcher gap at `Public/Start-Adman.ps1:119` and `Public/Start-Adman.ps1:134` (`02-06-PLAN.md:102`, `02-06-PLAN.md:106`, `02-06-PLAN.md:109`).
 
 ## Concerns
 
-- **HIGH: Failure outcome auditing is assumed but not planned into the gate.**
-  Plans 02-01 and 02-04 repeatedly rely on "wrapper throws → OUTCOME audit records `Failed`," especially for create TOCTOU closure. The current gate writes PENDING, invokes the wrapper, then writes only `Success`; there is no `try/catch` around the wrapper call at [Private/Safety/Invoke-AdmanMutation.ps1](C:/Users/nhdinh/dev/adman/Private/Safety/Invoke-AdmanMutation.ps1:92). If `New-ADUser`, `New-LocalUser`, or any wrapper throws, the current mechanism leaves a PENDING orphan and never writes `Failure`.
+- **HIGH: Menu password PromptSpec names and generated source markers do not match Public verb signatures.**
+  Plan 02-06 says menu entries use a `Password` prompt for `New-AdmanUser` and `Set-AdmanUserPassword` (`02-06-PLAN.md:106`), while those verbs are planned with `AccountPassword` and `NewPassword` parameters (`02-02-PLAN.md:109`, `02-02-PLAN.md:146`). `Read-AdmanActionParams` will also add `${name}Source` markers (`02-06-PLAN.md:106`), but the Public verb parameter lists do not include `AccountPasswordSource`, `NewPasswordSource`, or `PasswordSource` (`02-02-PLAN.md:109`, `02-02-PLAN.md:146`, `02-04-PLAN.md:99`). Since `Start-Adman` dispatches via splat today (`Public/Start-Adman.ps1:134`), wrong or extra keys will produce "parameter cannot be found" failures from the menu path. Direct-call tests may pass while MENU-04 is broken.
 
-- **HIGH: Wave 2 Public verb tests will likely fail because exports are deferred to Plan 02-06.**
-  Existing tests import the manifest before calling public commands at [tests/Find.User.Tests.ps1](C:/Users/nhdinh/dev/adman/tests/Find.User.Tests.ps1:53), then invoke exported functions directly at [tests/Find.User.Tests.ps1](C:/Users/nhdinh/dev/adman/tests/Find.User.Tests.ps1:65). The manifest has an explicit `FunctionsToExport` list at [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:53). Plans 02-02 through 02-05 add Public files but intentionally defer manifest exports to 02-06, so those new commands may not be visible when their own tests run.
+- **MEDIUM: Failure result naming is inconsistent between `Failure` and `Failed`.**
+  The current audit writer only accepts `Failure`, not `Failed` (`Private/Audit/Write-AdmanAudit.ps1:37`). The revised fix correctly uses `Failure` in key action text (`02-01-PLAN.md:188`, `02-01-PLAN.md:226`), but several behavior/threat lines still say `Result='Failed'` (`02-01-PLAN.md:222`, `02-01-PLAN.md:304`, `02-02-PLAN.md:146`, `02-04-PLAN.md:95`). This is likely documentation drift, but it can mislead implementers or produce tests expecting the wrong value.
 
-- **HIGH: `Unlock-AdmanUser`'s PDCe override will collide with the existing wrapper unless the wrapper is changed.**
-  Plan 02-02 passes `$Parameters['Server']` into the gate for PDCe unlock. The current `Adman.AD.Write.Unlock-ADAccount` wrapper already supplies `-Server $script:Config.DC` and then splats `@Parameters` at [Private/AD/Adman.AD.Write.ps1](C:/Users/nhdinh/dev/adman/Private/AD/Adman.AD.Write.ps1:115). Passing `Server` in `$Parameters` will duplicate the parameter and fail unless Plan 02-01 explicitly updates that wrapper too.
+- **MEDIUM: New-ADUser CN uniqueness pre-flight may over-refuse because the CN search lacks `-SearchScope OneLevel`.**
+  Plan 02-01 checks `cn -eq '<escaped>'` with `-SearchBase <ParentOuDn>` (`02-01-PLAN.md:188`). AD requires CN uniqueness within the immediate parent container, not every descendant OU. Without an explicit one-level scope, this can refuse a valid create because a same-CN object exists in a child OU.
 
-- **HIGH: Password reset parameters will be splatted into the wrong AD cmdlet.**
-  Plan 02-02 sends `ChangePasswordAtLogon` with the `Set-ADAccountPassword` gate call. The current wrapper blindly splats `@Parameters` into `Set-ADAccountPassword` at [Private/AD/Adman.AD.Write.ps1](C:/Users/nhdinh/dev/adman/Private/AD/Adman.AD.Write.ps1:101). `ChangePasswordAtLogon` belongs on `Set-ADUser`, not `Set-ADAccountPassword`, so this needs a wrapper-level split: set password first, then call `Set-ADUser -ChangePasswordAtLogon`.
+## Cycle 1 Fix Verification
 
-- **MEDIUM: Adding required `security` config keys will break existing fixture configs unless the plan updates them.**
-  `Test-AdmanConfigValid` enforces every top-level schema `required` key at [Private/Config/Initialize-AdmanConfig.ps1](C:/Users/nhdinh/dev/adman/Private/Config/Initialize-AdmanConfig.ps1:89). Plan 02-01 adds top-level `security`, but many existing test config builders omit it, e.g. [tests/Config.Load.Tests.ps1](C:/Users/nhdinh/dev/adman/tests/Config.Load.Tests.ps1:55). Plan 02-01 does not list the existing config test files as modified, so the full suite will likely regress.
+- **HIGH #1: Gate failure-audit try/catch missing — RESOLVED.**
+  AD gate fix is specified at `02-01-PLAN.md:183` and implemented action text at `02-01-PLAN.md:188`. Local gate mirror is specified at `02-01-PLAN.md:223` and `02-01-PLAN.md:226`.
 
-- **MEDIUM: Plan 02-06 says the dispatcher injects fixed `-Enable` / `-Disable` switches, but no mechanism exists or is specified.**
-  The current menu contract only has `Label`, `Verb`, `PromptSpec`, and `Properties` at [Private/Menu/Get-AdmanMenuDefinition.ps1](C:/Users/nhdinh/dev/adman/Private/Menu/Get-AdmanMenuDefinition.ps1:10). `Read-AdmanActionParams` returns only parameters declared in `PromptSpec` at [Private/Menu/Read-AdmanActionParams.ps1](C:/Users/nhdinh/dev/adman/Private/Menu/Read-AdmanActionParams.ps1:27), and `Start-Adman` dispatches exactly those params at [Public/Start-Adman.ps1](C:/Users/nhdinh/dev/adman/Public/Start-Adman.ps1:119). The plan needs a `FixedParameters` field or equivalent dispatcher change.
+- **HIGH #2: Wave 2 manifest export sequencing — RESOLVED.**
+  User verbs export in `02-02-PLAN.md:109` and `02-02-PLAN.md:146`; computer verbs in `02-03-PLAN.md:89` and `02-03-PLAN.md:118`; local verbs in `02-04-PLAN.md:99` and `02-04-PLAN.md:127`; group verbs in `02-05-PLAN.md:89`. Plan 02-06 re-verifies rather than owning the first export (`02-06-PLAN.md:100`, `02-06-PLAN.md:106`).
 
-- **LOW: Plan 02-06 verification under-tests the new `Start.Adman.Tests.ps1` in Task 1.**
-  The task creates `tests/Start.Adman.Tests.ps1`, but its immediate verify command only names `tests/Menu.Tests.ps1` and `tests/Module.Manifest.Tests.ps1`. The later full-suite gate catches it, but the task-level feedback loop should include the new test file.
+- **HIGH #3: Unlock-ADAccount Server-splat collision — RESOLVED.**
+  Plan 02-01 requires computing `$server`, stripping `Server` from the splat, and passing one `-Server` (`02-01-PLAN.md:184`, `02-01-PLAN.md:188`).
+
+- **HIGH #4: ChangePasswordAtLogon routed to wrong cmdlet — RESOLVED.**
+  Plan 02-01 requires stripping `ChangePasswordAtLogon` before `Set-ADAccountPassword` and applying it with `Set-ADUser` after reset (`02-01-PLAN.md:185`, `02-01-PLAN.md:188`).
+
+- **MEDIUM #5: Existing config fixtures need `security` block — RESOLVED.**
+  Plan 02-01 lists all four config test fixtures to update (`02-01-PLAN.md:134`-`02-01-PLAN.md:137`) and explicitly adds the block in action text (`02-01-PLAN.md:151`).
+
+- **MEDIUM #6: FixedParameters menu field missing — RESOLVED.**
+  Plan 02-06 adds `FixedParameters`, injects `Enable=$true` / `Disable=$true`, and tests merge order/no collisions (`02-06-PLAN.md:102`, `02-06-PLAN.md:103`, `02-06-PLAN.md:106`).
+
+- **LOW #7: `Start.Adman.Tests.ps1` missing from verify command — RESOLVED.**
+  Plan 02-06 now includes the file in `files_modified` (`02-06-PLAN.md:12`), task files (`02-06-PLAN.md:86`), and the verify command (`02-06-PLAN.md:109`).
 
 ## Suggestions
 
-- Add an explicit gate change in Plan 02-01: wrap the raw wrapper invocation in `try/catch`, write `Write-AdmanAudit -Result 'Failure' -Reason $_.Exception.Message`, then rethrow or return a failure result. Mirror this in `Invoke-AdmanLocalMutation`.
-- Move manifest export updates into each Public verb plan, or have those tests invoke commands inside module scope deliberately. Given existing test style, updating `adman.psd1` per Wave 2 plan is cleaner.
-- Update `Adman.AD.Write.Unlock-ADAccount` to compute `$server = $Parameters['Server'] ?? $script:Config.DC`, remove `Server` from the splat, and pass one `-Server`.
-- Update `Adman.AD.Write.Set-ADAccountPassword` to strip non-cmdlet keys like `Unlock` and `ChangePasswordAtLogon`; after a successful reset, call `Set-ADUser -ChangePasswordAtLogon <bool>` when requested, and optionally `Unlock-ADAccount`.
-- Add existing config fixture updates to Plan 02-01's file list, especially `tests/Config.*.Tests.ps1` and any helper config builders.
-- For menu fixed switches, add a small explicit menu-entry field such as `FixedParameters = @{ Enable = $true }`, merge it with prompted params before `& $Verb @params`, and test that separator entries remain non-selectable.
+- In Plan 02-06, make every password PromptSpec `Name` exactly match the target Public parameter: `AccountPassword`, `NewPassword`, or `Password`.
+- Add hidden optional Public parameters for the source markers, e.g. `AccountPasswordSource`, `NewPasswordSource`, `PasswordSource`, or have `Start-Adman` strip marker keys before splatting and pass source another way.
+- Normalize every plan reference from `Failed` to `Failure` to match `Write-AdmanAudit`'s current `ValidateSet`.
+- Add `-SearchScope OneLevel` to the CN uniqueness pre-flight under the parent OU.
+- Make the group dual-resolution path explicitly overwrite or clone `$Parameters['GroupIdentity'] = $group.DistinguishedName` before wrapper invocation, so execution uses the resolved group DN that preview/audit named.
 
 ## Risk Assessment
 
-- **plan-00.md: HIGH risk.** It is the right architectural plan, but it carries the most safety-critical gaps: no failure outcome auditing in the current gate, potential config fixture regressions, and wrapper parameter handling assumptions.
-- **plan-01.md: HIGH risk.** User lifecycle is valuable and well scoped, but password reset and PDCe unlock currently depend on wrapper behavior that will fail unless Plan 02-01 is expanded.
-- **plan-02.md: MEDIUM risk.** Computer lifecycle is mostly thin reuse. Main risk is `Set-ADAccountPassword -Reset` relying on the same wrapper splat hygiene and guidance return behavior.
-- **plan-03.md: MEDIUM-HIGH risk.** The local gate design is solid, but create/delete correctness depends on the missing failure-audit mechanism and on careful LocalAccounts wrapper splat cleanup.
-- **plan-04.md: LOW-MEDIUM risk.** Group membership plan is comparatively clean because the hard policy work is in Plan 02-01. Risk is mostly ensuring dual-resolution audit and wrapper parameter swapping are implemented exactly.
-- **plan-05.md: MEDIUM risk.** Menu integration is straightforward, but fixed parameter injection and task-level test coverage need tightening.
-
-Overall phase risk: **HIGH until the gate failure-audit path, manifest ordering, and wrapper parameter handling are corrected**. After those plan edits, the phase becomes **MEDIUM**: broad but coherent, with good safety and test scaffolding.
+Overall risk is **MEDIUM**. The safety-critical cycle-1 issues are now covered at the right layer, and the test plan is broad. The remaining menu/password mismatch is high-impact but localized to Plan 02-06 and fixable before execution. Once that wiring is corrected and `Failure` naming is normalized, the phase plan is coherent enough to execute.
 
 ---
 
@@ -72,15 +75,15 @@ Single-reviewer cycle (Codex only). Consensus section reflects Codex's findings;
 
 ### Agreed Strengths
 
-- Gate extension strategy (single cross-cutting plan) prevents file-collision between verb plans
-- Existing wrappers, audit writer, and AST guard provide a solid foundation to extend
-- Menu architecture (data-driven + generic dispatch) absorbs new write entries without a new engine
+- All 7 cycle-1 fixes verified as RESOLVED with concrete plan-file:line evidence
+- Failure-outcome auditing now correctly placed at the gate enforcement point (both AD and local gates)
+- Manifest export sequencing fixed by landing exports in the same plan as each Wave 2 verb
+- FixedParameters mechanism explicit and tested for menu dispatcher
 
 ### Agreed Concerns
 
-- **4 HIGH severity issues** all rooted in the same pattern: plans assume mechanism behavior that doesn't yet exist in the repo (failure-audit try/catch, manifest export timing, wrapper Server/ChangePasswordAtLogon handling)
-- **2 MEDIUM severity issues** around config fixture regression and menu fixed-parameter mechanism
-- **1 LOW severity issue** on task-level test verification scope
+- **1 NEW HIGH severity issue**: Menu password PromptSpec name mismatch — `Password` vs `AccountPassword`/`NewPassword`, plus unhandled `${name}Source` markers, will break menu-path password actions (MENU-04) even though direct calls work
+- **2 NEW MEDIUM severity issues**: `Failure`/`Failed` documentation drift; missing `-SearchScope OneLevel` on CN uniqueness pre-flight
 
 ### Divergent Views
 
@@ -90,7 +93,9 @@ N/A — single reviewer.
 
 ## Verification coverage
 
-Source-grounding pass performed against the grep authority. All file paths and existing function symbols cited by the plans were verified against the repo. No MISSING symbols detected among pre-existing code.
+Source-grounding pass performed against the **grep** authority. All file paths and existing function symbols cited by the plans were verified against the repo. No MISSING symbols detected among pre-existing code.
+
+**Authority:** `grep` (via `gsd_run drift-guard authority --raw`)
 
 **Symbols verified (file paths):** 22/22 — all files listed in `files_modified` and `read_first` blocks exist.
 
@@ -111,11 +116,23 @@ Source-grounding pass performed against the grep authority. All file paths and e
 - `Start-Adman` (Public/Start-Adman.ps1:39)
 - 9 existing `Adman.AD.Write.*` wrappers (Private/AD/Adman.AD.Write.ps1:23-148)
 
-**Symbols excluded (artifacts this phase produces):** All `Adman.Local.Write.*` wrappers, `Resolve-AdmanCreateTarget`, `Resolve-AdmanLocalTarget`, `Resolve-AdmanGroup`, `Test-AdmanLocalTargetAllowed`, `Test-AdmanGroupAllowed`, `Invoke-AdmanLocalMutation`, `New-AdmanRandomPassword`, `Test-AdmanPasswordComplexity`, `Get-AdmanCsprngIndex`, `Adman.AD.Write.New-ADUser`, `Get-AdmanBannedLocalWriteVerbs`, all Public verb names (`New-AdmanUser`, `Disable-AdmanUser`, etc.), all new config keys (`security.passwordSource`, etc.), all new test files.
+**Source-grounding evidence for new findings:**
+- `Write-AdmanAudit` ValidateSet is `'PENDING', 'Success', 'Failure', 'Refused', 'Cancelled'` — `'Failed'` is NOT accepted (Private/Audit/Write-AdmanAudit.ps1:37). Confirms MEDIUM #2.
+- `Start-Adman` dispatches via `& $Verb @params` (Public/Start-Adman.ps1:134). Confirms HIGH #1 mechanism — splatting wrong/extra keys will throw "parameter cannot be found".
+- `Get-AdmanMenuDefinition` entries currently have only Label/Verb/PromptSpec/Properties (Private/Menu/Get-AdmanMenuDefinition.ps1:10-15). Confirms FixedParameters is a new field this phase introduces.
+- `Read-AdmanActionParams` has no Type dispatch today (Private/Menu/Read-AdmanActionParams.ps1:33). Confirms the GeneratedPassword Type handling is new this phase.
+
+**Symbols excluded (artifacts this phase produces):** All `Adman.Local.Write.*` wrappers, `Resolve-AdmanCreateTarget`, `Resolve-AdmanLocalTarget`, `Resolve-AdmanGroup`, `Test-AdmanLocalTargetAllowed`, `Test-AdmanGroupAllowed`, `Invoke-AdmanLocalMutation`, `New-AdmanRandomPassword`, `Test-AdmanPasswordComplexity`, `Get-AdmanCsprngIndex`, `Adman.AD.Write.New-ADUser`, `Get-AdmanBannedLocalWriteVerbs`, all Public verb names (`New-AdmanUser`, `Disable-AdmanUser`, etc.), all new config keys (`security.passwordSource`, etc.), all new test files, the `FixedParameters` menu field, the GeneratedPassword Type dispatch.
 
 **UNCHECKABLE items:**
 - Specific line numbers cited in `read_first` blocks (e.g., "Confirm-AdmanAction.ps1 line 45", "Invoke-AdmanMutation.ps1 lines 48-112") — line numbers shift as files are edited; the symbolic reference is what matters and the functions exist.
-- Behavior claims about Phase 0/1 invariants (e.g., "the 00-05 writer already supports non-Success outcomes") — verified at the schema level (`ValidateSet` includes `'Failure'` at Write-AdmanAudit.ps1:37), but the *gate-side* emission of `Failure` is a code change this phase must make (covered by Codex HIGH #1).
+- Behavior claims about Phase 0/1 invariants (e.g., "the 00-05 writer already supports non-Success outcomes") — verified at the schema level (`ValidateSet` includes `'Failure'` at Write-AdmanAudit.ps1:37), but the *gate-side* emission of `Failure` is a code change this phase must make (covered by Codex cycle-1 HIGH #1, now RESOLVED in plan text).
 - The Spike 004 recipe line range (lines 37-92 of Invoke-Spike.ps1) — file exists; exact line range not re-verified against the recipe content.
+- The exact menu PromptSpec `Name` values that Plan 02-06 will use for each password entry — the plan text says "Password with Type='GeneratedPassword'" but does not pin the exact `Name` key per entry; the HIGH finding assumes the worst case (literal `Password`) and the fix requires per-verb alignment.
 
-No MISSING symbols. No hardBlock. Plan may proceed once Codex's HIGH concerns are incorporated.
+**Severity classification (via `gsd_run drift-guard severity`):**
+- VERIFIED → severity:none, hardBlock:false
+- MISSING → severity:needs-acknowledgement, hardBlock:false
+- UNCHECKABLE → severity:INFO, hardBlock:false
+
+No MISSING symbols. No hardBlock. Plan may proceed once Codex's cycle-2 HIGH concern (menu password PromptSpec name mismatch) is incorporated.
