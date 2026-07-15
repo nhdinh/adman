@@ -85,15 +85,17 @@ Plans (finalized during `/gsd-plan-phase 1`):
   3. Admin can create/disable/enable/reset-password/remove a local user and manage local group membership (e.g., local Administrators) on a target via the `LocalAccounts` module, mutations through the gate (LUSR-01/02).
   4. Admin can add/remove a user from groups (GRP-01/02), the tool refuses adding any principal to a protected group per SAFE-06 (GRP-03), protected/out-of-scope targets are refused and logged, and no verb bypasses the gate (lint + Pester re-proven against the new verbs).
 
-**Plans**: TBD (suggested 4-plan split below)
+**Plans**: 6 plans (re-derived from D-01..D-05 during `/gsd-plan-phase 2`; the suggested 4-plan split predated the context session)
 **UI hint**: no
 
-Suggested plan split (refined during `/gsd-plan-phase 2`):
+Plans (finalized during `/gsd-plan-phase 2`):
 
-- [ ] 02-01: AD user lifecycle verbs — create/disable/enable/move/reset-password/unlock (PDCe-pinned, `-Server` pinned per sequence) through the gate (USER-02/03/04/05/06).
-- [ ] 02-02: AD computer lifecycle verbs — disable/enable/move + reset-computer-account/secure-channel guidance, through the gate (COMP-02/03/04).
-- [ ] 02-03: Local (per-machine) user lifecycle via `LocalAccounts` — create/disable/enable/reset-password/remove + local group membership, mutations through the gate (LUSR-01/02).
-- [ ] 02-04: Group membership verbs — add/remove with protected-group refusal (GRP-03 reuses SAFE-06); lint + Pester re-proof that no new verb bypasses the gate (GRP-01/02/03).
+- [ ] 02-01-PLAN.md — Cross-cutting gate infrastructure: config schema + D-05 CSPRNG password plumbing, D-01 create path (Resolve-AdmanCreateTarget + create-branch + uniqueness pre-flight + New-ADUser wrapper), D-04 group policy (Resolve-AdmanGroup + Test-AdmanGroupAllowed), D-02 sibling local gate (Invoke-AdmanLocalMutation + Resolve-AdmanLocalTarget + Test-AdmanLocalTargetAllowed + Adman.Local.Write.*), D-03 Remove-LocalUser threshold override, audit group field + MACHINE\username shape, AST guard LocalAccounts extension, Wave 0 test scaffolds. (USER-02, USER-04, LUSR-01, LUSR-02, GRP-01, GRP-02, GRP-03)
+- [ ] 02-02-PLAN.md — AD user lifecycle Public verbs: New-AdmanUser, Disable/Enable-AdmanUser, Set-AdmanUserPassword, Unlock-AdmanUser (PDCe-pinned), Move-AdmanUser (destination validated). (USER-02, USER-03, USER-04, USER-05, USER-06)
+- [ ] 02-03-PLAN.md — AD computer lifecycle Public verbs: Disable/Enable-AdmanComputer, Move-AdmanComputer, Reset-AdmanComputerAccount (with honest AD-side vs on-machine guidance). (COMP-02, COMP-03, COMP-04)
+- [ ] 02-04-PLAN.md — Local user/group Public verbs: New/Set/Remove-AdmanLocalUser, Add/Remove-AdmanLocalGroupMember, all through the sibling local gate with localhost-only -ComputerName validation. (LUSR-01, LUSR-02)
+- [ ] 02-05-PLAN.md — Group membership Public verbs: Add/Remove-AdmanGroupMember through the gate's dual-resolution path; GRP-03 protected-group refusal + D-04 asymmetric remove. (GRP-01, GRP-02, GRP-03)
+- [ ] 02-06-PLAN.md — Menu integration (section-grouped write entries + D-05 password prompt Type), manifest exports, phase exit gate (full suite green + AST guard re-proof + lint clean). (All 13 Phase 2 requirements)
 
 ### Phase 3: Remote Computer Operations (isolated)
 
@@ -166,12 +168,12 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 |-------|----------------|--------|-----------|
 | 0. Foundation & Safety Harness | 6/6 | Complete    | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
-| 2. Single-Object Lifecycle (writes begin) | 0/4 | Not started | - |
+| 2. Single-Object Lifecycle (writes begin) | 0/6 | Not started | - |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |
 | 4. Bulk & Workflows (highest blast radius, last) | 0/4 | Not started | - |
 | 5. Hardening & Portability | 0/3 | Not started | - |
 
-**Total:** 6 phases, 23 plans (suggested), 58/58 v1 requirements mapped.
+**Total:** 6 phases, 25 plans (suggested), 58/58 v1 requirements mapped.
 
 ## Coverage Validation
 
