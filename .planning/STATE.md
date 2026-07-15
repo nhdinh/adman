@@ -6,14 +6,14 @@ current_phase: 01
 current_phase_name: ad-query-reporting-read-only
 status: executing
 stopped_at: Phase 01 plans verified and ready to execute
-last_updated: "2026-07-15T05:31:25.758Z"
+last_updated: "2026-07-15T05:52:46.243Z"
 last_activity: 2026-07-15
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 17
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 01 (ad-query-reporting-read-only) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-15 — Phase 01 execution started
 
-Progress: [██░░░░░░░░] 17% (Phase 1 of 6, 0 of 4 Phase 1 plans executed)
+Progress: [█████████░] 90% (Phase 1 of 6, 3 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [██░░░░░░░░] 17% (Phase 1 of 6, 0 of 4 Phase 1 pla
 | Phase 01 P01 | 15m | - tasks | - files |
 | Phase 01 P02 | 20m | - tasks | - files |
 | Phase 01 P02 | 20m | 5 tasks | 13 files |
+| Phase 01 P03 | 14m | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Phase 01-02: HIGH-1 resolved via dedicated Escape-AdmanAdFilterLiteral helper for -Filter string literals (single-quote doubling + backslash doubling); Escape-AdmanLdapFilterValue remains RFC4515-only for -LDAPFilter. The two are structurally independent and NOT interchangeable.
 - [Phase ?]: Phase 01-02: MEDIUM-3 resolved — ConvertTo-AdmanNormalizedDn extracted from Test-AdmanTargetAllowed into Private/Utility/ as the single source for DN normalization; both write path (Test-AdmanTargetAllowed step (c)) and read path (Test-AdmanInManagedScope) call it with no logic duplication.
 - [Phase ?]: Phase 01-02: D-03 schema contract pinned — ConvertTo-AdmanResult emits fixed-schema PSCustomObject per type (User: 16 columns, Computer: 15 columns); timestamps as [datetime] or $null; never-logged-on sentinel deferred to report layer.
+- [Phase 01-03]: D-07 sync-interval source: (Get-ADDomain).LastLogonReplicationInterval (domain NC head), NOT the Configuration partition Directory Service object (that attribute is tombstoneLifetime).
+- [Phase 01-03]: MEDIUM-1 conversion matrix: TimeSpan -> .Days; numeric -> truncate toward zero; zero/negative/null/other -> 14 fallback; any exception -> 14.
+- [Phase 01-03]: Grace buffer: LogonSyncGraceDays = [math]::Max(14, interval) + 1 (epsilon +1 per RESEARCH).
+- [Phase 01-03]: D-08: Initialize-Adman wraps Get-AdmanRecoveryPosture in try/catch so a posture read failure NEVER blocks startup.
+- [Phase 01-03]: Get-AdmanRecoveryPostureReport reads from $script:Config.RecoveryPosture when initialized; falls back to direct call pre-init.
+- [Phase 01-03]: Bucket column added via Add-Member -Force on D-03 schema objects (not a schema change; renderers see it as an extra NoteProperty).
 
 ### Pending Todos
 
@@ -130,7 +137,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-15T05:30:41.824Z
-Stopped at: Phase 01 UI-SPEC approved
-Resume file: C:/Users/nhdinh/dev/adman/.planning/phases/01-ad-query-reporting-read-only/01-UI-SPEC.md
-Next action (when user approves): /gsd-execute-phase 0 — build the safety spine. Do NOT auto-chain; per user rule, explicit go-ahead required.
+Last session: 2026-07-15T05:52:46.243Z
+Stopped at: Completed 01-03-PLAN.md
+Resume file: C:/Users/nhdinh/dev/adman/.planning/phases/01-ad-query-reporting-read-only/01-03-SUMMARY.md
+Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
