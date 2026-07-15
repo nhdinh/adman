@@ -14,9 +14,17 @@
          to build the parameter hashtable. 'B' inside a prompt returns $null (resume
          the loop); 'Q' throws the ADMAN_QUIT sentinel which this loop catches and
          breaks on.
-      4. Dispatch via the call operator with the splatted parameter hashtable and
-         emit the returned PSCustomObject[] directly. Renderer dispatch is Plan
-         01-04 - the menu body NEVER calls a renderer.
+      4. Dispatch via the call operator with the splatted parameter hashtable.
+      5. After the verb returns its PSCustomObject[], present an inline output-format
+         prompt (1=console, 2=CSV, 3=HTML, 4=grid if available, B=back, Q=quit).
+         For CSV/HTML, prompt for the output path and validate the parent directory
+         exists before invoking the renderer; on invalid path, re-prompt once then
+         treat a second failure as 'B'.
+      6. PROPERTIES PROPAGATION (Cycle 4 finding): read the selected menu entry's
+         Properties field (from Get-AdmanMenuDefinition) and pass it as -Properties
+         to the chosen renderer. This guarantees that when a report verb returns
+         zero rows, the CSV/HTML/console output still renders the header row from
+         the D-03 schema instead of a zero-byte file or a no-table document.
 
     The menu contains no AD read logic and no formatting logic beyond the banner.
     Every verb dispatched is the same Public function a senior calls directly
@@ -83,7 +91,7 @@ function Start-Adman {
     # --- Flat menu loop -------------------------------------------------------
     $menu = Get-AdmanMenuDefinition
 
-    while ($true) {
+    :menuLoop while ($true) {
         Write-Host 'adman - AD Manager' -ForegroundColor Cyan
         Write-Host ''
         for ($i = 0; $i -lt @($menu).Count; $i++) {
@@ -123,7 +131,107 @@ function Start-Adman {
         }
 
         # MENU-04: dispatch the same Public verb a senior calls directly.
-        # Renderer dispatch is Plan 01-04 - emit the PSCustomObject[] as-is.
-        & $Verb @params
+        $reportData = & $Verb @params
+
+        # --- Output-format prompt (D-04) -------------------------------------
+        # Present inline output-format choices after the verb returns. B returns
+        # to the top-level menu; Q exits Start-Adman.
+        $formatChoice = $null
+        $formatResolved = $false
+        while (-not $formatResolved) {
+            Write-Host ''
+            Write-Host 'Output format:'
+            Write-Host '1. Console table'
+            Write-Host '2. CSV file'
+            Write-Host '3. HTML file'
+            Write-Host '4. Grid picker (if available)'
+            Write-Host 'B. Back to menu'
+            Write-Host 'Q. Quit'
+            $formatChoice = Read-Host 'Select format'
+
+            if ($formatChoice -match '^[Qq]$') {
+                break menuLoop  # Exit both the format loop and the top-level menu loop.
+            }
+            if ($formatChoice -match '^[Bb]$') {
+                $formatResolved = $true
+                continue
+            }
+
+            $formatNum = 0
+            if (-not [int]::TryParse($formatChoice, [ref]$formatNum) -or $formatNum -lt 1 -or $formatNum -gt 4) {
+                Write-Host 'Invalid selection. Enter a number, B, or Q.'
+                continue
+            }
+
+            # Resolve the renderer and any additional parameters.
+            $renderer = $null
+            $rendererParams = @{}
+            switch ($formatNum) {
+                1 { $renderer = 'Format-AdmanReport' }
+                2 {
+                    $renderer = 'Export-AdmanReportCsv'
+                    $pathResolved = $false
+                    $pathAttempts = 0
+                    while (-not $pathResolved -and $pathAttempts -lt 2) {
+                        $outPath = Read-Host 'Enter CSV output path'
+                        if ($outPath -match '^[Bb]$') { $pathResolved = $true; $formatResolved = $true; continue }
+                        if ($outPath -match '^[Qq]$') { break menuLoop }
+                        $parent = Split-Path -Path $outPath -Parent
+                        if ([string]::IsNullOrWhiteSpace($parent)) { $parent = (Get-Location).Path }
+                        if (Test-Path -LiteralPath $parent -PathType Container) {
+                            $rendererParams['Path'] = $outPath
+                            $pathResolved = $true
+                        } else {
+                            $pathAttempts++
+                            if ($pathAttempts -lt 2) {
+                                Write-Host "Directory does not exist: $parent. Re-enter path or B to cancel."
+                            } else {
+                                Write-Host "Directory does not exist: $parent. Returning to menu."
+                                $formatResolved = $true
+                            }
+                        }
+                    }
+                    if (-not $pathResolved) { continue }
+                }
+                3 {
+                    $renderer = 'Export-AdmanReportHtml'
+                    $pathResolved = $false
+                    $pathAttempts = 0
+                    while (-not $pathResolved -and $pathAttempts -lt 2) {
+                        $outPath = Read-Host 'Enter HTML output path'
+                        if ($outPath -match '^[Bb]$') { $pathResolved = $true; $formatResolved = $true; continue }
+                        if ($outPath -match '^[Qq]$') { break menuLoop }
+                        $parent = Split-Path -Path $outPath -Parent
+                        if ([string]::IsNullOrWhiteSpace($parent)) { $parent = (Get-Location).Path }
+                        if (Test-Path -LiteralPath $parent -PathType Container) {
+                            $rendererParams['Path'] = $outPath
+                            $pathResolved = $true
+                        } else {
+                            $pathAttempts++
+                            if ($pathAttempts -lt 2) {
+                                Write-Host "Directory does not exist: $parent. Re-enter path or B to cancel."
+                            } else {
+                                Write-Host "Directory does not exist: $parent. Returning to menu."
+                                $formatResolved = $true
+                            }
+                        }
+                    }
+                    if (-not $pathResolved) { continue }
+                }
+                4 {
+                    $renderer = 'Format-AdmanReport'
+                    $rendererParams['UseGridView'] = $true
+                }
+            }
+
+            if ($null -ne $renderer) {
+                # PROPERTIES PROPAGATION (Cycle 4 finding): pass the menu entry's
+                # Properties field to the renderer so a zero-row report still
+                # renders headers from the D-03 schema.
+                $rendererParams['Properties'] = $entry.Properties
+                & $renderer -InputObject $reportData @rendererParams
+                $formatResolved = $true
+            }
+        }
     }
 }

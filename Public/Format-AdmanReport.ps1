@@ -89,7 +89,7 @@ function Format-AdmanReport {
                     Write-Output '(no results)'
                     return
                 }
-                $headerOnly = ([pscustomobject]$proto | Format-Table -AutoSize | Out-String -Width 4096)
+                $headerOnly = ([pscustomobject]$proto | Format-Table -Property @($proto.Keys) -AutoSize | Out-String -Width 4096)
                 # Format-Table on a single empty-string row emits:
                 #   line 1: header
                 #   line 2: dashes

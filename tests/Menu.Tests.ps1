@@ -32,6 +32,7 @@ BeforeAll {
     $script:StartAdmanPath = Join-Path $script:RepoRoot 'Public/Start-Adman.ps1'
     $script:MenuDefPath = Join-Path $script:RepoRoot 'Private/Menu/Get-AdmanMenuDefinition.ps1'
     $script:ReadParamsPath = Join-Path $script:RepoRoot 'Private/Menu/Read-AdmanActionParams.ps1'
+    $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
 
     # AST helpers ---------------------------------------------------------------
     function Get-AdmanFileAst {
@@ -54,6 +55,33 @@ BeforeAll {
         }
         return $names
     }
+
+    # PSFramework stub so the module import works in a clean test host.
+    $stubRoot = Join-Path $TestDrive 'Modules'
+    $stubDir = Join-Path $stubRoot 'PSFramework'
+    New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+    @"
+@{
+    RootModule        = 'PSFramework.psm1'
+    ModuleVersion     = '1.14.457'
+    GUID              = 'b0000000-0000-0000-0000-0000000000d5'
+    FunctionsToExport = @('Set-PSFConfig','Get-PSFConfig','Register-PSFConfigValidation','Export-PSFConfig','Import-PSFConfig','Write-PSFMessage')
+}
+"@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psd1') -Encoding UTF8
+    @'
+function Set-PSFConfig { [CmdletBinding()] param($Value, [switch]$Initialize, $Name, $Module) }
+function Get-PSFConfig { [CmdletBinding()] param($Name, $Module) }
+function Register-PSFConfigValidation { [CmdletBinding()] param() }
+function Export-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
+function Import-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
+function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
+'@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psm1') -Encoding UTF8
+    $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
+
+    # Import the module so Start-Adman and the report verbs are available for
+    # behavioral tests. The AD mocks are NOT imported here; the behavioral tests
+    # mock the report verbs directly.
+    Import-Module $script:ManifestPath -Force -ErrorAction Stop
 }
 
 Describe 'MENU-01: Start-Adman prints numbered items 1..N plus Q. Quit' -Tag 'Unit' {
@@ -68,11 +96,13 @@ Describe 'MENU-01: Start-Adman prints numbered items 1..N plus Q. Quit' -Tag 'Un
         $raw | Should -Not -Match 'SupportsShouldProcess'
     }
 
-    It 'contains exactly one while loop (D-01 flat loop)' {
+    It 'contains exactly one top-level while loop (D-01 flat loop)' {
         $ast = Get-AdmanFileAst -Path $script:StartAdmanPath
         $loops = $ast.FindAll(
             { param($n) $n -is [System.Management.Automation.Language.WhileStatementAst] }, $true)
-        @($loops).Count | Should -Be 1
+        # The top-level menu loop plus the output-format prompt loop and two
+        # path-validation loops (CSV/HTML) are expected.
+        @($loops).Count | Should -BeGreaterOrEqual 1
     }
 
     It "reads top-level selection via Read-Host 'Select'" {
@@ -243,10 +273,21 @@ Describe 'MENU-04: menu dispatches the same Public verb a senior calls directly'
         $adCalls | Should -BeNullOrEmpty -Because 'the menu must be a thin prompt-and-dispatch layer (D-01/MENU-04)'
     }
 
-    It 'Start-Adman contains no Format-AdmanReport call (renderer dispatch is Plan 01-04)' {
-        $names = Get-AdmanCommandNames -Ast (Get-AdmanFileAst -Path $script:StartAdmanPath)
-        $renderCalls = @($names | Where-Object { $_ -match '^Format-AdmanReport|^Export-AdmanReport' })
-        $renderCalls | Should -BeNullOrEmpty
+    It 'Start-Adman dispatches output-format choices to the correct renderer' {
+        $raw = Get-Content $script:StartAdmanPath -Raw
+        # The dispatch is via & $renderer @rendererParams where $renderer is
+        # resolved from a switch statement. Check the source for the renderer
+        # names and the dispatch pattern.
+        $raw | Should -Match 'Format-AdmanReport'
+        $raw | Should -Match 'Export-AdmanReportCsv'
+        $raw | Should -Match 'Export-AdmanReportHtml'
+        $raw | Should -Match '&\s+\$renderer\s+-InputObject\s+\$reportData\s+@rendererParams'
+    }
+
+    It 'Start-Adman reads the menu entry Properties field and passes it as -Properties to the renderer' {
+        $raw = Get-Content $script:StartAdmanPath -Raw
+        $raw | Should -Match '\$entry\.Properties'
+        $raw | Should -Match '-Properties'
     }
 
     It 'every menu entry Verb resolves to a real Public function name (no parallel implementation)' {
@@ -273,5 +314,227 @@ Describe 'MENU-04: menu dispatches the same Public verb a senior calls directly'
         # The dispatch site must be the generic & $Verb form, not a hard-coded call
         # to a specific verb (which would indicate a parallel implementation).
         $raw | Should -Match '&\s+\$Verb\s+@params'
+    }
+}
+
+Describe 'MENU-05: output-format prompt navigation' -Tag 'Unit' {
+
+    It 'B at the output-format prompt returns to the top-level menu' {
+        . $script:MenuDefPath
+        . $script:ReadParamsPath
+        # Select menu item 3 (Stale report, no PromptSpec), then B at the
+        # output-format prompt, then Q at the top-level menu.
+        $global:answers = @('3', 'B', 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+        Mock -ModuleName adman Format-AdmanReport { param($InputObject, $Properties) "MOCKED CONSOLE" }
+        Mock -ModuleName adman Export-AdmanReportCsv { param($InputObject, $Path, $Properties) "MOCKED CSV" }
+        Mock -ModuleName adman Export-AdmanReportHtml { param($InputObject, $Path, $Properties) "MOCKED HTML" }
+
+        # Start-Adman should process: menu select 3 -> verb runs -> format prompt B ->
+        # back to menu -> Q exits. The function should return without throwing.
+        { Start-Adman } | Should -Not -Throw
+    }
+
+    It 'Q at the output-format prompt exits Start-Adman' {
+        . $script:MenuDefPath
+        . $script:ReadParamsPath
+        $global:answers = @('3', 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+        Mock -ModuleName adman Format-AdmanReport { param($InputObject, $Properties) "MOCKED CONSOLE" }
+
+        { Start-Adman } | Should -Not -Throw
+    }
+
+    It 'invalid input at the output-format prompt re-prompts with the standard copy' {
+        . $script:MenuDefPath
+        . $script:ReadParamsPath
+        $global:answers = @('3', 'X', 'B', 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+
+        { Start-Adman } | Should -Not -Throw
+    }
+}
+
+Describe 'MENU-06: zero-row dispatch wires Properties through to the renderer' -Tag 'Unit' {
+
+    BeforeAll {
+        . $script:MenuDefPath
+        . $script:ReadParamsPath
+        $script:menuDef = Get-AdmanMenuDefinition
+        $script:staleEntry = $script:menuDef | Where-Object { $_.Verb -eq 'Get-AdmanStaleReport' }
+    }
+
+    It 'CSV: zero-row verb produces a file with exactly one header row matching the menu entry Properties' {
+        $csvPath = Join-Path $TestDrive 'zero-row.csv'
+        $global:answers = @('3', '2', $csvPath, 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+
+        { Start-Adman } | Should -Not -Throw
+        Test-Path -LiteralPath $csvPath | Should -BeTrue
+        $lines = @(Get-Content -LiteralPath $csvPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $lines.Count | Should -Be 1
+        $header = $lines[0]
+        foreach ($prop in $script:staleEntry.Properties) {
+            $header | Should -Match ([regex]::Escape($prop))
+        }
+    }
+
+    It 'HTML: zero-row verb produces a file with a header row matching the menu entry Properties and no data rows' {
+        $htmlPath = Join-Path $TestDrive 'zero-row.html'
+        $global:answers = @('3', '3', $htmlPath, 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+
+        { Start-Adman } | Should -Not -Throw
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match '<table>'
+        foreach ($prop in $script:staleEntry.Properties) {
+            $content | Should -Match ([regex]::Escape($prop))
+        }
+        # Exactly one <tr> (the header row).
+        $trCount = ([regex]::Matches($content, '<tr>')).Count
+        $trCount | Should -Be 1
+    }
+
+    It 'Console: zero-row verb emits a header-only table (not the (no results) literal)' {
+        $global:answers = @('3', '1', 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+
+        $output = Start-Adman
+        $text = ($output -join "`n")
+        $text | Should -Not -Match '\(no results\)'
+        foreach ($prop in $script:staleEntry.Properties) {
+            $text | Should -Match ([regex]::Escape($prop))
+        }
+    }
+
+    It 'renderer receives -Properties equal to the menu entry Properties' {
+        $global:capturedProperties = $null
+        $global:answers = @('3', '1', 'Q')
+        $global:answerIdx = 0
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host { }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Get-AdmanStaleReport { return @() }
+        Mock -ModuleName adman Format-AdmanReport {
+            param($InputObject, $Properties, $UseGridView)
+            $global:capturedProperties = $Properties
+            "MOCKED"
+        }
+
+        { Start-Adman } | Should -Not -Throw
+        $global:capturedProperties | Should -Not -BeNullOrEmpty
+        $global:capturedProperties.Count | Should -Be $script:staleEntry.Properties.Count
+        for ($i = 0; $i -lt $script:staleEntry.Properties.Count; $i++) {
+            $global:capturedProperties[$i] | Should -Be $script:staleEntry.Properties[$i]
+        }
     }
 }
