@@ -50,6 +50,8 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Test-AdmanCapability { }
     function global:Resolve-AdmanDomainSid { }
     function global:Get-AdmanProtectedIdentity { }
+    function global:Get-AdmanLogonSyncInterval { }
+    function global:Get-AdmanRecoveryPosture { }
 
     function Reset-AdmanOrder {
         # Test-script-scope recorder: -ModuleName adman mock bodies execute in the TEST file's
@@ -83,13 +85,15 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
 Describe 'Initialize-Adman orchestration (D-04)' -Tag 'Unit' {
 
-    It 'Test 6: calls the six startup steps in fixed order and sets $script:Initialized' {
+    It 'Test 6: calls the eight startup steps in fixed order and sets $script:Initialized' {
         Reset-AdmanOrder
 
         Mock Initialize-AdmanConfig -ModuleName adman { $script:AdmanOrder.Add('Initialize-AdmanConfig') }
         Mock Test-AdmanAuditWritable -ModuleName adman { $script:AdmanOrder.Add('Test-AdmanAuditWritable'); $true }
         Mock Get-AdmanCredential -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanCredential'); $null }
         Mock Test-AdmanCapability -ModuleName adman { $script:AdmanOrder.Add('Test-AdmanCapability'); [pscustomobject]@{} }
+        Mock Get-AdmanLogonSyncInterval -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanLogonSyncInterval'); 14 }
+        Mock Get-AdmanRecoveryPosture -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanRecoveryPosture'); [pscustomobject]@{ RecycleBinEnabled = $true; ForestFunctionalLevel = 'Windows2016Forest'; TombstoneLifetime = 180 } }
         Mock Resolve-AdmanDomainSid -ModuleName adman { $script:AdmanOrder.Add('Resolve-AdmanDomainSid') }
         Mock Get-AdmanProtectedIdentity -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanProtectedIdentity') }
         Mock New-EventLog -ModuleName adman { }
@@ -101,6 +105,8 @@ Describe 'Initialize-Adman orchestration (D-04)' -Tag 'Unit' {
             'Test-AdmanAuditWritable',
             'Get-AdmanCredential',
             'Test-AdmanCapability',
+            'Get-AdmanLogonSyncInterval',
+            'Get-AdmanRecoveryPosture',
             'Resolve-AdmanDomainSid',
             'Get-AdmanProtectedIdentity'
         )
@@ -114,6 +120,8 @@ Describe 'Initialize-Adman orchestration (D-04)' -Tag 'Unit' {
         Mock Test-AdmanAuditWritable -ModuleName adman { $script:AdmanOrder.Add('Test-AdmanAuditWritable'); $true }
         Mock Get-AdmanCredential -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanCredential') }
         Mock Test-AdmanCapability -ModuleName adman { $script:AdmanOrder.Add('Test-AdmanCapability') }
+        Mock Get-AdmanLogonSyncInterval -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanLogonSyncInterval'); 14 }
+        Mock Get-AdmanRecoveryPosture -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanRecoveryPosture'); [pscustomobject]@{} }
         Mock Resolve-AdmanDomainSid -ModuleName adman { $script:AdmanOrder.Add('Resolve-AdmanDomainSid') }
         Mock Get-AdmanProtectedIdentity -ModuleName adman { $script:AdmanOrder.Add('Get-AdmanProtectedIdentity') }
 
@@ -121,25 +129,30 @@ Describe 'Initialize-Adman orchestration (D-04)' -Tag 'Unit' {
 
         Should -Invoke Initialize-AdmanConfig -ModuleName adman -Times 1 -ParameterFilter { $SetupMode }
         Should -Invoke Test-AdmanCapability -ModuleName adman -Times 0 -Because 'the wizard performs no AD mutation'
+        Should -Invoke Get-AdmanLogonSyncInterval -ModuleName adman -Times 0 -Because 'the wizard performs no AD read'
+        Should -Invoke Get-AdmanRecoveryPosture -ModuleName adman -Times 0 -Because 'the wizard performs no AD read'
         Should -Invoke Resolve-AdmanDomainSid -ModuleName adman -Times 0
+        Should -Invoke Get-AdmanProtectedIdentity -ModuleName adman -Times 0
         Get-AdmanOrder | Should -Be @('Initialize-AdmanConfig')
     }
 
-    It 'Test 6 (static): Initialize-Adman.ps1 references the six steps in order and -SetupMode' {
+    It 'Test 6 (static): Initialize-Adman.ps1 references the eight steps in order and -SetupMode' {
         Test-Path -LiteralPath $script:InitPath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:InitPath -Raw
         foreach ($name in @('Initialize-AdmanConfig', 'Test-AdmanAuditWritable', 'Get-AdmanCredential',
-                            'Test-AdmanCapability', 'Resolve-AdmanDomainSid', 'Get-AdmanProtectedIdentity')) {
+                            'Test-AdmanCapability', 'Get-AdmanLogonSyncInterval', 'Get-AdmanRecoveryPosture',
+                            'Resolve-AdmanDomainSid', 'Get-AdmanProtectedIdentity')) {
             @($src | Select-String -Pattern $name).Count | Should -BeGreaterOrEqual 1 -Because "$name must be called"
         }
         $src | Should -Match '\-SetupMode'
         # Order guard: each step name must appear at an increasing offset in the source.
         $pos = @()
         foreach ($name in @('Initialize-AdmanConfig', 'Test-AdmanAuditWritable', 'Get-AdmanCredential',
-                            'Test-AdmanCapability', 'Resolve-AdmanDomainSid', 'Get-AdmanProtectedIdentity')) {
+                            'Test-AdmanCapability', 'Get-AdmanLogonSyncInterval', 'Get-AdmanRecoveryPosture',
+                            'Resolve-AdmanDomainSid', 'Get-AdmanProtectedIdentity')) {
             $pos += $src.IndexOf($name)
         }
         $sorted = @($pos | Sort-Object)
-        ($pos -join ',') | Should -Be ($sorted -join ',') -Because 'the six steps must be sourced in the fixed startup order'
+        ($pos -join ',') | Should -Be ($sorted -join ',') -Because 'the eight steps must be sourced in the fixed startup order'
     }
 }

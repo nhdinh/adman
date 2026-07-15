@@ -209,16 +209,102 @@ function Get-ADObject { [CmdletBinding()] param($Identity, $Properties, $Server,
 function Get-ADGroup { [CmdletBinding()] param($Identity, $Properties, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'group') } }
 function Get-ADGroupMember { [CmdletBinding()] param($Identity, $Recursive, $Server) @(New-AdmanMockObject) }
 function Get-ADOrganizationalUnit { [CmdletBinding()] param($Identity, $Filter, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'organizationalUnit') } }
-function Get-ADOptionalFeature { [CmdletBinding()] param($Identity, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'msDS-OptionalFeature') } }
-function Search-ADAccount { [CmdletBinding()] param($Identity, $Server) @(New-AdmanMockObject) }
+function Get-ADOptionalFeature { [CmdletBinding()] param($Identity, $Filter, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'msDS-OptionalFeature') } }
+
+# Configurable lastLogonTimestamp replication interval (D-07 MEDIUM-1 conversion matrix).
+# Tests set $script:MockLogonSyncInterval via Set-AdmanMockLogonSyncInterval before invoking
+# Initialize-Adman or Get-AdmanLogonSyncInterval. Default = 14 (integer shape).
+$script:MockLogonSyncInterval = 14
+
+function Set-AdmanMockLogonSyncInterval {
+    [CmdletBinding()]
+    param($Value)
+    $script:MockLogonSyncInterval = $Value
+}
+
+function Search-ADAccount {
+    [CmdletBinding()]
+    param(
+        $Identity,
+        $Server,
+        $SearchBase,
+        $SearchScope,
+        $ResultPageSize,
+        [switch]$AccountDisabled,
+        [switch]$AccountExpired,
+        [switch]$LockedOut,
+        [switch]$PasswordExpired,
+        [switch]$UsersOnly,
+        [switch]$ComputersOnly
+    )
+
+    # Capture the call for state-switch / scoping assertions.
+    [void]$script:CapturedCalls.Add(@{
+        Cmdlet          = 'Search-ADAccount'
+        Server          = $Server
+        SearchBase      = $SearchBase
+        SearchScope     = $SearchScope
+        ResultPageSize  = $ResultPageSize
+        AccountDisabled = [bool]$AccountDisabled
+        AccountExpired  = [bool]$AccountExpired
+        LockedOut       = [bool]$LockedOut
+        PasswordExpired = [bool]$PasswordExpired
+        UsersOnly       = [bool]$UsersOnly
+        ComputersOnly   = [bool]$ComputersOnly
+    })
+
+    $sb = [string]$SearchBase
+    if ([string]::IsNullOrWhiteSpace($sb)) { $sb = 'OU=Managed,DC=mock,DC=local' }
+
+    # Determine which state bucket this call represents.
+    $bucket = $null
+    if ($AccountDisabled) { $bucket = 'Disabled' }
+    elseif ($AccountExpired) { $bucket = 'Expired' }
+    elseif ($LockedOut) { $bucket = 'Locked' }
+    elseif ($PasswordExpired) { $bucket = 'PasswordExpired' }
+
+    # Determine object type.
+    $isComputer = [bool]$ComputersOnly
+    $typeName = if ($isComputer) { 'AdmanMock.ADComputer' } else { 'AdmanMock.ADUser' }
+    $samSuffix = if ($isComputer) { '$' } else { '' }
+
+    if ($null -eq $bucket) {
+        # No state switch - legacy call shape; return a single generic mock.
+        return @(New-AdmanMockObject)
+    }
+
+    # Return one in-scope row tagged with the requested state bucket, plus one out-of-scope row
+    # so the read-side Test-AdmanInManagedScope re-check can be exercised.
+    $inScope = New-AdmanMockScopedRow -TypeName $typeName `
+        -DistinguishedName ("CN=Mock{0},{1}" -f $bucket, $sb) `
+        -SamAccountName ("mock.{0}{1}" -f $bucket.ToLower(), $samSuffix) `
+        -ExtraProps @{
+            Enabled               = ($bucket -ne 'Disabled')
+            LockedOut             = ($bucket -eq 'Locked')
+            PasswordExpired       = ($bucket -eq 'PasswordExpired')
+            AccountExpirationDate = if ($bucket -eq 'Expired') { [datetime]'2026-01-01T00:00:00Z' } else { $null }
+        }
+    $outScope = New-AdmanMockScopedRow -TypeName $typeName `
+        -DistinguishedName ("CN=OutScope{0},OU=NotManaged,DC=mock,DC=local" -f $bucket) `
+        -SamAccountName ("outscope.{0}{1}" -f $bucket.ToLower(), $samSuffix) `
+        -ExtraProps @{
+            Enabled               = ($bucket -ne 'Disabled')
+            LockedOut             = ($bucket -eq 'Locked')
+            PasswordExpired       = ($bucket -eq 'PasswordExpired')
+            AccountExpirationDate = if ($bucket -eq 'Expired') { [datetime]'2026-01-01T00:00:00Z' } else { $null }
+        }
+
+    return @($inScope, $outScope)
+}
 
 function Get-ADDomain {
     [CmdletBinding()] param($Identity, $Server)
     $o = [pscustomobject]@{
-        DomainSID         = $script:MockDomainSid
-        DNSRoot           = 'mock.local'
-        NetBIOSName       = 'MOCK'
-        DistinguishedName = 'DC=mock,DC=local'
+        DomainSID                     = $script:MockDomainSid
+        DNSRoot                       = 'mock.local'
+        NetBIOSName                   = 'MOCK'
+        DistinguishedName             = 'DC=mock,DC=local'
+        LastLogonReplicationInterval  = $script:MockLogonSyncInterval
     }
     $o.PSObject.TypeNames.Insert(0, 'AdmanMock.ADDomain')
     return $o
@@ -270,5 +356,5 @@ Export-ModuleMember -Function @(
     'Disable-ADAccount', 'Enable-ADAccount', 'Unlock-ADAccount', 'Move-ADObject',
     'New-ADUser', 'New-ADComputer', 'Add-ADGroupMember', 'Remove-ADGroupMember',
     'Get-CimInstance', 'New-CimSession', 'Invoke-Command', 'New-PSSession', 'Test-WSMan',
-    'Reset-AdmanMockCapture', 'Get-AdmanMockCapture'
+    'Reset-AdmanMockCapture', 'Get-AdmanMockCapture', 'Set-AdmanMockLogonSyncInterval'
 )
