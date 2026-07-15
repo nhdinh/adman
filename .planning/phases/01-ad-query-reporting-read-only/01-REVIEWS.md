@@ -13,6 +13,9 @@ cycles:
   - cycle: 3
     reviewed_at: 2026-07-15T03:00:00Z
     reviewers: [codex]
+  - cycle: 4
+    reviewed_at: 2026-07-15T04:00:00Z
+    reviewers: [codex]
 ---
 
 # Cross-AI Plan Review — Phase 1
@@ -416,3 +419,97 @@ Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findin
 3. **Tighten T-01-02 threat register (LOW).** Top-level allows only `1..N/Q`; action prompts allow `B/Q`.
 4. **Clean up stale notes (LOW).** Remove the "future pass" note from 01-03; reconcile recovery-posture warning-vs-verbose.
 5. **Amend 01-CONTEXT D-08 (LOW, NEW).** Recovery posture consistently means `RecycleBinEnabled`, `ForestFunctionalLevel`, `TombstoneLifetime`.
+
+---
+
+## Cycle 4 (2026-07-15T04:00:00Z) — Replan Verification
+
+Single-reviewer cycle (Codex). Reviewer was given the Cycle 3 finding list and asked to verify resolution + catch regressions.
+
+### Codex Review
+
+### Cycle 3 Finding Verdicts
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| CSV streaming design is not implementation-safe (MEDIUM) | 01-04 | RESOLVED | `01-04-PLAN.md:90-93` now requires `begin/process/end`, first-row write without `-Append`, later rows with `-Append`, and stale-file removal. `01-04-PLAN.md:96` adds a 3-row test proving one header and three data rows; `:111-112` repeats this in acceptance criteria. |
+| Empty-result CSV/HTML underspecified (MEDIUM) | 01-04 | RESOLVED, with one new integration concern below | Renderer signatures now include optional `-Properties`: console at `01-04-PLAN.md:82`, CSV at `:89`, HTML at `:133`. Empty CSV with/without `-Properties` tests are specified at `:97-98`; empty HTML with/without `-Properties` tests at `:141` and `:152-153`. |
+| Threat register drift in 01-01 (LOW) | 01-01 | RESOLVED | Task text says top-level accepts only `1..N` and `Q`, and `B` is not reserved at top level: `01-01-PLAN.md:103`. Threat register now matches: `01-01-PLAN.md:160`. |
+| Stale "future pass" note in 01-03 (LOW) | 01-03 | RESOLVED | The plan now says the CONTEXT amendment is already done: `01-03-PLAN.md:88` and `01-03-PLAN.md:258`. The stale "future pass" wording is gone. |
+| Recovery-posture warning-vs-verbose mismatch (LOW) | 01-03 | RESOLVED | Plan explicitly accepts existing warning behavior and says not to change helper logging: `01-03-PLAN.md:100`. Source matches: `Private/Foundation/Get-AdmanRecoveryPosture.ps1:13-14`, `:41`, `:50`, `:76`, `:80`. Existing tests also assert warning behavior: `tests/RecoveryPosture.Tests.ps1:123-125`. |
+| 01-CONTEXT D-08 conflicts with helper shape (LOW) | 01-CONTEXT | RESOLVED | D-08 now defines recovery posture as `RecycleBinEnabled`, `ForestFunctionalLevel`, and `TombstoneLifetime`: `01-CONTEXT.md:69`. The helper returns exactly those fields: `Private/Foundation/Get-AdmanRecoveryPosture.ps1:83-87`. |
+
+Note: the renderer implementation and `tests/Render.Tests.ps1` do not exist yet in the current repo, so the 01-04 verdicts are plan-level verification, not proof from implemented code.
+
+### New Issues
+
+**MEDIUM — Menu renderer dispatch does not propagate the new empty-result schema.**
+
+The replan fixes renderer signatures by adding `-Properties`, but it does not say how `Start-Adman` determines or passes the correct schema when a selected report returns zero rows.
+
+Evidence:
+- Renderers require callers to pass `-Properties` for empty reports that need headers: `01-04-PLAN.md:86`, `:93`, `:137`.
+- The menu wiring only says to dispatch "with the verb's output": `01-04-PLAN.md:174-179`.
+- Current menu metadata is only `Label`, `Verb`, and `PromptSpec`, with no output schema field: `01-01-PLAN.md:102`.
+- D-03 schemas exist in 01-02, but 01-04 does not map verbs to those property arrays at dispatch time: `01-02-PLAN.md:177-181`, `:293-295`.
+
+Impact: menu-driven CSV/HTML for a clean domain can still produce zero-byte CSV or no-table HTML even though the renderer supports header-only output. The fix is to add schema metadata to menu/report definitions or a helper such as `Get-AdmanReportProperties -Verb <name>` and assert `Start-Adman` passes `-Properties` for all renderer calls.
+
+### Strengths
+
+- The CSV streaming algorithm is now concrete enough to implement safely and has a meaningful multi-row/header test target: `01-04-PLAN.md:90-97`.
+- The recovery posture plan is now aligned with existing source behavior instead of fighting it: `01-03-PLAN.md:100` and `Private/Foundation/Get-AdmanRecoveryPosture.ps1:13-14`.
+- D-07/D-08 separation is clearer: sync interval belongs to `Get-AdmanLogonSyncInterval`, while recovery posture is the existing three-field helper shape: `01-CONTEXT.md:63-69`.
+- 01-04 now explicitly depends on 01-02 as well as 01-01 and 01-03, reducing scheduling ambiguity: `01-04-PLAN.md:6-9`.
+
+### Risk Assessment
+
+Overall phase risk: **MEDIUM**.
+
+The six Cycle 3 issues are addressed at the plan level, and the AD semantics/recovery posture alignment is much improved. The remaining risk is integration: the newly introduced `-Properties` contract is correct inside renderer plans, but it is not yet wired into the menu/report metadata path, so empty-result output can still degrade in the main TUI workflow.
+
+### Top Actions for the Next Planning Pass
+
+1. Add an explicit output schema source for each verb, either in `Get-AdmanMenuDefinition` metadata or a dedicated report-schema helper.
+2. Update 01-04 Task 3 so `Start-Adman` passes `-Properties` to `Format-AdmanReport`, `Export-AdmanReportCsv`, and `Export-AdmanReportHtml`.
+3. Add menu-level tests where a mocked verb returns zero rows and CSV/HTML still receive the expected `-Properties` list.
+
+---
+
+## Cycle 4 Consensus Summary
+
+Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findings.
+
+### Cycle 3 Finding Verdicts
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| CSV streaming design is not implementation-safe (MEDIUM) | 01-04 | RESOLVED | `01-04-PLAN.md:90-93` (begin/process/end algorithm), `:96` (3-row test), `:111-112` (acceptance criteria) |
+| Empty-result CSV/HTML underspecified (MEDIUM) | 01-04 | RESOLVED | `01-04-PLAN.md:82,89,133` (optional `-Properties` on all three renderers), `:97-98,141,152-153` (empty-result tests) |
+| Threat register drift in 01-01 (LOW) | 01-01 | RESOLVED | `01-01-PLAN.md:103` (task text), `:160` (threat register now matches) |
+| Stale "future pass" note in 01-03 (LOW) | 01-03 | RESOLVED | `01-03-PLAN.md:88,258` (notes removed/replaced with "already done" language) |
+| Recovery-posture warning-vs-verbose mismatch (LOW) | 01-03 | RESOLVED | `01-03-PLAN.md:100` (explicitly accepts warning behavior); `Private/Foundation/Get-AdmanRecoveryPosture.ps1:13-14,41,50,76,80` (source confirms warnings) |
+| 01-CONTEXT D-08 conflicts with helper shape (LOW) | 01-CONTEXT | RESOLVED | `01-CONTEXT.md:69` (amended to three fields); `Private/Foundation/Get-AdmanRecoveryPosture.ps1:83-87` (helper returns exactly those fields) |
+
+### Agreed Strengths (Cycle 4)
+
+- All six Cycle 3 findings are verifiably resolved with `path:line` evidence in the replan.
+- The replan introduces no new HIGH-severity issues.
+- CSV streaming algorithm is now concrete and testable.
+- Recovery posture plan is aligned with existing source behavior.
+- D-07/D-08 separation is clear.
+- 01-04 explicitly depends on all earlier plans.
+
+### Agreed Concerns (Cycle 4)
+
+- **MEDIUM — Menu renderer dispatch does not propagate the new empty-result schema (NEW).** Renderers support `-Properties` for empty-result header-only output, but `Start-Adman` has no mechanism to determine or pass the correct schema when a report returns zero rows. Menu metadata (`Label`, `Verb`, `PromptSpec`) lacks an output schema field. This can produce zero-byte CSV or no-table HTML in the main TUI workflow for clean domains.
+
+### Divergent Views
+
+(Single-reviewer cycle — no divergence to record.)
+
+### Top Actions for /gsd-plan-phase 1 --reviews (Cycle 4)
+
+1. **Add an explicit output schema source for each verb (MEDIUM).** Either extend `Get-AdmanMenuDefinition` metadata with a `Properties` field per verb, or add a dedicated helper such as `Get-AdmanReportProperties -Verb <name>`.
+2. **Update 01-04 Task 3 so `Start-Adman` passes `-Properties` to renderers (MEDIUM).** Wire the schema source into the renderer dispatch path.
+3. **Add menu-level tests for empty-result schema propagation (MEDIUM).** Mock a verb returning zero rows and assert CSV/HTML receive the expected `-Properties` list.
