@@ -68,12 +68,12 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Reporting & Inventory (RPT)
 
-- [ ] **RPT-01**: Admin can view results as a console table (and via `Out-GridView` where available)
-- [ ] **RPT-02**: Admin can export any report to CSV (`-NoTypeInformation`) for Excel/tickets
-- [ ] **RPT-03**: Admin can export any report to a self-contained single-file HTML report
+- [x] **RPT-01**: Admin can view results as a console table (and via `Out-GridView` where available)
+- [x] **RPT-02**: Admin can export any report to CSV (`-NoTypeInformation`) for Excel/tickets
+- [x] **RPT-03**: Admin can export any report to a self-contained single-file HTML report
 - [x] **RPT-04**: Stale/inactive report uses replicated `lastLogonTimestamp` with a ≥14-day grace buffer and buckets never-logged-on (`0`/1601) separately — never per-DC `lastLogon`
 - [x] **RPT-05**: Account-state reports render Disabled, Expired, Locked, and Password-Expired as four distinct states (via `Search-ADAccount`, not raw `userAccountControl` bit math)
-- [ ] **RPT-06**: Inventory report shows OS version and basic computer info (AD attributes; enriched when remote reachable)
+- [x] **RPT-06**: Inventory report shows OS version and basic computer info (AD attributes; enriched when remote reachable)
 - [x] **RPT-07**: Startup preflight reports domain recovery posture (Recycle Bin / FFL) rather than assuming it
 
 ### Remote Computer Operations (RMT)
@@ -187,12 +187,12 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | GRP-01 | Phase 2 | Pending |
 | GRP-02 | Phase 2 | Pending |
 | GRP-03 | Phase 2 | Pending |
-| RPT-01 | Phase 1 | Pending |
-| RPT-02 | Phase 1 | Pending |
-| RPT-03 | Phase 1 | Pending |
+| RPT-01 | Phase 1 | Complete |
+| RPT-02 | Phase 1 | Complete |
+| RPT-03 | Phase 1 | Complete |
 | RPT-04 | Phase 1 | Complete |
 | RPT-05 | Phase 1 | Complete |
-| RPT-06 | Phase 1 | Pending |
+| RPT-06 | Phase 1 | Complete |
 | RPT-07 | Phase 1 | Complete |
 | RMT-01 | Phase 3 | Pending |
 | RMT-02 | Phase 3 | Pending |
