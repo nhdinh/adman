@@ -3,9 +3,18 @@ phase: 1
 reviewers: [codex]
 reviewed_at: 2026-07-15T01:35:09Z
 plans_reviewed: [01-01-PLAN.md, 01-02-PLAN.md, 01-03-PLAN.md, 01-04-PLAN.md]
+cycles:
+  - cycle: 1
+    reviewed_at: 2026-07-15T01:35:09Z
+    reviewers: [codex]
+  - cycle: 2
+    reviewed_at: 2026-07-15T02:00:00Z
+    reviewers: [codex]
 ---
 
 # Cross-AI Plan Review — Phase 1
+
+## Cycle 1 (2026-07-15T01:35:09Z)
 
 ## Codex Review
 
@@ -159,3 +168,157 @@ Only one reviewer (Codex) was invoked for this cycle, so this section reflects t
 4. **Reconcile CONTEXT.md D-07 with 01-03-PLAN.md.** Add a note that the plan supersedes the old D-07 source text (or amend CONTEXT).
 5. **Extract DN normalization to a shared helper (01-02).** Do not copy `ConvertTo-AdmanNormalizedDn`; move it to a common private location and reuse from both read and write paths.
 6. **Add `01-02` to `01-04.depends_on` (01-04).** Make the transitive dependency explicit.
+
+---
+
+## Cycle 2 (2026-07-15T02:00:00Z) — Replan Verification
+
+Single-reviewer cycle (Codex). Reviewer was given the Cycle 1 finding list and asked to verify resolution + catch regressions.
+
+### Codex Review
+
+## 01-01 Menu Shell
+
+**Cycle 1 Finding Resolution Status**
+
+No Cycle 1 findings were assigned to 01-01.
+
+**Strengths**
+
+- The plan preserves the flat menu contract from context: top-level `Q` only, with `B/Q` inside prompts, matching `01-CONTEXT.md:20-24`.
+- It explicitly keeps AD read logic and formatting out of `Start-Adman`, matching the UI dispatch contract at `01-UI-SPEC.md:179-186`.
+- It accounts for the current source stub: `Public/Start-Adman.ps1` currently only calls `Initialize-Adman` and logs a placeholder at `Public/Start-Adman.ps1:12-14`, so the plan is scoped to replacing that stub.
+
+**Concerns**
+
+- **LOW:** The threat register still says input validation rejects everything except `1..N`, `B`, and `Q` at `01-01-PLAN.md:160`, while the task text correctly says top-level `B` is not reserved at `01-01-PLAN.md:103`. This is documentation drift that could confuse implementation.
+
+**Suggestions**
+
+- Tighten T-01-02 to say top-level allows only `1..N/Q`; action prompts allow `B/Q`.
+
+## 01-02 Scoped Read Layer
+
+**Cycle 1 Finding Resolution Status**
+
+- **HIGH-1: RESOLVED.** The plan adds `Escape-AdmanAdFilterLiteral` specifically for AD PowerShell `-Filter` string literals at `01-02-PLAN.md:131-164`, including single-quote doubling at line 141 and backslash doubling at line 142. It also requires both Find verbs to use that helper and never use `Escape-AdmanLdapFilterValue` at `01-02-PLAN.md:210-229`. This is necessary because the current LDAP helper escapes RFC4515 assertion characters but does not escape single quotes, as shown in `Private/Safety/Escape-AdmanLdapFilterValue.ps1:35-41`.
+- **MEDIUM-3: RESOLVED.** The plan explicitly moves, not copies, `ConvertTo-AdmanNormalizedDn` from `Private/Safety/Test-AdmanTargetAllowed.ps1` into `Private/Utility/ConvertTo-AdmanNormalizedDn.ps1` at `01-02-PLAN.md:106-127`. Current source has the local implementation at `Private/Safety/Test-AdmanTargetAllowed.ps1:104-127` and call sites at `Private/Safety/Test-AdmanTargetAllowed.ps1:68-71`, so the migration target is real and correctly identified. The module loader dot-sources all private files before public files at `adman.psm1:17-22`.
+
+**Strengths**
+
+- The plan correctly distinguishes `-Filter` escaping from `-LDAPFilter` escaping, which is the important security fix.
+- The scope re-check is deliberately read-only and avoids invoking the mutation gate, matching context that deny/protected checks are mutation-only while scope applies to reads at `01-CONTEXT.md:34`.
+- The mock extension is grounded in current source: `tests/Mocks/ActiveDirectory.psm1:39-46` currently lacks the scoped read parameters the plan adds.
+
+**Concerns**
+
+- **LOW:** `depends_on` is empty at `01-02-PLAN.md:6`, while 01-01's menu definition lists verbs that 01-02 creates. This can work if menu tests mock the verbs, but the wave plan should make clear that 01-01 must not execute real menu selections against absent verbs.
+
+**Suggestions**
+
+- Add a sentence to 01-01/01-02 wave coordination that 01-01 menu tests use mocked public verbs until 01-02 lands.
+
+## 01-03 AD Semantics
+
+**Cycle 1 Finding Resolution Status**
+
+- **HIGH-2: RESOLVED.** The plan now lists `tests/Initialize.Adman.Tests.ps1` in `files_modified` at `01-03-PLAN.md:14-15` and explicitly updates both the orchestration-order test and static source-order test to eight steps at `01-03-PLAN.md:109-123`. This matches the current source problem: the existing test asserts only six steps at `tests/Initialize.Adman.Tests.ps1:99-106`, and the static test checks only six ordered names at `tests/Initialize.Adman.Tests.ps1:128-144`.
+- **MEDIUM-1: RESOLVED.** The plan defines conversion rules for `$null`, `TimeSpan`, numeric zero/negative, other types, and exceptions at `01-03-PLAN.md:89-96`, and requires mock/test coverage for those shapes at `01-03-PLAN.md:101-108`. Current `Get-ADDomain` mock has no `LastLogonReplicationInterval` at `tests/Mocks/ActiveDirectory.psm1:48-58`, so the planned mock change is necessary.
+- **MEDIUM-2: RESOLVED.** `01-CONTEXT.md` now includes the supersession note and points to `(Get-ADDomain).LastLogonReplicationInterval` as authoritative at `01-CONTEXT.md:63-65`. The research file supports the same source at `01-RESEARCH.md:433-447`.
+
+**Strengths**
+
+- The plan correctly avoids per-DC `lastLogon` and UAC bit math, matching requirements at `REQUIREMENTS.md:74-75`.
+- It identifies that `Search-ADAccount` mock support is currently insufficient: source has `Search-ADAccount { param($Identity, $Server) }` at `tests/Mocks/ActiveDirectory.psm1:46`, and the plan extends it at `01-03-PLAN.md:150-151`.
+- The existing `Get-AdmanRecoveryPosture` helper is read-only and field-failure tolerant, as shown by try/catch blocks at `Private/Foundation/Get-AdmanRecoveryPosture.ps1:35-42`, `:46-51`, and `:58-77`.
+
+**Concerns**
+
+- **LOW:** 01-03 still says the context "should be amended in a future pass" at `01-03-PLAN.md:88`, but the context already has the supersession note at `01-CONTEXT.md:63-65`. This is harmless but stale.
+- **LOW:** The plan says to use `Write-PSFMessage -Level Verbose` for non-fatal recovery posture read failures at `01-03-PLAN.md:100`, while the existing helper logs warnings for read failures at `Private/Foundation/Get-AdmanRecoveryPosture.ps1:41`, `:50`, and `:76`. If "Verbose only" is intentional, the helper also needs modification.
+
+**Suggestions**
+
+- Remove the stale "future pass" note from 01-03.
+- Decide whether recovery posture read failures should remain warnings or become verbose messages, then state that explicitly.
+
+## 01-04 Output Layer
+
+**Cycle 1 Finding Resolution Status**
+
+- **MEDIUM-4: PARTIALLY RESOLVED.** The plan documents the ~10,000-row soft bound for console and HTML at `01-04-PLAN.md:83` and `01-04-PLAN.md:118`. It also intends CSV streaming at `01-04-PLAN.md:87-90`. However, the instruction to call `Export-Csv -Path $Path` "inside the process block" is unsafe/incomplete: repeated `Export-Csv` calls without a first-row/header strategy plus `-Append` can overwrite or mishandle headers. Empty pipeline "headers only" is also underspecified because no input object means no schema can be inferred.
+- **MEDIUM-5: RESOLVED.** 01-04 now explicitly depends on all earlier plans at `01-04-PLAN.md:6-9`.
+
+**Strengths**
+
+- The plan keeps renderers separated from report/query verbs, matching `01-UI-SPEC.md:179-186`.
+- It uses only 5.1-safe `ConvertTo-Html` parameters at `01-04-PLAN.md:121-122`, matching the UI spec at `01-UI-SPEC.md:190-193`.
+- It correctly wires output-format prompting after verb execution, matching `01-UI-SPEC.md:140-153`.
+
+**Concerns**
+
+- **MEDIUM:** CSV streaming design is not implementation-safe as written. `01-04-PLAN.md:89` says to pipe each `$InputObject` directly to `Export-Csv` inside `process`, but robust streaming needs a "first row writes headers, later rows append" pattern or a single pipeline into `Export-Csv`. The current acceptance grep at `01-04-PLAN.md:99` would not catch overwrite/header bugs.
+- **MEDIUM:** Empty-result CSV/HTML tests are underspecified. The plan expects "empty CSV with headers only" at `01-04-PLAN.md:91`, but the renderer cannot infer headers from an empty pipeline unless callers pass an explicit schema/property list or a typed empty object prototype.
+
+**Suggestions**
+
+- Specify a concrete CSV streaming algorithm: first input object writes `Export-Csv -NoTypeInformation`; subsequent objects use `Export-Csv -Append -NoTypeInformation`, with file existence controlled in `begin`.
+- Add an optional `-Properties` or `-Schema` parameter for renderers if empty-result files must include headers.
+
+### Risk Assessment
+
+Overall phase risk: **MEDIUM**.
+
+The Cycle 1 high-risk items are materially addressed in the replan. The main remaining risk is 01-04 CSV/empty-result behavior: it is a real implementation trap and the current tests/acceptance criteria would not reliably catch it. The rest of the plan aligns well with current Phase 0 source constraints.
+
+### Top Actions For The Next Planning Pass
+
+1. Fix 01-04 CSV streaming details and add tests that prove multi-row output is not overwritten and headers appear exactly once.
+2. Define how renderers get schema for empty result sets.
+3. Clean up the stale 01-03 context-amendment note and the recovery-posture warning-vs-verbose mismatch.
+4. Clarify 01-01/01-02 wave coordination so menu tests do not depend on not-yet-created real verbs.
+
+---
+
+## Cycle 2 Consensus Summary
+
+Single-reviewer cycle (Codex). Verdicts below reflect that one reviewer's findings.
+
+### Cycle 1 Finding Verdicts
+
+| Finding | Plan | Verdict | Evidence |
+|---------|------|---------|----------|
+| HIGH-1 (`-Filter` escaping) | 01-02 | RESOLVED | `01-02-PLAN.md:131-164` (helper), `:210-229` (usage mandate); `Private/Safety/Escape-AdmanLdapFilterValue.ps1:35-41` confirms the LDAP helper does NOT escape `'` |
+| HIGH-2 (`Initialize.Adman.Tests.ps1` not modified) | 01-03 | RESOLVED | `01-03-PLAN.md:14-15` (files_modified), `:109-123` (eight-step order); `tests/Initialize.Adman.Tests.ps1:99-106,128-144` confirms current six-step assertions |
+| MEDIUM-1 (`LastLogonReplicationInterval` conversion) | 01-03 | RESOLVED | `01-03-PLAN.md:89-96` (rules), `:101-108` (mock shapes); `tests/Mocks/ActiveDirectory.psm1:48-58` confirms current mock lacks the property |
+| MEDIUM-2 (CONTEXT D-07 contradiction) | 01-03 | RESOLVED | `01-CONTEXT.md:63-65` (supersession note); `01-RESEARCH.md:433-447` (corrected source) |
+| MEDIUM-3 (DN normalization copied) | 01-02 | RESOLVED | `01-02-PLAN.md:106-127` (MOVE, not copy); `Private/Safety/Test-AdmanTargetAllowed.ps1:104-127` (current local impl), `:68-71` (call sites) |
+| MEDIUM-4 (renderer memory) | 01-04 | PARTIALLY RESOLVED | `01-04-PLAN.md:83,118` (soft bound documented), `:87-90` (streaming intent) — BUT `:89` pipes `$InputObject` directly to `Export-Csv` inside `process`, which is unsafe (overwrite/header bugs); `:91` "headers only" for empty pipeline is underspecified |
+| MEDIUM-5 (01-04 depends_on 01-02) | 01-04 | RESOLVED | `01-04-PLAN.md:6-9` (depends_on: 01-01, 01-02, 01-03) |
+
+### Agreed Strengths (Cycle 2)
+
+- All Cycle 1 HIGH findings are verifiably resolved with `path:line` evidence in the replan.
+- The replan introduces no new HIGH-severity issues.
+- Plan-to-source traceability is strong: every replan claim was verified against actual repo files.
+
+### Agreed Concerns (Cycle 2)
+
+- **MEDIUM — CSV streaming design is not implementation-safe (01-04).** Piping `$InputObject` directly to `Export-Csv` inside `process` without a first-row/header strategy will overwrite or mishandle headers. The acceptance grep would not catch this.
+- **MEDIUM — Empty-result CSV/HTML underspecified (01-04).** "Empty CSV with headers only" cannot be inferred from an empty pipeline; the renderer needs an explicit schema or property list.
+- **LOW — Threat register drift in 01-01.** T-01-02 still mentions `B` at top level; task text correctly reserves `B` for action prompts only.
+- **LOW — Stale "future pass" note in 01-03.** CONTEXT.md is already amended; the note is redundant.
+- **LOW — Recovery-posture warning-vs-verbose mismatch (01-03).** Plan says verbose; existing helper logs warnings.
+- **LOW — Wave coordination between 01-01 and 01-02.** Menu tests must mock verbs until 01-02 lands; not stated explicitly.
+
+### Divergent Views
+
+(Single-reviewer cycle — no divergence to record.)
+
+### Top Actions for /gsd-plan-phase 1 --reviews (Cycle 2)
+
+1. **Fix 01-04 CSV streaming (MEDIUM).** Specify a concrete algorithm: first input object writes `Export-Csv -NoTypeInformation`; subsequent objects use `Export-Csv -Append -NoTypeInformation`, with file existence controlled in `begin`. Add tests that prove multi-row output is not overwritten and headers appear exactly once.
+2. **Define empty-result schema strategy (MEDIUM).** Add an optional `-Properties` or `-Schema` parameter to renderers so empty-result files can include headers.
+3. **Tighten T-01-02 threat register (LOW).** Top-level allows only `1..N/Q`; action prompts allow `B/Q`.
+4. **Clean up stale notes (LOW).** Remove the "future pass" note from 01-03; reconcile recovery-posture warning-vs-verbose.
+5. **Clarify 01-01/01-02 wave coordination (LOW).** State explicitly that 01-01 menu tests use mocked public verbs until 01-02 lands.
