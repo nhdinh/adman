@@ -187,23 +187,23 @@ tr:nth-child(even) {
             return
         }
 
-        # Non-empty: convert boolean columns to 'True'/'False' strings via
-        # calculated properties, then pipe to ConvertTo-Html. The Expression
-        # scriptblock receives the current pipeline object as $_, not as a
-        # named parameter.
-        $converted = $rows.ToArray() | Select-Object -Property @(
-            foreach ($prop in $rows[0].PSObject.Properties.Name) {
+        # Non-empty: convert boolean columns to 'True'/'False' strings by
+        # projecting each row through a safe property accessor (no
+        # [scriptblock]::Create on property names — CR-01: a crafted property
+        # name in piped input would otherwise achieve code injection).
+        $converted = foreach ($row in $rows.ToArray()) {
+            $h = [ordered]@{}
+            foreach ($prop in $row.PSObject.Properties.Name) {
+                $propValue = $row.PSObject.Properties[$prop].Value
                 if ($prop -in $booleanColumns) {
-                    @{
-                        Name       = $prop
-                        Expression = [scriptblock]::Create("if (`$_.$prop) { 'True' } else { 'False' }")
-                    }
+                    $h[$prop] = if ($propValue) { 'True' } else { 'False' }
                 }
                 else {
-                    $prop
+                    $h[$prop] = $propValue
                 }
             }
-        )
+            [pscustomobject]$h
+        }
 
         $htmlResult = $converted | ConvertTo-Html -Head $css -Title $Title
         ($htmlResult | Out-String) | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
