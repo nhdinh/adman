@@ -243,3 +243,107 @@ Describe 'Export-AdmanReportCsv: PS 5.1 / 7 parity' -Tag 'Unit' {
         $src | Should -Not -Match '\?\.'
     }
 }
+
+Describe 'Export-AdmanReportHtml: self-contained HTML output (RPT-03)' -Tag 'Unit' {
+
+    It 'writes a single .html file containing embedded CSS' {
+        $htmlPath = Join-Path $TestDrive 'report.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+        $row | Export-AdmanReportHtml -Path $htmlPath
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match '<style>'
+        $content | Should -Match 'font-family'
+    }
+
+    It 'contains no external stylesheet link' {
+        $htmlPath = Join-Path $TestDrive 'report.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+        $row | Export-AdmanReportHtml -Path $htmlPath
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Not -Match 'rel=stylesheet'
+        $content | Should -Not -Match 'rel="stylesheet"'
+    }
+
+    It 'contains the report title' {
+        $htmlPath = Join-Path $TestDrive 'report.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+        $row | Export-AdmanReportHtml -Path $htmlPath -Title 'Stale accounts'
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match 'Stale accounts'
+    }
+
+    It 'renders a non-empty result set as a populated table' {
+        $htmlPath = Join-Path $TestDrive 'report.html'
+        $rows = @(
+            New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+            New-AdmanTestUserRow -Sam 'bob' -Name 'Bob'
+        )
+        $rows | Export-AdmanReportHtml -Path $htmlPath
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match '<table>'
+        $content | Should -Match 'alice'
+        $content | Should -Match 'bob'
+        $content | Should -Match 'SamAccountName'
+    }
+
+    It 'renders boolean columns as the literal strings True/False (not bare $true/$false)' {
+        $htmlPath = Join-Path $TestDrive 'report.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice' -Enabled $true
+        $row | Export-AdmanReportHtml -Path $htmlPath
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        # The Enabled column should render as the string 'True', not 'True' as a
+        # boolean type name. ConvertTo-Html on a bare $true emits 'True' anyway,
+        # but the calculated property ensures it is a string.
+        $content | Should -Match '>True<'
+    }
+
+    It 'empty-result HTML with -Properties: file contains a <table> with a header row matching -Properties and zero <tr> data rows' {
+        $htmlPath = Join-Path $TestDrive 'empty-with-props.html'
+        @() | Export-AdmanReportHtml -Path $htmlPath -Properties @('Name', 'SamAccountName', 'Enabled')
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match '<table>'
+        $content | Should -Match 'Name'
+        $content | Should -Match 'SamAccountName'
+        $content | Should -Match 'Enabled'
+        # Count <tr> occurrences: should be exactly 1 (the header row).
+        $trCount = ([regex]::Matches($content, '<tr>')).Count
+        $trCount | Should -Be 1
+    }
+
+    It 'empty-result HTML without -Properties: file contains the literal text (no results) and no <table> element' {
+        $htmlPath = Join-Path $TestDrive 'empty-no-props.html'
+        @() | Export-AdmanReportHtml -Path $htmlPath
+        Test-Path -LiteralPath $htmlPath | Should -BeTrue
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Match '\(no results\)'
+        $content | Should -Not -Match '<table>'
+    }
+
+    It 'accepts an optional -Properties parameter' {
+        $cmd = Get-Command Export-AdmanReportHtml
+        $cmd.Parameters.Keys | Should -Contain 'Properties'
+    }
+
+    It 'throws a clear error when the parent directory does not exist (T-04-01)' {
+        $htmlPath = Join-Path $TestDrive 'no-such-dir\report.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+        { $row | Export-AdmanReportHtml -Path $htmlPath } | Should -Throw
+    }
+
+    It 'does not use any PS6+ ConvertTo-Html parameters (-CssUri, -Charset, -Meta, -Transitional)' {
+        $src = Get-Content -LiteralPath $script:HtmlPath -Raw
+        $src | Should -Not -Match '-CssUri'
+        $src | Should -Not -Match '-Charset'
+        $src | Should -Not -Match '-Meta'
+        $src | Should -Not -Match '-Transitional'
+    }
+
+    It 'does not use any PS6+ -AsHashtable or PS7-only operators' {
+        $src = Get-Content -LiteralPath $script:HtmlPath -Raw
+        $src | Should -Not -Match '-AsHashtable'
+        $src | Should -Not -Match '\?\?'
+        $src | Should -Not -Match '\?\.'
+    }
+}
