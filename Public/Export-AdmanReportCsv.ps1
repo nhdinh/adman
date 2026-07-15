@@ -108,7 +108,12 @@ function Export-AdmanReportCsv {
         if (-not $firstRowSeen) {
             # Empty pipeline: emit a header-only CSV when -Properties was supplied.
             if ($null -ne $Properties -and @($Properties).Count -gt 0) {
-                $header = (@($Properties) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }) -join ','
+                # WR-05: RFC 4180-quote any header name containing a comma, quote, CR, or LF.
+                # Doubles embedded quotes per RFC 4180 section 2.
+                $header = (@($Properties) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | ForEach-Object {
+                    $s = [string]$_
+                    if ($s -match '[",\r\n]') { '"' + ($s -replace '"', '""') + '"' } else { $s }
+                }) -join ','
                 if ([string]::IsNullOrWhiteSpace($header)) {
                     # Properties was supplied but contained only whitespace - treat as no schema.
                     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
