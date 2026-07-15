@@ -116,10 +116,18 @@ Describe 'Format-AdmanReport: console table output (RPT-01)' -Tag 'Unit' {
 
     It 'degrades to console table when -UseGridView is requested but the grid picker fails' {
         $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
-        # On this test host (PS7 Core, no ConsoleGuiTools module), the grid path
-        # naturally fails: Get-Module -ListAvailable Microsoft.PowerShell.ConsoleGuiTools
-        # returns $null, so the renderer must silently degrade to the console table.
-        # No mocks needed — the environment itself provides the failure condition.
+        # Force the grid picker to fail deterministically on BOTH editions.
+        # On PS7 Core without ConsoleGuiTools the picker naturally fails; on
+        # Desktop 5.1 Out-GridView exists in-box so the renderer would try it
+        # and (in a non-interactive test host) emit nothing. Mock Out-GridView
+        # to throw so the renderer's try/catch fallback to Format-Table is
+        # exercised. (Out-ConsoleGridView is only invoked on Core and only when
+        # the ConsoleGuiTools module is present — absent in this test host, so
+        # no mock is needed for that path.) NOTE: do not reference It-scope
+        # variables inside the mock body — under PS 5.1 + Pester 6 the mock
+        # executes in the adman module session state and external variables
+        # resolve to $null.
+        Mock Out-GridView -ModuleName adman { throw 'no GUI (test-forced)' }
         $out = $row | Format-AdmanReport -UseGridView
         $text = ($out -join "`n")
         $text | Should -Match 'alice'

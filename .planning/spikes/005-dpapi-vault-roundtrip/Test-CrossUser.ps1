@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Cross-user DPAPI isolation test — run as a DIFFERENT user than the one who ran Invoke-Spike.ps1.
+    Cross-user DPAPI isolation test - run as a DIFFERENT user than the one who ran Invoke-Spike.ps1.
 
 .DESCRIPTION
     Attempts to load the vault file created by Invoke-Spike.ps1 and decrypt the
@@ -14,7 +14,7 @@
 
 .NOTES
     This script does NOT take destructive action. It only reads the vault file
-    and reports whether decryption succeeded (bad — means DPAPI isolation failed)
+    and reports whether decryption succeeded (bad - means DPAPI isolation failed)
     or produced empty SecureStrings (good — DPAPI boundary is enforced).
 #>
 [CmdletBinding()]
@@ -50,16 +50,16 @@ Write-Host "  Empty SecureStrings (decrypt failed): $emptyCount"
 Write-Host "  Non-empty SecureStrings (decrypt succeeded): $nonEmptyCount"
 
 if ($emptyCount -eq $sampleSize) {
-    Write-Host "`nVERDICT: PASS — all sampled passwords failed to decrypt as this user." -ForegroundColor Green
+    Write-Host "`nVERDICT: PASS - all sampled passwords failed to decrypt as this user." -ForegroundColor Green
     Write-Host "DPAPI CurrentUser isolation is enforced." -ForegroundColor Green
     exit 0
 } elseif ($nonEmptyCount -gt 0) {
-    Write-Host "`nVERDICT: FAIL — $nonEmptyCount passwords decrypted successfully." -ForegroundColor Red
+    Write-Host "`nVERDICT: FAIL - $nonEmptyCount passwords decrypted successfully." -ForegroundColor Red
     Write-Host "This means either:" -ForegroundColor Red
     Write-Host "  (a) you are running as the SAME user who created the vault (expected: run as a different user), or" -ForegroundColor Red
     Write-Host "  (b) DPAPI isolation is broken (should not happen)." -ForegroundColor Red
     exit 1
 } else {
-    Write-Host "`nVERDICT: INCONCLUSIVE — sampled 0 records." -ForegroundColor Yellow
+    Write-Host "`nVERDICT: INCONCLUSIVE - sampled 0 records." -ForegroundColor Yellow
     exit 2
 }

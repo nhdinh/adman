@@ -97,7 +97,9 @@ Describe 'Get-AdmanStaleReport: D-02 paging + properties invariants' -Tag 'Unit'
 Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
 
     It 'buckets as Stale when lastLogonTimestamp is older than the grace window' {
-        $staleFileTime = [datetime]::UtcNow.AddDays(-30).ToFileTimeUtc()
+        # NOTE: do NOT reference It-scope variables inside the Mock body — under
+        # PS 5.1 + Pester 6 the mock executes in the adman module session state
+        # and external variables resolve to $null. Inline all expressions.
         Mock Get-ADUser -ModuleName adman {
             @(
                 [pscustomobject]@{
@@ -105,13 +107,13 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
                     DistinguishedName = 'CN=Stale User,OU=Managed,DC=mock,DC=local'
                     ObjectSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333-1001'
                     ObjectGuid = [guid]'11111111-2222-3333-4444-555555555555'
-                    lastLogonTimestamp = $staleFileTime
+                    lastLogonTimestamp = [datetime]::UtcNow.AddDays(-30).ToFileTimeUtc()
                     whenCreated = [datetime]::UtcNow.AddDays(-60)
                 }
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 1
         $result[0].Bucket | Should -Be 'Stale'
         $result[0].SamAccountName | Should -Be 'stale.user'
@@ -131,7 +133,7 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 1
         $result[0].Bucket | Should -Be 'NeverLoggedOn'
     }
@@ -150,7 +152,7 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 1
         $result[0].Bucket | Should -Be 'NeverLoggedOn'
     }
@@ -169,12 +171,16 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 0
     }
 
     It 'excludes fresh accounts (lastLogonTimestamp within the grace window)' {
-        $freshFileTime = [datetime]::UtcNow.AddDays(-5).ToFileTimeUtc()
+        # NOTE: inline the FileTime expression — see 'buckets as Stale' for the
+        # PS 5.1 mock-scoping rationale. This test must genuinely exercise the
+        # exclusion path: the mock returns a fresh account and the report must
+        # drop it (Count -Be 0), not pass vacuously because the mock returned
+        # nothing.
         Mock Get-ADUser -ModuleName adman {
             @(
                 [pscustomobject]@{
@@ -182,18 +188,19 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
                     DistinguishedName = 'CN=Fresh User,OU=Managed,DC=mock,DC=local'
                     ObjectSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333-1005'
                     ObjectGuid = [guid]'11111111-2222-3333-4444-555555555559'
-                    lastLogonTimestamp = $freshFileTime
+                    lastLogonTimestamp = [datetime]::UtcNow.AddDays(-5).ToFileTimeUtc()
                     whenCreated = [datetime]::UtcNow.AddDays(-60)
                 }
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 0
     }
 
     It 'drops out-of-scope objects via Test-AdmanInManagedScope' {
-        $staleFileTime = [datetime]::UtcNow.AddDays(-30).ToFileTimeUtc()
+        # NOTE: inline the FileTime expression — see 'buckets as Stale' for the
+        # PS 5.1 mock-scoping rationale.
         Mock Get-ADUser -ModuleName adman {
             @(
                 [pscustomobject]@{
@@ -201,7 +208,7 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
                     DistinguishedName = 'CN=Stale User,OU=Managed,DC=mock,DC=local'
                     ObjectSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333-1006'
                     ObjectGuid = [guid]'11111111-2222-3333-4444-555555555560'
-                    lastLogonTimestamp = $staleFileTime
+                    lastLogonTimestamp = [datetime]::UtcNow.AddDays(-30).ToFileTimeUtc()
                     whenCreated = [datetime]::UtcNow.AddDays(-60)
                 },
                 [pscustomobject]@{
@@ -209,13 +216,13 @@ Describe 'Get-AdmanStaleReport: bucketing logic (D-05)' -Tag 'Unit' {
                     DistinguishedName = 'CN=OutScope User,OU=NotManaged,DC=mock,DC=local'
                     ObjectSid = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-1111111111-2222222222-3333333333-1007'
                     ObjectGuid = [guid]'11111111-2222-3333-4444-555555555561'
-                    lastLogonTimestamp = $staleFileTime
+                    lastLogonTimestamp = [datetime]::UtcNow.AddDays(-30).ToFileTimeUtc()
                     whenCreated = [datetime]::UtcNow.AddDays(-60)
                 }
             )
         }
 
-        $result = Invoke-StaleReport
+        $result = @(Invoke-StaleReport)
         $result.Count | Should -Be 1
         $result[0].SamAccountName | Should -Be 'stale.user'
     }
