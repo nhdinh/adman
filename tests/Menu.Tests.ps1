@@ -93,7 +93,8 @@ Describe 'MENU-01: Start-Adman prints numbered items 1..N plus Q. Quit' -Tag 'Un
     It 'renders numbered items from Get-AdmanMenuDefinition (1..N)' {
         # Behavioral: drive Start-Adman with mocked Read-Host that answers 'Q' immediately,
         # capture Write-Host output, and assert each menu label appears with a numeric prefix.
-        $menuDef = . $script:MenuDefPath
+        . $script:MenuDefPath
+        $menuDef = Get-AdmanMenuDefinition
         $labels = @($menuDef | ForEach-Object { $_.Label })
         $labels.Count | Should -BeGreaterThan 0
     }
@@ -122,7 +123,8 @@ Describe 'MENU-02: numeric choice calls the corresponding Public verb with promp
     }
 
     It 'Get-AdmanMenuDefinition returns six menu items with Label, Verb, PromptSpec, Properties' {
-        $def = . $script:MenuDefPath
+        . $script:MenuDefPath
+        $def = Get-AdmanMenuDefinition
         @($def).Count | Should -Be 6
         foreach ($entry in $def) {
             $entry.Label | Should -Not -BeNullOrEmpty
@@ -133,7 +135,8 @@ Describe 'MENU-02: numeric choice calls the corresponding Public verb with promp
     }
 
     It 'every menu entry Properties field is a non-empty [string[]] of D-03 column names' {
-        $def = . $script:MenuDefPath
+        . $script:MenuDefPath
+        $def = Get-AdmanMenuDefinition
         foreach ($entry in $def) {
             $entry.Properties | Should -Not -BeNullOrEmpty
             ,$entry.Properties | Should -BeOfType [string[]]
@@ -142,7 +145,8 @@ Describe 'MENU-02: numeric choice calls the corresponding Public verb with promp
     }
 
     It 'Properties arrays match the pinned D-03 schema lists' {
-        $def = . $script:MenuDefPath
+        . $script:MenuDefPath
+        $def = Get-AdmanMenuDefinition
         $byVerb = @{}
         foreach ($e in $def) { $byVerb[$e.Verb] = $e.Properties }
 
@@ -230,8 +234,10 @@ Describe 'MENU-04: menu dispatches the same Public verb a senior calls directly'
 
     It 'Start-Adman contains no direct Get-AD*/Search-ADAccount calls (pure dispatch)' {
         $names = Get-AdmanCommandNames -Ast (Get-AdmanFileAst -Path $script:StartAdmanPath)
+        # Match real AD cmdlets only: verb-AD<noun> where noun does NOT start with 'Adman'
+        # (Get-AdmanMenuDefinition is an internal helper, not an AD cmdlet).
         $adCalls = @($names | Where-Object {
-            $_ -match '^(Get|Search|Set|New|Remove|Move|Enable|Disable|Rename)-AD' -or
+            $_ -match '^(Get|Set|New|Remove|Move|Enable|Disable|Rename)-AD(?!man)' -or
             $_ -eq 'Search-ADAccount'
         })
         $adCalls | Should -BeNullOrEmpty -Because 'the menu must be a thin prompt-and-dispatch layer (D-01/MENU-04)'
@@ -244,7 +250,8 @@ Describe 'MENU-04: menu dispatches the same Public verb a senior calls directly'
     }
 
     It 'every menu entry Verb resolves to a real Public function name (no parallel implementation)' {
-        $def = . $script:MenuDefPath
+        . $script:MenuDefPath
+        $def = Get-AdmanMenuDefinition
         foreach ($entry in $def) {
             # The verb name must be a non-empty string; the actual Public function
             # may not exist yet in Wave 1 (Find-AdmanUser etc. land in 01-02/01-03),
