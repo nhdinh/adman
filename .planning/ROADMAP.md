@@ -63,15 +63,15 @@ Plans (finalized during `/gsd-plan-phase 0`):
   3. Reports render Disabled/Expired/Locked/Password-Expired as four distinct states via `Search-ADAccount` (RPT-05); stale/inactive uses replicated `lastLogonTimestamp` with a ≥14-day grace buffer and a separate never-logged-on (`0`/1601) bucket — never per-DC `lastLogon` (RPT-04); and startup shows the domain recovery posture (Recycle Bin / FFL) rather than assuming it (RPT-07).
   4. Any report renders as a console table (and `Out-GridView` where available) (RPT-01), exports to CSV `-NoTypeInformation` (RPT-02), and exports to a self-contained single-file HTML report (RPT-03); inventory shows OS version + basic computer info from AD attributes (RPT-06).
 
-**Plans**: TBD (suggested 4-plan split below)
+**Plans**: 4 plans
 **UI hint**: no
 
-Suggested plan split (refined during `/gsd-plan-phase 1`):
+Plans (finalized during `/gsd-plan-phase 1`):
 
-- [ ] 01-01: Presentation/menu shell — `Start-Adman`, numbered `Read-Host` menu, validated prompts, back/quit, `Out-GridView` with numbered fallback; routes to verbs, never touches AD (MENU-01/02/03/04).
-- [ ] 01-02: Scoped read layer — search/view users & computers with `-SearchBase` always set, exact `-Properties`, `-ResultPageSize`; protected-object + stale-`adminCount` inventory (USER-01, COMP-01).
-- [ ] 01-03: Correct AD semantics — `lastLogonTimestamp`+grace-buffer+never-logged-on bucket, all-DC `lastLogon` aggregation helper (built once), four-state rendering via `Search-ADAccount`, recovery-posture preflight (RPT-04/05/07).
-- [ ] 01-04: Output layer — canonical result object → console table / CSV / self-contained HTML at the boundary; OS/inventory report (RPT-01/02/03/06).
+- [ ] 01-01-PLAN.md — Presentation/menu shell: flat `while` loop in `Start-Adman`, numbered `Read-Host` menu, validated prompts, `B`/`Q` reserved inputs, routes to Public verbs, never touches AD (MENU-01/02/03/04).
+- [ ] 01-02-PLAN.md — Scoped read layer: `Find-AdmanUser`, `Find-AdmanComputer`, `ConvertTo-AdmanResult` D-03 schema mapper, `Test-AdmanInManagedScope` scope-only boundary, exact `-Properties`, `-ResultPageSize 1000` (USER-01, COMP-01).
+- [ ] 01-03-PLAN.md — Correct AD semantics: stale/inactive report via replicated `lastLogonTimestamp` + self-tuning grace + `NeverLoggedOn` bucket (no per-DC `lastLogon`), four account states via `Search-ADAccount`, recovery-posture preflight + sync-interval cache (RPT-04/05/07).
+- [ ] 01-04-PLAN.md — Output layer: `Format-AdmanReport`, `Export-AdmanReportCsv`, `Export-AdmanReportHtml`, `Get-AdmanInventoryReport`, capability-probed grid picker with console fallback (RPT-01/02/03/06).
 
 ### Phase 2: Single-Object Lifecycle (writes begin, bounded to one)
 
