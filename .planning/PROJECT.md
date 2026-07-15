@@ -16,16 +16,15 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+- Interactive menu (TUI) entry point — flat `while`-loop shell, numbered menu, validated prompts, routes every selection to the same Public verbs seniors call directly (MENU-01..04). Validated in Phase 01 (ad-query-reporting-read-only).
+- Reporting & inventory (read-only) — console/CSV/self-contained-HTML renderers (RPT-01/02/03), OS/inventory report (RPT-06), scoped user/computer search (USER-01, COMP-01), stale/account-state/recovery-posture reports with correct AD semantics (RPT-04/05/07). Validated in Phase 01.
 
 ### Active
 
 <!-- Current scope. Building toward these. Hypotheses until shipped. -->
 
-- [ ] Interactive menu (TUI) entry point — discoverable, guided prompts, usable by mixed-skill admins
 - [ ] AD/ Local user lifecycle — create, disable, enable, move OU, reset password, unlock, manage group membership
-- [ ] AD computer lifecycle — disable, enable, move OU; report last-logon / stale / OS version
-- [ ] Reporting & inventory — console tables, CSV export, and self-contained HTML reports
+- [ ] AD computer lifecycle — disable, enable, move OU (stale/OS-version reporting validated in Phase 01)
 - [ ] Remote computer operations — query/live-action on remote machines with auto-detect fallback (WinRM → CIM/WMI → skip)
 - [ ] Provisioning & onboarding workflow — standardized new-user / new-computer setup
 - [ ] Offboarding workflow — disable + move to quarantine OU, strip groups, surface related cleanup
@@ -97,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-14 after Phase 00 (foundation-safety-harness)*
+*Last updated: 2026-07-15 after Phase 01 (ad-query-reporting-read-only)*
