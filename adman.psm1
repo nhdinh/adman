@@ -13,6 +13,12 @@ $ErrorActionPreference = 'Stop'
 # All AD cmdlets read -Server from $script:Config.DC (pinned per RESEARCH Pitfall 1/6).
 $script:Config = @{}
 
+# IN-03 fix: module-level default password length. The literal '20' was repeated in 11
+# sites as the fallback when $script:Config.security.passwordGeneration.length is absent.
+# Single source here so a future change is one edit, not eleven. Consumers fall back to
+# this constant when the config value is missing.
+$script:DefaultPasswordLength = 20
+
 # Load Private (helpers/gate) first, then Public (exported verbs).
 foreach ($scope in @('Private', 'Public')) {
     $dir = Join-Path $PSScriptRoot $scope

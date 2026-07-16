@@ -48,7 +48,9 @@ function New-AdmanRandomPassword {
     [CmdletBinding()]
     [OutputType([securestring])]
     param(
-        [int]$Length = 20
+        # IN-03 fix: default sourced from the module-level constant so the fallback
+        # is single-sourced. Callers that pass -Length explicitly are unaffected.
+        [int]$Length = $script:DefaultPasswordLength
     )
     if ($Length -lt 4) { throw "Length must be >= 4 to guarantee all four character classes." }
 

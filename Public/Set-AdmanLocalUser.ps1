@@ -139,7 +139,7 @@ function Set-AdmanLocalUser {
         if (-not $passwordSupplied) {
             switch ($passwordSource) {
                 'Generate' {
-                    $len = 20
+                    $len = $script:DefaultPasswordLength
                     if ($script:Config.security -and
                         $script:Config.security.PSObject.Properties['passwordGeneration'] -and
                         $script:Config.security.passwordGeneration -and
@@ -162,7 +162,7 @@ function Set-AdmanLocalUser {
                         if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
                         if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
                     }
-                    $minLen = 20
+                    $minLen = $script:DefaultPasswordLength
                     if ($script:Config.security -and
                         $script:Config.security.PSObject.Properties['passwordGeneration'] -and
                         $script:Config.security.passwordGeneration -and

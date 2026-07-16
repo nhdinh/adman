@@ -121,7 +121,7 @@ function Read-AdmanActionParams {
                 if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le @($choices).Count) {
                     if ($n -eq 1) {
                         # Generate path: CSPRNG via New-AdmanRandomPassword.
-                        $len = 20
+                        $len = $script:DefaultPasswordLength
                         if ($script:Config -and
                             $script:Config.PSObject.Properties['security'] -and
                             $script:Config.security -and
@@ -160,7 +160,7 @@ function Read-AdmanActionParams {
                                 if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
                                 if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
                             }
-                            $minLen = 20
+                            $minLen = $script:DefaultPasswordLength
                             if ($script:Config -and
                                 $script:Config.PSObject.Properties['security'] -and
                                 $script:Config.security -and
