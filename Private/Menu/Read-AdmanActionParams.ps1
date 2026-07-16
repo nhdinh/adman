@@ -17,6 +17,28 @@
       * Empty required input - re-prompts once; a second consecutive empty is treated
                      as 'B' (return $null).
 
+    Polymorphic Type field (D-05, Phase 2):
+      * Type='Text' (default)        - free-text prompt; the value is trimmed and stored.
+      * Type='GeneratedPassword'     - renders the Choices array as a numeric sub-choice
+                                       (1=Generate, 2=Prompt). The Generate path calls
+                                       New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length
+                                       and stores the resulting SecureString in
+                                       $params[$name], plus sets $params["${name}Source"]='Generate'.
+                                       The Prompt path calls Read-Host -AsSecureString twice
+                                       with an equality check (transient BSTR zeroed in
+                                       finally) + Test-AdmanPasswordComplexity, stores the
+                                       SecureString in $params[$name], and sets
+                                       $params["${name}Source"]='Prompt'.
+                                       The B/Q reserved-input contract applies to the
+                                       sub-choice prompt as well.
+
+    The $name here is the PromptSpec Name - which is per-verb ('AccountPassword',
+    'NewPassword', or 'Password') per the PROMPTSPEC-PARAMETER NAME CONTRACT (HIGH #1
+    cycle-2 review fix). The "${name}Source" marker key is therefore
+    'AccountPasswordSource', 'NewPasswordSource', or 'PasswordSource' respectively,
+    and each target verb declares the matching optional parameter (Plans 02-02 / 02-04),
+    so the Start-Adman `& $Verb @params` splat binds cleanly.
+
     Validation:
       * Free-text inputs are trimmed and passed through; the underlying verb validates
         semantics.
@@ -24,8 +46,9 @@
         indices 1..N or B/Q. Invalid input re-prompts with the standard copy:
         'Invalid selection. Enter a number, B, or Q.'
 
-    This helper returns ONLY the parameters declared in the PromptSpec - no free-form
-    code execution, no extra parameters (T-01-03).
+    This helper returns ONLY the parameters declared in the PromptSpec (plus the
+    auto-generated "${name}Source" marker for GeneratedPassword fields) - no
+    free-form code execution, no extra parameters (T-01-03).
 #>
 
 Set-StrictMode -Version Latest
@@ -42,19 +65,113 @@ function Read-AdmanActionParams {
     $params = @{}
 
     foreach ($field in $PromptSpec) {
-        $name = [string]$field.Name
-        $prompt = [string]$field.Prompt
-        $required = [bool]$field.Required
+        # PromptSpec entries may be hashtables (menu def inline shape) or PSCustomObjects.
+        # Hashtable keys are NOT exposed via PSObject.Properties.Name; probe via
+        # the appropriate mechanism for each shape so Choices/Type are detected
+        # consistently across both (Rule 1 bug fix).
+        $isHashtable = $field -is [System.Collections.IDictionary]
+        $hasKey = {
+            param([string]$Key)
+            if ($isHashtable) { return $field.Contains($Key) }
+            return ($field.PSObject.Properties.Name -contains $Key)
+        }
+        $getVal = {
+            param([string]$Key)
+            if ($isHashtable) { return $field[$Key] }
+            return $field.$Key
+        }
+
+        $name = [string](& $getVal 'Name')
+        $prompt = [string](& $getVal 'Prompt')
+        $required = [bool](& $getVal 'Required')
         $choices = $null
-        if ($field.PSObject.Properties.Name -contains 'Choices') {
-            $choices = $field.Choices
+        if (& $hasKey 'Choices') {
+            $choices = & $getVal 'Choices'
+        }
+        $type = 'Text'
+        if ((& $hasKey 'Type') -and (& $getVal 'Type')) {
+            $type = [string](& $getVal 'Type')
         }
 
         $emptySeen = $false
         $resolved = $false
 
         while (-not $resolved) {
-            if ($null -ne $choices -and @($choices).Count -gt 0) {
+            if ($type -eq 'GeneratedPassword') {
+                # D-05 numeric sub-choice: 1=Generate (CSPRNG), 2=Prompt (Read-Host -AsSecureString).
+                # B/Q reserved-input contract applies to this prompt as well.
+                for ($i = 0; $i -lt @($choices).Count; $i++) {
+                    Write-Host ("{0}. {1}" -f ($i + 1), $choices[$i])
+                }
+                Write-Host 'B. Back'
+                Write-Host 'Q. Exit'
+                $answer = Read-Host $prompt
+
+                if ($answer -match '^[Qq]$') {
+                    throw 'ADMAN_QUIT'
+                }
+                if ($answer -match '^[Bb]$') {
+                    return $null
+                }
+                $n = 0
+                if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le @($choices).Count) {
+                    if ($n -eq 1) {
+                        # Generate path: CSPRNG via New-AdmanRandomPassword.
+                        $len = 20
+                        if ($script:Config -and
+                            $script:Config.PSObject.Properties['security'] -and
+                            $script:Config.security -and
+                            $script:Config.security.PSObject.Properties['passwordGeneration'] -and
+                            $script:Config.security.passwordGeneration -and
+                            $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
+                            $script:Config.security.passwordGeneration.length) {
+                            $len = [int]$script:Config.security.passwordGeneration.length
+                        }
+                        $params[$name] = New-AdmanRandomPassword -Length $len
+                        $params["${name}Source"] = 'Generate'
+                        $resolved = $true
+                    } else {
+                        # Prompt path: Read-Host -AsSecureString twice + equality check + complexity.
+                        $first = Read-Host -AsSecureString -Prompt 'Enter password'
+                        $second = Read-Host -AsSecureString -Prompt 'Confirm password'
+                        # Equality check via transient BSTR, zeroed in finally.
+                        $b1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
+                        $b2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($second)
+                        try {
+                            $p1 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1)
+                            $p2 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2)
+                            if ($p1 -cne $p2) {
+                                Write-Host 'Passwords do not match. Try again.'
+                                continue
+                            }
+                        } finally {
+                            if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
+                            if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+                        }
+                        $minLen = 20
+                        if ($script:Config -and
+                            $script:Config.PSObject.Properties['security'] -and
+                            $script:Config.security -and
+                            $script:Config.security.PSObject.Properties['passwordGeneration'] -and
+                            $script:Config.security.passwordGeneration -and
+                            $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
+                            $script:Config.security.passwordGeneration.length) {
+                            $minLen = [int]$script:Config.security.passwordGeneration.length
+                        }
+                        try {
+                            Test-AdmanPasswordComplexity -Password $first -MinLength $minLen | Out-Null
+                        } catch {
+                            Write-Host ("Password does not meet complexity requirements: {0}" -f $_.Exception.Message)
+                            continue
+                        }
+                        $params[$name] = $first
+                        $params["${name}Source"] = 'Prompt'
+                        $resolved = $true
+                    }
+                } else {
+                    Write-Host 'Invalid selection. Enter a number, B, or Q.'
+                }
+            } elseif ($null -ne $choices -and @($choices).Count -gt 0) {
                 # Numeric sub-choice prompt.
                 for ($i = 0; $i -lt @($choices).Count; $i++) {
                     Write-Host ("{0}. {1}" -f ($i + 1), $choices[$i])

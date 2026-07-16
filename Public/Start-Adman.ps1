@@ -94,8 +94,19 @@ function Start-Adman {
     :menuLoop while ($true) {
         Write-Host 'adman - AD Manager' -ForegroundColor Cyan
         Write-Host ''
+        # SEPARATOR SKIP (Phase 2): entries with Verb=$null are non-selectable
+        # section separators. Render them as plain text lines (no number prefix)
+        # and exclude them from the numbered selection list. Build a parallel
+        # array mapping display-number -> menu-index so selection stays correct
+        # when separators are interleaved.
+        $selectable = New-Object System.Collections.ArrayList
         for ($i = 0; $i -lt @($menu).Count; $i++) {
-            Write-Host ("{0}. {1}" -f ($i + 1), $menu[$i].Label)
+            if ($null -eq $menu[$i].Verb) {
+                Write-Host $menu[$i].Label -ForegroundColor DarkCyan
+            } else {
+                [void]$selectable.Add($i)
+                Write-Host ("{0}. {1}" -f $selectable.Count, $menu[$i].Label)
+            }
         }
         Write-Host 'Q. Quit'
         Write-Host ''
@@ -107,12 +118,12 @@ function Start-Adman {
         }
 
         $n = 0
-        if (-not [int]::TryParse($selection, [ref]$n) -or $n -lt 1 -or $n -gt @($menu).Count) {
+        if (-not [int]::TryParse($selection, [ref]$n) -or $n -lt 1 -or $n -gt $selectable.Count) {
             Write-Host 'Invalid selection. Enter a number or Q.'
             continue
         }
 
-        $entry = $menu[$n - 1]
+        $entry = $menu[$selectable[$n - 1]]
         $Verb = [string]$entry.Verb
 
         try {
@@ -128,6 +139,18 @@ function Start-Adman {
             # Operator typed B (or second empty on a required field) inside the action
             # prompts - resume the top-level loop.
             continue
+        }
+
+        # FIXEDPARAMETERS MERGE (MEDIUM #6 review fix): merge the entry's
+        # FixedParameters hashtable into $params BEFORE dispatch. The merge happens
+        # AFTER prompting so fixed values are always present and never prompted for.
+        # Used by the Set-AdmanLocalUser Enable/Disable entries to inject the
+        # -Enable / -Disable switch declaratively (the operator picked the action
+        # by picking the menu item; no further prompt).
+        if ($null -ne $entry.FixedParameters) {
+            foreach ($key in $entry.FixedParameters.Keys) {
+                $params[$key] = $entry.FixedParameters[$key]
+            }
         }
 
         # MENU-04: dispatch the same Public verb a senior calls directly.

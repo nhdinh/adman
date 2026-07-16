@@ -1,21 +1,47 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Get-AdmanMenuDefinition - returns the ordered Phase-1 menu-item table.
+    Get-AdmanMenuDefinition - returns the ordered menu-item table (Phase 1 read + Phase 2 write).
 
 .DESCRIPTION
     Single source of truth for the Start-Adman flat menu (D-01). Each entry is a
-    PSCustomObject with four fields:
+    PSCustomObject with five fields:
 
       * Label      - human-readable menu text shown next to the number.
       * Verb       - the Public function name the menu dispatches to (MENU-04: same
-                     function a senior calls directly).
-      * PromptSpec - array of @{ Name; Prompt; Required; Choices? } records consumed
-                     by Read-AdmanActionParams to build the parameter hashtable.
+                     function a senior calls directly). $null for non-selectable
+                     section separator entries.
+      * PromptSpec - array of @{ Name; Prompt; Required; Choices?; Type? } records
+                     consumed by Read-AdmanActionParams to build the parameter
+                     hashtable. The optional Type field defaults to 'Text'; the
+                     value 'GeneratedPassword' triggers the D-05 Generate/Prompt
+                     numeric sub-choice.
       * Properties - [string[]] of D-03 schema column names the verb emits. Plan 01-04
                      passes this to Format-AdmanReport / Export-AdmanReportCsv /
                      Export-AdmanReportHtml so a zero-row report still renders headers
-                     (Cycle 4 finding).
+                     (Cycle 4 finding). Empty for write verbs (they do not produce
+                     D-03 report rows).
+      * FixedParameters - optional hashtable of parameters the dispatcher injects
+                     WITHOUT prompting (MEDIUM #6 review fix). Used by the
+                     Set-AdmanLocalUser Enable/Disable entries to inject the
+                     -Enable / -Disable switch declaratively (the operator picked
+                     the action by picking the menu item; no further prompt).
+
+    PROMPTSPEC-PARAMETER NAME CONTRACT (HIGH #1 cycle-2 review fix): every PromptSpec
+    Name MUST exactly match a parameter name on the target verb. Start-Adman
+    dispatches via `& $Verb @params`, so a PromptSpec Name that is not a declared
+    parameter on the verb throws "parameter cannot be found" from the menu path
+    while direct senior calls succeed. The password PromptSpec names are per-verb:
+      * 'AccountPassword'  -> New-AdmanUser         (auto marker: AccountPasswordSource)
+      * 'NewPassword'      -> Set-AdmanUserPassword (auto marker: NewPasswordSource)
+      * 'Password'         -> New-AdmanLocalUser, Set-AdmanLocalUser (auto marker: PasswordSource)
+    The accompanying "${name}Source" markers are declared as optional
+    [ValidateSet('Generate','Prompt')] parameters on the corresponding verbs in
+    Plans 02-02 and 02-04, so the menu can safely set them and the splat binds.
+
+    VALIDATION: a FixedParameters key MUST NOT collide with a PromptSpec Name on the
+    same entry (a fixed key shadowing a prompted key would silently drop the
+    operator's input). This is enforced by a Pester test in tests/Menu.Tests.ps1.
 
     The menu body (Start-Adman) reads this table and dispatches via & $Verb @params.
     No AD read logic, no formatting logic, no renderer dispatch lives here.
@@ -26,6 +52,7 @@
       * Report verbs -> D-03 type schema + Bucket.
       * Recovery posture -> five-field shape (RecycleBinEnabled, ForestFunctionalLevel,
         TombstoneLifetime, Generated, Freshness).
+      * Write verbs -> empty [string[]]@() (writes do not produce D-03 report rows).
 #>
 
 Set-StrictMode -Version Latest
@@ -54,46 +81,289 @@ function Get-AdmanMenuDefinition {
         'RecycleBinEnabled','ForestFunctionalLevel','TombstoneLifetime','Generated','Freshness'
     )
 
-    $menu = @(
+    $emptyProperties = [string[]]@()
+
+    # Helper: build a non-selectable section separator entry. Verb=$null tells
+    # Start-Adman to render the label as a plain text line (no number prefix,
+    # not selectable).
+    $newSeparator = {
+        param([string]$Label)
         [pscustomobject]@{
-            Label      = 'Find user'
-            Verb       = 'Find-AdmanUser'
-            PromptSpec = @(
+            Label           = $Label
+            Verb            = $null
+            PromptSpec      = @()
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+    }
+
+    $menu = @(
+        # --- Phase 1 read-only entries (Search + Reports) -------------------------
+        [pscustomobject]@{
+            Label           = 'Find user'
+            Verb            = 'Find-AdmanUser'
+            PromptSpec      = @(
                 @{ Name = 'SamAccountName'; Prompt = 'Enter sAMAccountName'; Required = $true }
             )
-            Properties = $userProperties
+            Properties      = $userProperties
+            FixedParameters = $null
         }
         [pscustomobject]@{
-            Label      = 'Find computer'
-            Verb       = 'Find-AdmanComputer'
-            PromptSpec = @(
+            Label           = 'Find computer'
+            Verb            = 'Find-AdmanComputer'
+            PromptSpec      = @(
                 @{ Name = 'Name'; Prompt = 'Enter computer name'; Required = $true }
             )
-            Properties = $computerProperties
+            Properties      = $computerProperties
+            FixedParameters = $null
         }
         [pscustomobject]@{
-            Label      = 'Stale/inactive report'
-            Verb       = 'Get-AdmanStaleReport'
-            PromptSpec = @()
-            Properties = $userReportProperties
+            Label           = 'Stale/inactive report'
+            Verb            = 'Get-AdmanStaleReport'
+            PromptSpec      = @()
+            Properties      = $userReportProperties
+            FixedParameters = $null
         }
         [pscustomobject]@{
-            Label      = 'Account-state report'
-            Verb       = 'Get-AdmanAccountStateReport'
-            PromptSpec = @()
-            Properties = $userReportProperties
+            Label           = 'Account-state report'
+            Verb            = 'Get-AdmanAccountStateReport'
+            PromptSpec      = @()
+            Properties      = $userReportProperties
+            FixedParameters = $null
         }
         [pscustomobject]@{
-            Label      = 'Inventory report'
-            Verb       = 'Get-AdmanInventoryReport'
-            PromptSpec = @()
-            Properties = $computerReportProperties
+            Label           = 'Inventory report'
+            Verb            = 'Get-AdmanInventoryReport'
+            PromptSpec      = @()
+            Properties      = $computerReportProperties
+            FixedParameters = $null
         }
         [pscustomobject]@{
-            Label      = 'Recovery posture'
-            Verb       = 'Get-AdmanRecoveryPostureReport'
-            PromptSpec = @()
-            Properties = $recoveryPostureProperties
+            Label           = 'Recovery posture'
+            Verb            = 'Get-AdmanRecoveryPostureReport'
+            PromptSpec      = @()
+            Properties      = $recoveryPostureProperties
+            FixedParameters = $null
+        }
+
+        # --- User writes (Phase 2) -----------------------------------------------
+        & $newSeparator '--- User writes ---'
+        [pscustomobject]@{
+            Label           = 'Create user'
+            Verb            = 'New-AdmanUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter full name (CN)'; Required = $true }
+                @{ Name = 'SamAccountName'; Prompt = 'Enter sAMAccountName'; Required = $true }
+                @{ Name = 'UserPrincipalName'; Prompt = 'Enter UPN (user@domain)'; Required = $true }
+                @{ Name = 'ParentOuDn'; Prompt = 'Enter parent OU DN'; Required = $true }
+                @{
+                    Name     = 'AccountPassword'
+                    Prompt   = 'Password source'
+                    Required = $true
+                    Type     = 'GeneratedPassword'
+                    Choices  = @('Generate (recommended)', 'Prompt')
+                }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Disable user'
+            Verb            = 'Disable-AdmanUser'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Enable user'
+            Verb            = 'Enable-AdmanUser'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Reset user password'
+            Verb            = 'Set-AdmanUserPassword'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{
+                    Name     = 'NewPassword'
+                    Prompt   = 'Password source'
+                    Required = $true
+                    Type     = 'GeneratedPassword'
+                    Choices  = @('Generate (recommended)', 'Prompt')
+                }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Unlock user'
+            Verb            = 'Unlock-AdmanUser'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Move user to OU'
+            Verb            = 'Move-AdmanUser'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+
+        # --- Computer writes (Phase 2) --------------------------------------------
+        & $newSeparator '--- Computer writes ---'
+        [pscustomobject]@{
+            Label           = 'Disable computer'
+            Verb            = 'Disable-AdmanComputer'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Enable computer'
+            Verb            = 'Enable-AdmanComputer'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Move computer to OU'
+            Verb            = 'Move-AdmanComputer'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Reset computer account'
+            Verb            = 'Reset-AdmanComputerAccount'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+
+        # --- Local writes (Phase 2) -----------------------------------------------
+        & $newSeparator '--- Local writes ---'
+        [pscustomobject]@{
+            Label           = 'Create local user'
+            Verb            = 'New-AdmanLocalUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+                @{
+                    Name     = 'Password'
+                    Prompt   = 'Password source'
+                    Required = $true
+                    Type     = 'GeneratedPassword'
+                    Choices  = @('Generate (recommended)', 'Prompt')
+                }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Reset local user password'
+            Verb            = 'Set-AdmanLocalUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+                @{
+                    Name     = 'Password'
+                    Prompt   = 'Password source'
+                    Required = $true
+                    Type     = 'GeneratedPassword'
+                    Choices  = @('Generate (recommended)', 'Prompt')
+                }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Enable local user'
+            Verb            = 'Set-AdmanLocalUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = @{ Enable = $true }
+        }
+        [pscustomobject]@{
+            Label           = 'Disable local user'
+            Verb            = 'Set-AdmanLocalUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = @{ Disable = $true }
+        }
+        [pscustomobject]@{
+            Label           = 'Remove local user'
+            Verb            = 'Remove-AdmanLocalUser'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Add local group member'
+            Verb            = 'Add-AdmanLocalGroupMember'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+                @{ Name = 'Group'; Prompt = 'Enter local group name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Remove local group member'
+            Verb            = 'Remove-AdmanLocalGroupMember'
+            PromptSpec      = @(
+                @{ Name = 'Name'; Prompt = 'Enter local user name'; Required = $true }
+                @{ Name = 'Group'; Prompt = 'Enter local group name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+
+        # --- Group membership (Phase 2) -------------------------------------------
+        & $newSeparator '--- Group membership ---'
+        [pscustomobject]@{
+            Label           = 'Add to AD group'
+            Verb            = 'Add-AdmanGroupMember'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true }
+                @{ Name = 'GroupIdentity'; Prompt = 'Enter AD group identity'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Remove from AD group'
+            Verb            = 'Remove-AdmanGroupMember'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true }
+                @{ Name = 'GroupIdentity'; Prompt = 'Enter AD group identity'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
         }
     )
 

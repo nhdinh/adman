@@ -93,4 +93,36 @@ Describe 'adman module boundary (SAFE-08 / T-00-01)' {
             Where-Object { $_.ModuleBase -notmatch '[\\/]tests[\\/]' }
         $realAd | Should -BeNullOrEmpty -Because 'adman import must not load the real RSAT ActiveDirectory module'
     }
+
+    It 'FunctionsToExport contains all 17 Phase 2 write verbs explicitly (HIGH #2 review fix re-verification)' {
+        $mf = Test-ModuleManifest $script:ManifestPath -ErrorAction Stop
+        $exported = @($mf.ExportedFunctions.Keys)
+
+        $phase2Verbs = @(
+            'New-AdmanUser'
+            'Disable-AdmanUser'
+            'Enable-AdmanUser'
+            'Set-AdmanUserPassword'
+            'Unlock-AdmanUser'
+            'Move-AdmanUser'
+            'Disable-AdmanComputer'
+            'Enable-AdmanComputer'
+            'Move-AdmanComputer'
+            'Reset-AdmanComputerAccount'
+            'New-AdmanLocalUser'
+            'Set-AdmanLocalUser'
+            'Remove-AdmanLocalUser'
+            'Add-AdmanLocalGroupMember'
+            'Remove-AdmanLocalGroupMember'
+            'Add-AdmanGroupMember'
+            'Remove-AdmanGroupMember'
+        )
+        foreach ($v in $phase2Verbs) {
+            $exported | Should -Contain $v -Because "Wave 2 plans landed the export for $v (HIGH #2 review fix re-verification)"
+        }
+
+        # Explicit list only — never the wildcard.
+        $raw = Get-Content $script:ManifestPath -Raw -ErrorAction Stop
+        $raw | Should -Not -Match "FunctionsToExport\s*=\s*['`"]\*['`"]"
+    }
 }
