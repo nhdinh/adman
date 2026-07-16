@@ -56,9 +56,9 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 ### AD Computer Lifecycle (COMP)
 
 - [x] **COMP-01**: Admin can search/view computers by name (scoped to managed OU)
-- [ ] **COMP-02**: Admin can disable/enable a computer (through the gate)
-- [ ] **COMP-03**: Admin can move a computer to another OU within managed scope
-- [ ] **COMP-04**: Admin can reset a computer account / repair the secure channel (with guidance on which method applies)
+- [x] **COMP-02**: Admin can disable/enable a computer (through the gate)
+- [x] **COMP-03**: Admin can move a computer to another OU within managed scope
+- [x] **COMP-04**: Admin can reset a computer account / repair the secure channel (with guidance on which method applies)
 
 ### Group Membership (GRP)
 
@@ -181,9 +181,9 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | LUSR-01 | Phase 2 | Complete |
 | LUSR-02 | Phase 2 | Complete |
 | COMP-01 | Phase 1 | Complete |
-| COMP-02 | Phase 2 | Pending |
-| COMP-03 | Phase 2 | Pending |
-| COMP-04 | Phase 2 | Pending |
+| COMP-02 | Phase 2 | Complete |
+| COMP-03 | Phase 2 | Complete |
+| COMP-04 | Phase 2 | Complete |
 | GRP-01 | Phase 2 | Complete |
 | GRP-02 | Phase 2 | Complete |
 | GRP-03 | Phase 2 | Complete |
