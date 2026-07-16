@@ -78,16 +78,20 @@ function Invoke-AdmanMutation {
         $cnEsc = Escape-AdmanAdFilterLiteral -Value ([string]$Parameters['Name'])
         $parentDn = [string]$Parameters['ParentOuDn']
 
+        # WR-06 fix: include the conflicting object's DistinguishedName in the refusal so
+        # the operator can locate the collision even when it lives in an unmanaged OU
+        # they cannot browse. AD enforces sAMAccountName uniqueness forest-wide, so the
+        # check itself remains correct without a -SearchBase; the DN is the diagnostic.
         $samHit = Get-ADObject -Filter "sAMAccountName -eq '$samEsc'" `
-            -Server $script:Config.DC -ErrorAction Stop
+            -Server $script:Config.DC -Properties DistinguishedName -ErrorAction Stop
         if ($samHit) {
-            throw "sAMAccountName '$($Parameters['SamAccountName'])' already exists."
+            throw "sAMAccountName '$($Parameters['SamAccountName'])' already exists at '$($samHit.DistinguishedName)'."
         }
         $cnHit = Get-ADObject -Filter "cn -eq '$cnEsc'" `
             -SearchBase $parentDn -SearchScope OneLevel `
-            -Server $script:Config.DC -ErrorAction Stop
+            -Server $script:Config.DC -Properties DistinguishedName -ErrorAction Stop
         if ($cnHit) {
-            throw "CN '$($Parameters['Name'])' already exists in parent OU '$parentDn'."
+            throw "CN '$($Parameters['Name'])' already exists in parent OU '$parentDn' at '$($cnHit.DistinguishedName)'."
         }
     }
 
