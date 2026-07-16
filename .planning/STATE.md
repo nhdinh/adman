@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
 status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-07-16T02:59:30.853Z"
+stopped_at: "Phase 02: Wave 2 complete (5/6 plans). Next: Wave 3 plan 02-06 menu wiring + verification."
+last_updated: "2026-07-16T03:19:23.554Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 16
-  completed_plans: 15
-  percent: 33
+  completed_plans: 16
+  percent: 50
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
-Plan: 6 of 6
+Plan: 2 of 6
 Status: Ready to execute
 Last activity: 2026-07-16 — Phase 02 execution started
 
@@ -72,6 +72,7 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 02 P03 | 4m | 2 tasks | 8 files |
 | Phase 02 P04 | 7m | 2 tasks | 8 files |
 | Phase 02 P05 | 4m | 1 tasks | 6 files |
+| Phase 02 P06 | 10m | - tasks | - files |
 
 ## Accumulated Context
 
@@ -124,6 +125,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: [Phase 02-05]: D-04 dual-resolution policy matrix enforced by the gate; the Public verbs are thin prompt-and-dispatch wrappers that build $Parameters['GroupIdentity'] and call Invoke-AdmanMutation
 - [Phase ?]: [Phase 02-05]: GRP-03 protected-group refusal is a gate-side invariant (Test-AdmanGroupAllowed direct SID equality), not a Public-verb check — direct gate callers cannot bypass it
 - [Phase ?]: [Phase 02-05]: D-04 asymmetry — Remove skips the group-side protected-SID check (remediation allowed); deny-RID and gMSA checks still apply on both Add and Remove; member-side checks unchanged
+- [Phase ?]: [Phase 02-06]: PromptSpec items are hashtables; Read-AdmanActionParams uses shape-agnostic key detection (.Contains() for IDictionary, PSObject.Properties.Name otherwise) so Choices/Type probe works for both shapes
+- [Phase ?]: [Phase 02-06]: Set-AdmanLocalUser appears THREE times in the menu (Reset/Enable/Disable parameter sets); Enable/Disable entries carry FixedParameters so the operator picks the action by picking the menu item
 
 ### Pending Todos
 
@@ -153,7 +156,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-16T02:59:30.844Z
-Stopped at: Completed 02-05-PLAN.md
-Resume file: None
+Last session: 2026-07-16T03:19:11.699Z
+Stopped at: Phase 02: Wave 2 complete (5/6 plans). Next: Wave 3 plan 02-06 menu wiring + verification.
+Resume file: .planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one/02-06-PLAN.md
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
