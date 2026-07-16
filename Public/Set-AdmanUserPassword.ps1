@@ -193,7 +193,10 @@ function Set-AdmanUserPassword {
         $errMsgs = ($errors | ForEach-Object { $_.Exception.Message }) -join '; '
         throw "One or more sub-operations failed: $errMsgs"
     }
-    $result = $results[0]
+    # CR-01 fix: return the reset sub-operation's result. Guard against the edge case where
+    # the gate returned $null (e.g. a mocked gate in tests) - in that case $results may be
+    # empty and indexing [0] would throw IndexOutOfRangeException.
+    $result = if ($results.Count -gt 0) { $results[0] } else { $null }
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
     # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
