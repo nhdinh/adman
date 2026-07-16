@@ -141,9 +141,16 @@ function Invoke-AdmanMutation {
                     -Reason $groupDecision.Reason -Group $groupObj.DistinguishedName `
                     -WhatIf:$WhatIfPreference
             }
-            # G-02-6: surface the refusal reason to the operator before throwing.
-            Write-Warning "Group refused: $($groupDecision.Reason)"
-            throw "Group refused: $($groupDecision.Reason)"
+            # WR-01 fix: emit ONE warning summarizing the refusal WITH the member list, and
+            # include the member DNs in the throw message so the operator does not have to
+            # scroll back through N identical warnings to see which members were affected.
+            $memberDns = ($resolved | ForEach-Object {
+                if ($_.PSObject.Properties['DistinguishedName'] -and $_.DistinguishedName) {
+                    $_.DistinguishedName
+                } else { [string]$_ }
+            }) -join ', '
+            Write-Warning "Group refused: $($groupDecision.Reason). Affected members: $memberDns"
+            throw "Group refused: $($groupDecision.Reason). Affected members: $memberDns"
         }
     }
 
