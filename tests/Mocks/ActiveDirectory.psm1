@@ -205,10 +205,10 @@ function Get-ADComputer {
     return @($inScope1, $inScope2, $outScope)
 }
 
-function Get-ADObject { [CmdletBinding()] param($Identity, $Properties, $Server, $LDAPFilter) New-AdmanMockObject }
+function Get-ADObject { [CmdletBinding()] param($Identity, $Filter, $Properties, $Server, $LDAPFilter) New-AdmanMockObject }
 function Get-ADGroup { [CmdletBinding()] param($Identity, $Properties, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'group') } }
 function Get-ADGroupMember { [CmdletBinding()] param($Identity, $Recursive, $Server) @(New-AdmanMockObject) }
-function Get-ADOrganizationalUnit { [CmdletBinding()] param($Identity, $Filter, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'organizationalUnit') } }
+function Get-ADOrganizationalUnit { [CmdletBinding()] param($Identity, $Filter, $Properties, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'organizationalUnit') } }
 function Get-ADOptionalFeature { [CmdletBinding()] param($Identity, $Filter, $Server) New-AdmanMockObject -Props @{ objectClass = @('top', 'msDS-OptionalFeature') } }
 
 # Configurable lastLogonTimestamp replication interval (D-07 MEDIUM-1 conversion matrix).
