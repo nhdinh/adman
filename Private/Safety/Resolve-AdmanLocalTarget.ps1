@@ -85,8 +85,20 @@ function Resolve-AdmanLocalTarget {
                         Where-Object { $_.SID -and ([System.Security.Principal.SecurityIdentifier]$_.SID).Value -eq $sidValue }
                     if ($m) { $memberships += $g.Name }
                 } catch {
-                    # Orphaned-SID-tolerant: skip groups that throw 0x80070534 (member gone).
-                    if ($_.Exception.Message -notmatch '0x80070534|0x534') { throw }
+                    # Orphaned-SID-tolerant: skip groups that throw ERROR_NONE_MAPPED
+                    # (0x80070534 = 2147943732; Win32 error 1332 = "no mapping between
+                    # account names and security IDs"). CR-02 fix: match on the structured
+                    # HResult / NativeErrorCode, NOT a substring of the message — the
+                    # previous regex '0x80070534|0x534' would also swallow unrelated
+                    # errors whose message happened to contain '0x534' (e.g. 0x5340).
+                    $hr = $null
+                    $native = $null
+                    if ($null -ne $_.Exception) {
+                        if ($_.Exception.PSObject.Properties['HResult']) { $hr = $_.Exception.HResult }
+                        if ($_.Exception.PSObject.Properties['NativeErrorCode']) { $native = $_.Exception.NativeErrorCode }
+                    }
+                    $isOrphanedSid = ($hr -eq -2147023564) -or ($hr -eq 2147943732) -or ($native -eq 1332)
+                    if (-not $isOrphanedSid) { throw }
                 }
             }
             $profilePath = $null
