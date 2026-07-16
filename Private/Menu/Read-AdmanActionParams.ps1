@@ -83,6 +83,10 @@ function Read-AdmanActionParams {
 
         $name = [string](& $getVal 'Name')
         $prompt = [string](& $getVal 'Prompt')
+        # IN-02 fix: $required is consulted ONLY by the free-text branch below. The
+        # Choices and GeneratedPassword branches always loop until a valid selection or
+        # B/Q (they are implicitly always required). Read it unconditionally because the
+        # field shape is uniform, but document that the choice paths ignore it.
         $required = [bool](& $getVal 'Required')
         $choices = $null
         if (& $hasKey 'Choices') {
