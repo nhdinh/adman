@@ -312,4 +312,373 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
         [regex]::Matches($src, '\$confirm\.WhatIf').Count | Should -BeGreaterOrEqual 3 `
             -Because 'PENDING, OUTCOME, and the write all forward the confirm WhatIf flag'
     }
+
+    It 'Test 7: New-ADUser routes through Resolve-AdmanCreateTarget (not Resolve-AdmanTarget); Test-AdmanTargetAllowed receives IsSynthetic=$true' {
+        $synthetic = [pscustomobject]@{
+            DistinguishedName = 'CN=Alice,OU=Managed,DC=mock,DC=local'
+            SamAccountName    = 'alice'
+            Name              = 'Alice'
+            objectClass       = @('top', 'person', 'organizationalPerson', 'user')
+            objectSid         = $null
+            memberOf          = @()
+            ParentOuDn        = 'OU=Managed,DC=mock,DC=local'
+            IsSynthetic       = $true
+        }
+        $script:SyntheticSeen = $null
+        Mock Resolve-AdmanCreateTarget -ModuleName adman { $script:AdmanOrder.Add('resolve-create'); $synthetic }
+        Mock Resolve-AdmanTarget -ModuleName adman { throw 'Resolve-AdmanTarget must NOT run for New-ADUser (D-01)' }
+        Mock Test-AdmanTargetAllowed -ModuleName adman {
+            param($Object)
+            $script:SyntheticSeen = $Object
+            $script:AdmanOrder.Add('allow')
+            @{ Allowed = $true; Reason = '' }
+        }
+        Mock Get-ADObject -ModuleName adman { $null }   # uniqueness pre-flight: no collision
+        Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
+        Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Proceed'; WhatIf = $false } }
+        Mock Write-AdmanAudit -ModuleName adman { }
+        Mock Adman.AD.Write.New-ADUser -ModuleName adman { }
+
+        $null = & (Get-Module adman) {
+            Invoke-AdmanMutation -Verb 'New-ADUser' -Targets @('alice') `
+                -Parameters @{ Name = 'Alice'; SamAccountName = 'alice'; ParentOuDn = 'OU=Managed,DC=mock,DC=local' } `
+                -Confirm:$false
+        }
+
+        Should -Invoke Resolve-AdmanCreateTarget -ModuleName adman -Times 1 `
+            -Because 'New-ADUser must route through the synthetic pre-create resolver (D-01)'
+        Should -Invoke Resolve-AdmanTarget -ModuleName adman -Times 0
+        $script:SyntheticSeen.IsSynthetic | Should -BeTrue `
+            -Because 'Test-AdmanTargetAllowed must receive the IsSynthetic=$true synthetic object'
+    }
+
+    It 'Test 8: create-branch skips gMSA/deny-RID/protected-membership; runs ONLY managed-OU scope against parent OU DN; out-of-scope parent refuses' {
+        # The create-branch logic is INSIDE Test-AdmanTargetAllowed (the real one, not a mock).
+        # Build a synthetic target whose parent OU is OUTSIDE managed scope and call the real
+        # Test-AdmanTargetAllowed via the module.
+        & (Get-Module adman) {
+            $script:Config = [pscustomobject]@{
+                ManagedOUs = @('OU=Managed,DC=mock,DC=local')
+                DC         = 'dc.mock.local'
+            }
+            $script:DenyRids = @('500', '501', '502')
+            $script:ProtectedGroupDns = @()
+        }
+        $syntheticOutOfScope = [pscustomobject]@{
+            DistinguishedName = 'CN=Alice,OU=NotManaged,DC=mock,DC=local'
+            SamAccountName    = 'alice'
+            Name              = 'Alice'
+            objectClass       = @('top', 'person', 'organizationalPerson', 'user')
+            objectSid         = $null
+            memberOf          = @()
+            ParentOuDn        = 'OU=NotManaged,DC=mock,DC=local'
+            IsSynthetic       = $true
+        }
+        $decision = & (Get-Module adman) {
+            param($O) Test-AdmanTargetAllowed -Object $O
+        } -O $syntheticOutOfScope
+        $decision.Allowed | Should -BeFalse
+        $decision.Reason | Should -Match 'parent OU outside managed-OU scope'
+
+        # In-scope parent OU -> allowed (proves gMSA/deny-RID/protected-membership are SKIPPED
+        # for synthetic targets: objectSid is null and memberOf is empty, yet the decision is
+        # Allowed=$true, so those checks did not run / did not refuse).
+        $syntheticInScope = [pscustomobject]@{
+            DistinguishedName = 'CN=Alice,OU=Managed,DC=mock,DC=local'
+            SamAccountName    = 'alice'
+            Name              = 'Alice'
+            objectClass       = @('top', 'person', 'organizationalPerson', 'user')
+            objectSid         = $null
+            memberOf          = @()
+            ParentOuDn        = 'OU=Managed,DC=mock,DC=local'
+            IsSynthetic       = $true
+        }
+        $decision2 = & (Get-Module adman) {
+            param($O) Test-AdmanTargetAllowed -Object $O
+        } -O $syntheticInScope
+        $decision2.Allowed | Should -BeTrue `
+            -Because 'an in-scope synthetic target skips gMSA/deny-RID/protected-membership and passes the parent-OU scope check'
+    }
+
+    It 'Test 9: drift triple - Get-AdmanAllowedWriteVerbs == gate ValidateSet == Adman.AD.Write.* wrapper set (with New-ADUser)' {
+        $allowed = & (Get-Module adman) { Get-AdmanAllowedWriteVerbs }
+        $allowed | Should -Contain 'New-ADUser'
+
+        # Gate ValidateSet.
+        $tokens = $null; $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:GatePath, [ref]$tokens, [ref]$errors)
+        $validateSet = $ast.FindAll(
+            { param($n) $n -is [System.Management.Automation.Language.AttributeAst] -and
+                $n.TypeName.Name -eq 'ValidateSet' }, $true) | Select-Object -First 1
+        $setValues = @($validateSet.PositionalArguments | ForEach-Object { $_.Extent.Text.Trim("'") })
+        foreach ($v in $allowed) { $setValues | Should -Contain $v }
+        @($setValues).Count | Should -Be @($allowed).Count
+
+        # Wrapper set: every allowed verb has a matching Adman.AD.Write.<Verb> function.
+        $wrapperPath = Join-Path $script:RepoRoot 'Private\AD\Adman.AD.Write.ps1'
+        $wrapperSrc = Get-Content -LiteralPath $wrapperPath -Raw
+        foreach ($v in $allowed) {
+            $wrapperSrc | Should -Match "function\s+Adman\.AD\.Write\.$([regex]::Escape($v))\b" `
+                -Because "wrapper Adman.AD.Write.$v must exist"
+        }
+    }
+
+    It 'Test 10: Test-AdmanGroupAllowed refuses a group whose objectSid is in $script:ProtectedSIDs when Operation=Add-ADGroupMember (direct SID equality)' {
+        & (Get-Module adman) {
+            $script:ProtectedSIDs = @('S-1-5-21-111-222-333-512')
+            $script:DenyRids = @('500', '501', '502')
+        }
+        $protectedGroup = [pscustomobject]@{
+            DistinguishedName = 'CN=Domain Admins,CN=Users,DC=mock,DC=local'
+            objectSid         = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-111-222-333-512'
+            objectClass       = @('top', 'group')
+        }
+        $decision = & (Get-Module adman) {
+            param($G) Test-AdmanGroupAllowed -Object $G -Operation 'Add-ADGroupMember'
+        } -G $protectedGroup
+        $decision.Allowed | Should -BeFalse
+        $decision.Reason | Should -Match 'protected'
+    }
+
+    It 'Test 11: Test-AdmanGroupAllowed SKIPS protected-SID check when Operation=Remove-ADGroupMember (asymmetric remediation) but still applies deny-RID and gMSA checks' {
+        & (Get-Module adman) {
+            $script:ProtectedSIDs = @('S-1-5-21-111-222-333-512')
+            $script:DenyRids = @('500', '501', '502')
+        }
+        $protectedGroup = [pscustomobject]@{
+            DistinguishedName = 'CN=Domain Admins,CN=Users,DC=mock,DC=local'
+            objectSid         = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-111-222-333-512'
+            objectClass       = @('top', 'group')
+        }
+        $decision = & (Get-Module adman) {
+            param($G) Test-AdmanGroupAllowed -Object $G -Operation 'Remove-ADGroupMember'
+        } -G $protectedGroup
+        $decision.Allowed | Should -BeTrue `
+            -Because 'removing a principal FROM a protected group is remediation and is ALLOWED (D-04 asymmetry)'
+
+        # deny-RID still applies on Remove.
+        $denyRidGroup = [pscustomobject]@{
+            DistinguishedName = 'CN=Administrator,CN=Users,DC=mock,DC=local'
+            objectSid         = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-111-222-333-500'
+            objectClass       = @('top', 'group')
+        }
+        $decision2 = & (Get-Module adman) {
+            param($G) Test-AdmanGroupAllowed -Object $G -Operation 'Remove-ADGroupMember'
+        } -G $denyRidGroup
+        $decision2.Allowed | Should -BeFalse
+        $decision2.Reason | Should -Match 'deny-listed RID 500'
+    }
+
+    It 'Test 12: Test-AdmanGroupAllowed refuses a group whose SID RID is in $script:DenyRids regardless of Operation' {
+        & (Get-Module adman) {
+            $script:ProtectedSIDs = @()
+            $script:DenyRids = @('500', '501', '502')
+        }
+        $denyGroup = [pscustomobject]@{
+            DistinguishedName = 'CN=Guest,CN=Users,DC=mock,DC=local'
+            objectSid         = [System.Security.Principal.SecurityIdentifier]'S-1-5-21-111-222-333-501'
+            objectClass       = @('top', 'group')
+        }
+        foreach ($op in @('Add-ADGroupMember', 'Remove-ADGroupMember')) {
+            $decision = & (Get-Module adman) {
+                param($G, $Op) Test-AdmanGroupAllowed -Object $G -Operation $Op
+            } -G $denyGroup -Op $op
+            $decision.Allowed | Should -BeFalse -Because "deny-RID applies on $op"
+            $decision.Reason | Should -Match 'deny-listed RID 501'
+        }
+    }
+
+    It 'Test 13: uniqueness pre-flight - sAMAccountName OR CN collision refuses BEFORE confirm with a precise reason' {
+        $synthetic = [pscustomobject]@{
+            DistinguishedName = 'CN=Alice,OU=Managed,DC=mock,DC=local'
+            SamAccountName    = 'alice'
+            Name              = 'Alice'
+            objectClass       = @('top', 'person', 'organizationalPerson', 'user')
+            objectSid         = $null
+            memberOf          = @()
+            ParentOuDn        = 'OU=Managed,DC=mock,DC=local'
+            IsSynthetic       = $true
+        }
+        Mock Resolve-AdmanCreateTarget -ModuleName adman { $synthetic }
+        Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
+        # sAMAccountName collision: the FIRST Get-ADObject call (sAMAccountName lookup) returns a hit.
+        Mock Get-ADObject -ModuleName adman {
+            param($Identity, $Filter, $SearchBase, $SearchScope, $Server, $LDAPFilter, $Properties)
+            if ($Filter -match 'sAMAccountName') { return [pscustomobject]@{ DistinguishedName = 'CN=Existing,OU=Managed,DC=mock,DC=local' } }
+            return $null
+        }
+        Mock Confirm-AdmanAction -ModuleName adman { throw 'Confirm must NOT run when uniqueness pre-flight refuses' }
+        Mock Write-AdmanAudit -ModuleName adman { }
+
+        { & (Get-Module adman) {
+            Invoke-AdmanMutation -Verb 'New-ADUser' -Targets @('alice') `
+                -Parameters @{ Name = 'Alice'; SamAccountName = 'alice'; ParentOuDn = 'OU=Managed,DC=mock,DC=local' } `
+                -Confirm:$false
+        } } | Should -Throw -ExpectedMessage "*sAMAccountName 'alice' already exists*"
+        Should -Invoke Confirm-AdmanAction -ModuleName adman -Times 0 `
+            -Because 'the uniqueness pre-flight refuses BEFORE confirm'
+    }
+
+    It 'Test 14: Adman.AD.Write.New-ADUser consumes $Parameters[''ChangePasswordAtLogon''] (NOT hardcoded $true); falls back to config when absent' {
+        & (Get-Module adman) {
+            $script:Config = [pscustomobject]@{
+                DC       = 'dc.mock.local'
+                security = [pscustomobject]@{ mustChangeAtNextLogon = $false }
+            }
+        }
+        $synthetic = [pscustomobject]@{
+            DistinguishedName = 'CN=Alice,OU=Managed,DC=mock,DC=local'
+            SamAccountName    = 'alice'
+            Name              = 'Alice'
+            ParentOuDn        = 'OU=Managed,DC=mock,DC=local'
+        }
+        $script:CapturedChangePwd = $null
+        Mock New-ADUser -ModuleName adman {
+            param($Name, $SamAccountName, $UserPrincipalName, $Path, $AccountPassword, $Enabled, $ChangePasswordAtLogon, $Server)
+            $script:CapturedChangePwd = $ChangePasswordAtLogon
+        }
+
+        # Explicit $false from caller.
+        & (Get-Module adman) {
+            param($O) Adman.AD.Write.New-ADUser -Objects @($O) -Parameters @{
+                UserPrincipalName = 'alice@mock.local'
+                AccountPassword   = ([securestring]::new())
+                ChangePasswordAtLogon = $false
+            } -Confirm:$false
+        } -O $synthetic
+        $script:CapturedChangePwd | Should -BeFalse `
+            -Because 'the wrapper must forward the caller-supplied ChangePasswordAtLogon=$false (not hardcode $true)'
+
+        # Caller omits the key -> fall back to $script:Config.security.mustChangeAtNextLogon ($false here).
+        $script:CapturedChangePwd = $null
+        & (Get-Module adman) {
+            param($O) Adman.AD.Write.New-ADUser -Objects @($O) -Parameters @{
+                UserPrincipalName = 'alice@mock.local'
+                AccountPassword   = ([securestring]::new())
+            } -Confirm:$false
+        } -O $synthetic
+        $script:CapturedChangePwd | Should -BeFalse `
+            -Because 'the wrapper must fall back to config security.mustChangeAtNextLogon when the key is absent'
+
+        # Config key absent -> default $true.
+        & (Get-Module adman) {
+            $script:Config = [pscustomobject]@{
+                DC       = 'dc.mock.local'
+                security = [pscustomobject]@{}
+            }
+        }
+        $script:CapturedChangePwd = $null
+        & (Get-Module adman) {
+            param($O) Adman.AD.Write.New-ADUser -Objects @($O) -Parameters @{
+                UserPrincipalName = 'alice@mock.local'
+                AccountPassword   = ([securestring]::new())
+            } -Confirm:$false
+        } -O $synthetic
+        $script:CapturedChangePwd | Should -BeTrue `
+            -Because 'the wrapper must default to $true when neither the parameter nor the config key is present'
+    }
+
+    It 'Test 15: Move-ADObject destination validation runs INSIDE the gate (per-verb Parameters validator); refuses out-of-scope TargetPath BEFORE confirm' {
+        $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
+        Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
+        Mock Confirm-AdmanAction -ModuleName adman { throw 'Confirm must NOT run when TargetPath is out of scope' }
+        Mock Write-AdmanAudit -ModuleName adman { }
+
+        { & (Get-Module adman) {
+            Invoke-AdmanMutation -Verb 'Move-ADObject' -Targets @('alice') `
+                -Parameters @{ TargetPath = 'OU=NotManaged,DC=mock,DC=local' } `
+                -Confirm:$false
+        } } | Should -Throw -ExpectedMessage "*TargetPath*outside managed OU scope*"
+        Should -Invoke Confirm-AdmanAction -ModuleName adman -Times 0 `
+            -Because 'the gate-side TargetPath validator refuses BEFORE confirm (direct gate callers cannot bypass)'
+    }
+
+    It 'Test 16 (HIGH #1): when the wrapper throws, the gate writes Write-AdmanAudit -Result ''Failure'' -Reason <exception> BEFORE rethrowing (no PENDING orphan)' {
+        $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        $script:FailureAudit = $null
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
+        Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
+        Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
+        Mock Confirm-AdmanAction -ModuleName adman { @{ Outcome = 'Proceed'; WhatIf = $false } }
+        Mock Write-AdmanAudit -ModuleName adman {
+            param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, [switch]$WhatIf)
+            if ($Result -eq 'Failure') {
+                $script:FailureAudit = @{ Result = $Result; Reason = $Reason }
+            }
+        }
+        Mock Adman.AD.Write.Disable-ADAccount -ModuleName adman { throw 'ADPasswordComplexityException: password too weak' }
+
+        { & (Get-Module adman) { Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets @('alice') -Confirm:$false } } |
+            Should -Throw -ExpectedMessage '*password too weak*'
+        $script:FailureAudit | Should -Not -BeNullOrEmpty `
+            -Because 'the gate must write a Failure outcome audit record when the wrapper throws (HIGH #1 - no PENDING orphan)'
+        $script:FailureAudit.Reason | Should -Match 'password too weak'
+    }
+
+    It 'Test 17 (HIGH #3): Adman.AD.Write.Unlock-ADAccount honors $Parameters[''Server''] without a duplicate-parameter collision' {
+        & (Get-Module adman) {
+            $script:Config = [pscustomobject]@{ DC = 'dc.mock.local' }
+        }
+        $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        $script:CapturedServer = $null
+        Mock Unlock-ADAccount -ModuleName adman {
+            param($Identity, $Server)
+            $script:CapturedServer = $Server
+        }
+
+        # PDCe override from Unlock-AdmanUser.
+        { & (Get-Module adman) {
+            param($O) Adman.AD.Write.Unlock-ADAccount -Objects @($O) -Parameters @{ Server = 'pdc.mock.local' } -Confirm:$false
+        } -O $t1 } | Should -Not -Throw `
+            -Because 'stripping Server from the splat prevents a duplicate-parameter collision (HIGH #3)'
+        $script:CapturedServer | Should -Be 'pdc.mock.local' `
+            -Because 'the wrapper must honor the PDCe override from $Parameters[''Server'']'
+
+        # No override -> fall back to $script:Config.DC.
+        $script:CapturedServer = $null
+        & (Get-Module adman) {
+            param($O) Adman.AD.Write.Unlock-ADAccount -Objects @($O) -Parameters @{} -Confirm:$false
+        } -O $t1
+        $script:CapturedServer | Should -Be 'dc.mock.local' `
+            -Because 'the wrapper must fall back to $script:Config.DC when $Parameters[''Server''] is absent'
+    }
+
+    It 'Test 18 (HIGH #4): Adman.AD.Write.Set-ADAccountPassword splits ChangePasswordAtLogon to a follow-up Set-ADUser call after the reset' {
+        & (Get-Module adman) {
+            $script:Config = [pscustomobject]@{
+                DC       = 'dc.mock.local'
+                security = [pscustomobject]@{ mustChangeAtNextLogon = $true }
+            }
+        }
+        $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        $script:ResetSplatKeys = $null
+        $script:SetUserChangePwd = $null
+        $script:CallOrder = [System.Collections.Generic.List[string]]::new()
+        Mock Set-ADAccountPassword -ModuleName adman {
+            param($Identity, $Server, $Reset, $NewPassword)
+            $script:CallOrder.Add('reset')
+            $script:ResetSplatKeys = @($PSBoundParameters.Keys)
+        }
+        Mock Set-ADUser -ModuleName adman {
+            param($Identity, $ChangePasswordAtLogon, $Server)
+            $script:CallOrder.Add('setuser')
+            $script:SetUserChangePwd = $ChangePasswordAtLogon
+        }
+
+        & (Get-Module adman) {
+            param($O) Adman.AD.Write.Set-ADAccountPassword -Objects @($O) -Parameters @{
+                Reset                 = $true
+                NewPassword           = ([securestring]::new())
+                ChangePasswordAtLogon = $true
+            } -Confirm:$false
+        } -O $t1
+
+        $script:ResetSplatKeys | Should -Not -Contain 'ChangePasswordAtLogon' `
+            -Because 'Set-ADAccountPassword does not accept -ChangePasswordAtLogon; it must be stripped from the splat (HIGH #4)'
+        $script:CallOrder.ToArray() | Should -Be @('reset', 'setuser') `
+            -Because 'the Set-ADUser -ChangePasswordAtLogon call runs AFTER the reset succeeds'
+        $script:SetUserChangePwd | Should -BeTrue `
+            -Because 'the must-change flag is applied via Set-ADUser after the reset'
+    }
 }
