@@ -1,45 +1,35 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-14T04:27:03.686Z",
+  "timestamp": "2026-07-16T08:39:03.260Z",
   "context": "phase",
-  "phase": "00",
-  "phase_name": "foundation-safety-harness",
-  "phase_dir": ".planning/phases/00-foundation-safety-harness",
-  "activity": "UAT / verify-work (lab integration testing of the safety gate)",
+  "phase": "02",
+  "phase_name": "single-object-lifecycle-writes-begin-bounded-to-one",
+  "phase_dir": ".planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one",
+  "activity": "UAT complete (8 passed, 4 issues, 6 open gaps) — next: commit inline fixes, then gap diagnosis + fix planning",
   "status": "paused",
-  "uat_state": {
-    "test_1": {"name": "Approve PSFramework/Pester/PSScriptAnalyzer install", "result": "pass"},
-    "test_2": {"name": "Run -Tag Integration tests vs disposable lab OU (SAFE-01/06/10)", "result": "issue — 3 defects found; #1 and #2 fixed+validated, #3 pending a design decision"},
-    "test_3": {"name": "DPAPI cross-machine/cross-user re-prompt (CONF-04)", "result": "pending — needs a second machine/user"}
-  },
-  "completed_this_session": [
-    {"item": "Diagnosed lab connectivity: host joined to pgs.ptsc.com.vn not lab.local; fixed via runas /netonly with lab creds", "type": "env"},
-    {"item": "Installed pinned PSFramework 1.14.457 in PS7 session", "type": "env"},
-    {"item": "Provisioned lab OU + fixtures (lab-nested-admin nested Domain Admins member, 2 users)", "type": "env"},
-    {"item": "Issue #1 fixed: integration tests called non-exported Invoke-AdmanMutation directly -> wrapped in module scope & (Get-Module adman){param($t)...}", "quick_task": "260714-ek6", "commits": ["feac682", "bc3c6d7"]},
-    {"item": "Issue #2 fixed: integration tests never initialized the module -> now Initialize-Adman against a $TestDrive lab config (AdmanProtectedGroup = live Domain Admins DN; new required env var ADMAN_TEST_DC)", "quick_task": "260714-fbx", "commits": ["259f4d9", "385db4e"]},
-    {"item": "VALIDATED LIVE: Safety.Protected.Integration.Tests.ps1 PASSES (nested-admin refused + Refused audit record = SAFE-06 proven). gMSA/RID-500 Inconclusive (acceptable)", "type": "validation"},
-    {"item": "Issue #3 found + documented: WhatIf test OU-target crash + design fork", "commit": "6b9da8f"}
-  ],
-  "remaining_work": [
-    {"item": "DECIDE issue #3 fork: (a) WhatIf test targets child USER fixtures under the OU (recommended, matches gate resolve-as-is semantics) vs (b) gate expands OU targets into child objects (product change / scope creep)"},
-    {"item": "Apply the WhatIf test fix (option a) + optionally harden Test-AdmanTargetAllowed step (b) to skip RID-deny when objectSid is absent"},
-    {"item": "Re-run both integration files on the lab to confirm green"},
-    {"item": "Flip UAT test 2 issue -> pass once green; run/skip test 3 (DPAPI); close out phase 00 UAT (status complete) and advance phase"}
+  "remaining_tasks": [
+    {"id": 1, "name": "Commit inline UAT code fixes (adman.psm1, Private/Config/Initialize-AdmanConfig.ps1, Private/Foundation/Test-AdmanAuditWritable.ps1, Public/Initialize-Adman.ps1) — uncommitted in working tree", "route": "/gsd-quick"},
+    {"id": 2, "name": "Diagnose 6 open gaps + create fix plans (preliminary root causes already in 02-UAT.md Gaps)", "route": "/gsd-verify-work 02 resumes into diagnose_issues, or /gsd-plan-phase 02 --gaps"},
+    {"id": 3, "name": "Execute gap-closure plans", "route": "/gsd-execute-phase 02 --gaps-only"},
+    {"id": 4, "name": "Re-verify fixed tests (2,3,5,11,12) in lab shell", "route": "/gsd-verify-work 02"},
+    {"id": 5, "name": "Phase completion also blocked: no *-VERIFICATION.md (execute-phase verify never ran)", "route": "/gsd-execute-phase 02"}
   ],
   "blockers": [
-    {"description": "Issue #3 requires a product decision (test fix vs gate OU-expansion) before coding", "type": "human_action", "workaround": "Recommended: option (a) test fix"},
-    {"description": "Test 3 (DPAPI cross-machine) needs a second machine/user", "type": "human_action", "workaround": "can be marked blocked/skipped"}
+    {"description": "G-02-5 BLOCKER: confirmation disarmed for all 20 mutation call sites — public verbs forward -Confirm:$false into gate; Confirm-AdmanAction.ps1:81 prompt condition sees inherited $ConfirmPreference='None'. Also kills typed-count (Remove-LocalUser). Core safety property OFF on cmdlet path.", "type": "technical"},
+    {"description": "G-02-3 BLOCKER: create flows dead — Write-AdmanAudit.ps1:78 ($t.objectSid.Value) throws under StrictMode for pre-create fabricated targets (objectSid null); fail-closed refuses New-ADUser.", "type": "technical", "workaround": "New-ADUser out-of-band for fixtures"},
+    {"description": "G-02-4 BLOCKER / G-02-2 major: menu prompts crash on non-DN input (identity prompt: sAMAccountName crashes app; parent-OU prompt: raw Get-ADObject crash at Invoke-AdmanMutation.ps1:90).", "type": "technical", "workaround": "enter full DNs at menu prompts"},
+    {"description": "G-02-8 major: protected-group remediation asymmetry dead — member-side check refuses Remove-ADGroupMember for any protected-group member ('recursive member of protected group').", "type": "technical", "workaround": "Remove-ADGroupMember out-of-band"},
+    {"description": "G-02-6 minor: refusal reasons not surfaced to operator (only Denied:1 on screen). G-02-9 minor: group-refusal audit omits member DN.", "type": "technical"}
   ],
   "human_actions_pending": [
-    {"action": "Decide issue #3 option (a) vs (b)", "context": "WhatIf test expects Succeeded == OU child count but gate resolves identity as-is without OU expansion", "blocking": true},
-    {"action": "Run lab validation after fix (lab only reachable from interactive runas /netonly PS7 session on D:\\adman)", "context": "agent cannot reach D: or the lab", "blocking": true}
+    {"action": "Lab cleanup (non-blocking): fixtures uat-reset1, uat-outside1 (CN=Users), uat-protected1 (STILL in Domain Admins — adman removal failed per G-02-8; remove out-of-band), UAT-PC01, OUs moved-in/outside-dest; Default Domain Policy lockout threshold now 3", "blocking": false},
+    {"action": "Lab shell must be ELEVATED + local admin for local-SAM verbs (Test 11); runas /netonly alone is not elevated", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Option A for issue #2 (Initialize-Adman end-to-end) over module-scope injection", "rationale": "true end-to-end, also exercises the init path; AdmanProtectedGroup must be a DN", "phase": "00"},
-    {"decision": "Recommended option (a) for issue #3", "rationale": "OU-expansion is not a stated phase-00 requirement; gate resolve-as-is is the design", "phase": "00"}
+    {"decision": "Fixed StrictMode cold-start bugs inline during UAT (G-02-1 $script:StorePath, G-02-7 $script:LocalMachineScopeCache — both module-load inits in adman.psm1)", "rationale": "blocked all testing; one-line inits unblocked immediately; still uncommitted"},
+    {"decision": "Test 5 marked issue after user clarified NEITHER Disable nor Enable prompted", "rationale": "confirmation expectation is the core of the test"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Run /gsd-verify-work 0 (resumes UAT). Confirm issue #3 option (a), apply WhatIf test fix via /gsd-quick, re-run lab, then close phase 00 UAT.",
-  "context_notes": "Lab integration testing of the phase-00 safety gate. Three latent defects surfaced only on first real lab run (tests were blocked every prior run). Two fixed and the Protected test (SAFE-06) is proven live. Context was exhausted at 76% before issue #3 could be fixed. All state is in 00-UAT.md Gaps section and the two quick-task dirs."
+  "uncommitted_files": ["adman.psm1", "Private/Config/Initialize-AdmanConfig.ps1", "Private/Foundation/Test-AdmanAuditWritable.ps1", "Public/Initialize-Adman.ps1"],
+  "next_action": "Commit the 4 uncommitted inline-fix files via /gsd-quick, then /gsd-verify-work 02 to resume into gap diagnosis + fix planning (or /gsd-plan-phase 02 --gaps directly)",
+  "context_notes": "UAT committed as 7b86539. Gap priority: G-02-5 (confirmation) > G-02-3 (create dead) > G-02-4/G-02-2 (prompt crashes — likely ONE shared fix: identity/DN resolver + re-prompt) > G-02-8 > G-02-6/G-02-9. Lab: domain lab.local, DC lab-dc01, managed OU OU=adman-test,DC=lab,DC=local; lab shell reaches SAME repo via \\\\tsclient\\C mapping; audit .store/audit/audit-YYYYMMDD.jsonl. Phase completion ALSO needs *-VERIFICATION.md (status 'missing')."
 }
