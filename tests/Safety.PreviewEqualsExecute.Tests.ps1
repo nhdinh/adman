@@ -159,15 +159,15 @@ Describe 'SAFE-10: Resolve-AdmanTarget materializes the target array once (previ
     }
 }
 
-Describe 'SAFE-09: Get-AdmanAllowedWriteVerbs is the 9-verb allow-list (hard-delete excluded)' -Tag 'Unit' {
+Describe 'SAFE-09: Get-AdmanAllowedWriteVerbs is the 10-verb allow-list (hard-delete excluded)' -Tag 'Unit' {
 
-    It 'returns exactly the 9 allow-listed verbs' {
+    It 'returns exactly the 10 allow-listed verbs' {
         $verbs = & (Get-Module adman) { Get-AdmanAllowedWriteVerbs }
-        @($verbs).Count | Should -Be 9
+        @($verbs).Count | Should -Be 10
         $expected = @(
             'Disable-ADAccount', 'Enable-ADAccount', 'Move-ADObject',
             'Set-ADUser', 'Set-ADComputer', 'Set-ADAccountPassword', 'Unlock-ADAccount',
-            'Add-ADGroupMember', 'Remove-ADGroupMember'
+            'Add-ADGroupMember', 'Remove-ADGroupMember', 'New-ADUser'
         )
         foreach ($v in $expected) { $verbs | Should -Contain $v }
     }

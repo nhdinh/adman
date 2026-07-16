@@ -7,11 +7,16 @@
     Every destructive action flows through this one gate. It is Private/ and NOT exported
     (excluded from FunctionsToExport since 00-01). It never calls an AD write cmdlet directly -
     only via & "Adman.AD.Write.$Verb". The ValidateSet is the SAFE-09 boundary: the hard-delete
-    verb is deliberately ABSENT (the same 9 verbs as Get-AdmanAllowedWriteVerbs; a test asserts
+    verb is deliberately ABSENT (the same 10 verbs as Get-AdmanAllowedWriteVerbs; a test asserts
     they cannot drift).
 
     Fixed order (do not reorder):
       Resolve-AdmanTarget (ONCE - SAFE-10: the same array feeds preview AND execute) ->
+        [New-ADUser: Resolve-AdmanCreateTarget instead - synthetic pre-create target (D-01)] ->
+      [New-ADUser: uniqueness pre-flight - sAMAccountName OR CN collision refuses BEFORE confirm] ->
+      [Move-ADObject: TargetPath managed-OU validator - refuses BEFORE confirm] ->
+      [Add/Remove-ADGroupMember: dual resolution - member via Resolve-AdmanTarget, group via
+        Resolve-AdmanGroup; Test-AdmanGroupAllowed on the group (D-04)] ->
       Test-AdmanTargetAllowed (per target; refusals logged 'Refused' + skipped) ->
       Assert-AdmanBulkPolicy (cap placeholder - Phase 4 enforces; threshold source) ->
       Confirm-AdmanAction (returns @{ Outcome; WhatIf } - WhatIf-aware, C3-H1) ->
@@ -27,6 +32,10 @@
     abort/cancel-style record) so a declined action leaves no orphan PENDING (confirm-first).
     -Force is forwarded to Confirm-AdmanAction only (prompt bypass); deny/protected/scope/cap are
     not flag-bypassable.
+
+    HIGH #1: the wrapper invocation is wrapped in try/catch. On catch the gate writes
+    Write-AdmanAudit -Result 'Failure' -Reason <exception> BEFORE rethrowing, so a wrapper
+    throw never leaves a PENDING orphan.
 #>
 
 Set-StrictMode -Version Latest
@@ -37,7 +46,7 @@ function Invoke-AdmanMutation {
         [Parameter(Mandatory)]
         [ValidateSet('Disable-ADAccount', 'Enable-ADAccount', 'Move-ADObject',
             'Set-ADUser', 'Set-ADComputer', 'Set-ADAccountPassword', 'Unlock-ADAccount',
-            'Add-ADGroupMember', 'Remove-ADGroupMember')]   # SAFE-09: hard-delete verb deliberately ABSENT
+            'Add-ADGroupMember', 'Remove-ADGroupMember', 'New-ADUser')]   # SAFE-09: hard-delete verb deliberately ABSENT
         [string]$Verb,
         [Parameter(Mandatory)]
         [string[]]$Targets,
@@ -48,15 +57,85 @@ function Invoke-AdmanMutation {
     $cid = [guid]::NewGuid().ToString()
 
     # SAFE-10: ONE resolver, called once. The same array feeds preview AND execute.
-    $resolved = @(Resolve-AdmanTarget -Targets $Targets)
+    # D-01: New-ADUser routes through the synthetic pre-create resolver (the object does
+    # not exist yet, so Get-ADObject -Identity would throw).
+    $resolved = @()
+    if ($Verb -eq 'New-ADUser') {
+        $resolved = @(Resolve-AdmanCreateTarget `
+                -Name $Parameters['Name'] `
+                -SamAccountName $Parameters['SamAccountName'] `
+                -ParentOuDn $Parameters['ParentOuDn'])
+    } else {
+        $resolved = @(Resolve-AdmanTarget -Targets $Targets)
+    }
+
+    # D-01 uniqueness pre-flight (New-ADUser only): sAMAccountName OR CN collision refuses
+    # BEFORE confirm. The CN check uses -SearchScope OneLevel because AD enforces CN
+    # uniqueness within the immediate parent container only; the default Subtree scope
+    # would over-refuse a valid create when a same-CN object exists in a child OU.
+    if ($Verb -eq 'New-ADUser') {
+        $samEsc = Escape-AdmanAdFilterLiteral -Value ([string]$Parameters['SamAccountName'])
+        $cnEsc = Escape-AdmanAdFilterLiteral -Value ([string]$Parameters['Name'])
+        $parentDn = [string]$Parameters['ParentOuDn']
+
+        $samHit = Get-ADObject -Filter "sAMAccountName -eq '$samEsc'" `
+            -Server $script:Config.DC -ErrorAction Stop
+        if ($samHit) {
+            throw "sAMAccountName '$($Parameters['SamAccountName'])' already exists."
+        }
+        $cnHit = Get-ADObject -Filter "cn -eq '$cnEsc'" `
+            -SearchBase $parentDn -SearchScope OneLevel `
+            -Server $script:Config.DC -ErrorAction Stop
+        if ($cnHit) {
+            throw "CN '$($Parameters['Name'])' already exists in parent OU '$parentDn'."
+        }
+    }
+
+    # Move-ADObject TargetPath validator (gate-side enforcement): the destination must be
+    # under a managed root. This runs BEFORE Test-AdmanTargetAllowed so direct gate callers
+    # cannot bypass it (Public verbs MAY keep their own early check for UX fail-fast, but
+    # this check is the authoritative enforcement point).
+    if ($Verb -eq 'Move-ADObject') {
+        $targetPath = [string]$Parameters['TargetPath']
+        $tp = (ConvertTo-AdmanNormalizedDn -Dn $targetPath)
+        $tpInScope = $false
+        foreach ($root in @($script:Config.ManagedOUs)) {
+            $r = (ConvertTo-AdmanNormalizedDn -Dn ([string]$root))
+            if ([string]::IsNullOrEmpty($r)) { continue }
+            if ($tp -eq $r -or $tp.EndsWith(',' + $r)) { $tpInScope = $true; break }
+        }
+        if (-not $tpInScope) {
+            throw "TargetPath '$targetPath' is outside managed OU scope."
+        }
+    }
+
+    # D-04 dual-resolution group path: resolve the GROUP once and run Test-AdmanGroupAllowed
+    # on it. The MEMBER side flows through Test-AdmanTargetAllowed unchanged below.
+    $groupObj = $null
+    if ($Verb -eq 'Add-ADGroupMember' -or $Verb -eq 'Remove-ADGroupMember') {
+        $groupObj = Resolve-AdmanGroup -Identity $Parameters['GroupIdentity']
+        $groupDecision = Test-AdmanGroupAllowed -Object $groupObj -Operation $Verb
+        if (-not $groupDecision.Allowed) {
+            Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $groupObj -Result 'Refused' `
+                -Reason $groupDecision.Reason -Group $groupObj.DistinguishedName `
+                -WhatIf:$WhatIfPreference
+            throw "Group refused: $($groupDecision.Reason)"
+        }
+    }
 
     # Deny / protected / scope: refusals logged 'Refused' and skipped (never reach the write).
     $allowed = [System.Collections.Generic.List[object]]::new()
     foreach ($t in $resolved) {
         $decision = Test-AdmanTargetAllowed -Object $t
         if (-not $decision.Allowed) {
-            Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $t -Result 'Refused' `
-                -Reason $decision.Reason -WhatIf:$WhatIfPreference
+            if ($groupObj) {
+                Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $t -Result 'Refused' `
+                    -Reason $decision.Reason -Group $groupObj.DistinguishedName `
+                    -WhatIf:$WhatIfPreference
+            } else {
+                Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $t -Result 'Refused' `
+                    -Reason $decision.Reason -WhatIf:$WhatIfPreference
+            }
         } else {
             $allowed.Add($t)
         }
@@ -79,7 +158,12 @@ function Invoke-AdmanMutation {
 
     # SAFE-02: scaled confirmation. Returns @{ Outcome; WhatIf } (WhatIf-aware; C3-H1). No
     # -CorrelationId - Confirm-AdmanAction never writes audit.
-    $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() -Force:$Force
+    if ($groupObj) {
+        $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() `
+            -Group $groupObj.DistinguishedName -Force:$Force
+    } else {
+        $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() -Force:$Force
+    }
 
     # Genuine decline: write NOTHING (no PENDING, no abort/cancel-style record) and never mutate.
     # confirm-first -> no orphan PENDING (C3-H1).
@@ -89,16 +173,40 @@ function Invoke-AdmanMutation {
 
     # Write-ahead reservation: the 00-05 writer THROWS on PENDING-write failure => the refusal
     # happens BEFORE the write below (SAFE-04). whatIf=$true under a dry-run.
-    Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() -Result 'PENDING' `
-        -WhatIf:$confirm.WhatIf
+    if ($groupObj) {
+        Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+            -Result 'PENDING' -Group $groupObj.DistinguishedName -WhatIf:$confirm.WhatIf
+    } else {
+        Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+            -Result 'PENDING' -WhatIf:$confirm.WhatIf
+    }
 
     # The ONE real write (no-ops under -WhatIf -> truthful preview); no per-object re-prompt.
-    & "Adman.AD.Write.$Verb" -Objects $allowed.ToArray() -Parameters $Parameters `
-        -WhatIf:$confirm.WhatIf -Confirm:$false
+    # HIGH #1: try/catch writes a Failure outcome audit record on wrapper throw BEFORE
+    # rethrowing, so a wrapper exception never leaves a PENDING orphan.
+    try {
+        & "Adman.AD.Write.$Verb" -Objects $allowed.ToArray() -Parameters $Parameters `
+            -WhatIf:$confirm.WhatIf -Confirm:$false
+    } catch {
+        if ($groupObj) {
+            Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+                -Result 'Failure' -Reason $_.Exception.Message `
+                -Group $groupObj.DistinguishedName -WhatIf:$confirm.WhatIf
+        } else {
+            Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+                -Result 'Failure' -Reason $_.Exception.Message -WhatIf:$confirm.WhatIf
+        }
+        throw
+    }
 
     # OUTCOME best-effort (whatIf=$true under a dry-run).
-    Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() -Result 'Success' `
-        -WhatIf:$confirm.WhatIf
+    if ($groupObj) {
+        Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+            -Result 'Success' -Group $groupObj.DistinguishedName -WhatIf:$confirm.WhatIf
+    } else {
+        Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Targets $allowed.ToArray() `
+            -Result 'Success' -WhatIf:$confirm.WhatIf
+    }
 
     return [pscustomobject]@{
         Action        = $Verb

@@ -96,10 +96,38 @@ function Adman.AD.Write.Set-ADAccountPassword {
         [Parameter(Mandatory)]$Objects,
         [hashtable]$Parameters = @{}
     )
+    # HIGH #4: Set-ADAccountPassword does NOT accept -ChangePasswordAtLogon (that parameter
+    # belongs on Set-ADUser). Compute the must-change flag here, strip it from the splat,
+    # and apply it via a follow-up Set-ADUser call AFTER the reset succeeds.
+    $changePwd = $true
+    if ($Parameters.ContainsKey('ChangePasswordAtLogon')) {
+        $changePwd = [bool]$Parameters['ChangePasswordAtLogon']
+    } elseif ($script:Config.PSObject.Properties['security'] -and
+        $null -ne $script:Config.security -and
+        $script:Config.security.PSObject.Properties['mustChangeAtNextLogon'] -and
+        $null -ne $script:Config.security.mustChangeAtNextLogon) {
+        $changePwd = [bool]$script:Config.security.mustChangeAtNextLogon
+    }
+    # B5: the Unlock flag is stripped from the splat and applied via Unlock-ADAccount AFTER
+    # the reset succeeds (a locked account cannot have its password reset by some paths).
+    $doUnlock = ($Parameters.ContainsKey('Unlock') -and [bool]$Parameters['Unlock'])
+
     foreach ($o in @($Objects)) {
         if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'Set-ADAccountPassword')) {
-            Set-ADAccountPassword -Identity $o.DistinguishedName -Server $script:Config.DC @Parameters `
+            $p = $Parameters.Clone()
+            $p.Remove('ChangePasswordAtLogon')
+            $p.Remove('Unlock')
+            Set-ADAccountPassword -Identity $o.DistinguishedName -Server $script:Config.DC @p `
                 -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
+            # Apply the must-change flag AFTER the reset succeeds (same ShouldProcess guard;
+            # skipped under -WhatIf because ShouldProcess returned $false above).
+            Set-ADUser -Identity $o.DistinguishedName -ChangePasswordAtLogon $changePwd `
+                -Server $script:Config.DC `
+                -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
+            if ($doUnlock) {
+                Unlock-ADAccount -Identity $o.DistinguishedName -Server $script:Config.DC `
+                    -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
+            }
         }
     }
 }
@@ -110,9 +138,18 @@ function Adman.AD.Write.Unlock-ADAccount {
         [Parameter(Mandatory)]$Objects,
         [hashtable]$Parameters = @{}
     )
+    # HIGH #3: the gate forwards a PDCe override via $Parameters['Server']; splatting
+    # @Parameters alongside a hardcoded -Server would duplicate the parameter. Compute the
+    # effective server here, strip 'Server' from the splat copy, and pass exactly one -Server.
+    $server = $script:Config.DC
+    if ($Parameters.ContainsKey('Server') -and $Parameters['Server']) {
+        $server = [string]$Parameters['Server']
+    }
     foreach ($o in @($Objects)) {
         if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'Unlock-ADAccount')) {
-            Unlock-ADAccount -Identity $o.DistinguishedName -Server $script:Config.DC @Parameters `
+            $p = $Parameters.Clone()
+            $p.Remove('Server')
+            Unlock-ADAccount -Identity $o.DistinguishedName -Server $server @p `
                 -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
         }
     }
@@ -124,9 +161,15 @@ function Adman.AD.Write.Add-ADGroupMember {
         [Parameter(Mandatory)]$Objects,
         [hashtable]$Parameters = @{}
     )
+    # D-04 dual-resolution shape: the GROUP DN arrives via $Parameters['GroupIdentity']
+    # (resolved once by the gate); the MEMBER objects arrive via -Objects. Swap
+    # Identity/Members when calling the real cmdlet and strip 'GroupIdentity' from the splat.
     foreach ($o in @($Objects)) {
-        if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'Add-ADGroupMember')) {
-            Add-ADGroupMember -Identity $o.DistinguishedName -Server $script:Config.DC @Parameters `
+        if ($PSCmdlet.ShouldProcess("$($o.DistinguishedName) -> $($Parameters['GroupIdentity'])", 'Add-ADGroupMember')) {
+            $p = $Parameters.Clone()
+            $p.Remove('GroupIdentity')
+            Add-ADGroupMember -Identity $Parameters['GroupIdentity'] -Members $o.DistinguishedName `
+                -Server $script:Config.DC @p `
                 -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
         }
     }
@@ -138,9 +181,46 @@ function Adman.AD.Write.Remove-ADGroupMember {
         [Parameter(Mandatory)]$Objects,
         [hashtable]$Parameters = @{}
     )
+    # D-04 dual-resolution shape: see Add-ADGroupMember above.
     foreach ($o in @($Objects)) {
-        if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'Remove-ADGroupMember')) {
-            Remove-ADGroupMember -Identity $o.DistinguishedName -Server $script:Config.DC @Parameters `
+        if ($PSCmdlet.ShouldProcess("$($o.DistinguishedName) -> $($Parameters['GroupIdentity'])", 'Remove-ADGroupMember')) {
+            $p = $Parameters.Clone()
+            $p.Remove('GroupIdentity')
+            Remove-ADGroupMember -Identity $Parameters['GroupIdentity'] -Members $o.DistinguishedName `
+                -Server $script:Config.DC @p `
+                -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
+        }
+    }
+}
+
+function Adman.AD.Write.New-ADUser {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    param(
+        [Parameter(Mandatory)]$Objects,
+        [hashtable]$Parameters = @{}
+    )
+    # ChangePasswordAtLogon consumption (D-05): the wrapper MUST NOT hardcode $true. Honor
+    # the caller-supplied value when present; otherwise fall back to
+    # $script:Config.security.mustChangeAtNextLogon with a $true default.
+    $changePwd = $true
+    if ($Parameters.ContainsKey('ChangePasswordAtLogon')) {
+        $changePwd = [bool]$Parameters['ChangePasswordAtLogon']
+    } elseif ($script:Config.PSObject.Properties['security'] -and
+        $null -ne $script:Config.security -and
+        $script:Config.security.PSObject.Properties['mustChangeAtNextLogon'] -and
+        $null -ne $script:Config.security.mustChangeAtNextLogon) {
+        $changePwd = [bool]$script:Config.security.mustChangeAtNextLogon
+    }
+
+    foreach ($o in @($Objects)) {
+        if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'New-ADUser')) {
+            New-ADUser -Name $o.Name -SamAccountName $o.SamAccountName `
+                -UserPrincipalName $Parameters['UserPrincipalName'] `
+                -Path $o.ParentOuDn `
+                -AccountPassword $Parameters['AccountPassword'] `
+                -Enabled $true `
+                -ChangePasswordAtLogon $changePwd `
+                -Server $script:Config.DC `
                 -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
         }
     }

@@ -41,6 +41,29 @@ function Test-AdmanTargetAllowed {
 
     $reasons = [System.Collections.Generic.List[string]]::new()
 
+    # CREATE-BRANCH (D-01): synthetic pre-create targets skip (a)(b)(d) entirely - no SID
+    # exists yet, no group memberships exist yet, and the gMSA objectClass check would
+    # false-positive on the synthetic 'user' class. Run ONLY the managed-OU scope check
+    # against the PARENT OU DN (the to-be-created object has no DN in AD yet, so its own
+    # DistinguishedName is fabricated; the parent OU is the authoritative scope boundary).
+    if ($Object.PSObject.Properties['IsSynthetic'] -and $Object.IsSynthetic) {
+        $parentDn = [string]$Object.ParentOuDn
+        $p = (ConvertTo-AdmanNormalizedDn -Dn $parentDn)
+        $parentInScope = $false
+        foreach ($root in @($script:Config.ManagedOUs)) {
+            $r = (ConvertTo-AdmanNormalizedDn -Dn ([string]$root))
+            if ([string]::IsNullOrEmpty($r)) { continue }
+            if ($p -eq $r -or $p.EndsWith(',' + $r)) { $parentInScope = $true; break }
+        }
+        if (-not $parentInScope) {
+            $reasons.Add('parent OU outside managed-OU scope')
+        }
+        return @{
+            Allowed = ($reasons.Count -eq 0)
+            Reason  = ($reasons -join '; ')
+        }
+    }
+
     # (a) gMSA / legacy sMSA objectClass pre-filter FIRST (precise reason); CONTINUE (no early return).
     $objectClass = @($Object.objectClass)
     if ($objectClass -contains 'msDS-GroupManagedServiceAccount' -or

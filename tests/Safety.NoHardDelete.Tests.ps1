@@ -91,7 +91,7 @@ Describe 'SAFE-09: Adman.AD.Write wrappers are the sole, gate-only callers of re
         $src = Get-Content -LiteralPath $script:WritePath -Raw
         $defined = [regex]::Matches($src, 'function\s+(Adman\.AD\.Write\.([A-Za-z-]+))') |
             ForEach-Object { $_.Groups[2].Value }
-        @($defined).Count | Should -Be 9 -Because 'one wrapper per allow-listed verb'
+        @($defined).Count | Should -Be 10 -Because 'one wrapper per allow-listed verb (incl. New-ADUser)'
         foreach ($v in $allowed) { $defined | Should -Contain $v }
         # No extra wrappers beyond the allow-list.
         foreach ($d in $defined) { $allowed | Should -Contain $d }

@@ -354,15 +354,15 @@ function Invoke-Command {
 }
 
 # --- Write stubs (SupportsShouldProcess keeps the lint gate clean) --------------------------
-function Set-ADUser { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Description, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADUser (mock)')) { } }
+function Set-ADUser { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Description, $ChangePasswordAtLogon, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADUser (mock)')) { } }
 function Set-ADComputer { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Description, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADComputer (mock)')) { } }
 function Set-ADObject { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADObject (mock)')) { } }
-function Set-ADAccountPassword { [CmdletBinding(SupportsShouldProcess)] param($Identity, $NewPassword, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADAccountPassword (mock)')) { } }
+function Set-ADAccountPassword { [CmdletBinding(SupportsShouldProcess)] param($Identity, $NewPassword, $Reset, $OldPassword, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Set-ADAccountPassword (mock)')) { } }
 function Disable-ADAccount { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Disable-ADAccount (mock)')) { } }
 function Enable-ADAccount { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Enable-ADAccount (mock)')) { } }
 function Unlock-ADAccount { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Unlock-ADAccount (mock)')) { } }
 function Move-ADObject { [CmdletBinding(SupportsShouldProcess)] param($Identity, $TargetPath, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Move-ADObject (mock)')) { } }
-function New-ADUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SamAccountName, $Server) if ($PSCmdlet.ShouldProcess($Name, 'New-ADUser (mock)')) { New-AdmanMockObject } }
+function New-ADUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SamAccountName, $UserPrincipalName, $Path, $AccountPassword, $Enabled, $ChangePasswordAtLogon, $Server) if ($PSCmdlet.ShouldProcess($Name, 'New-ADUser (mock)')) { New-AdmanMockObject } }
 function New-ADComputer { [CmdletBinding(SupportsShouldProcess)] param($Name, $SamAccountName, $Server) if ($PSCmdlet.ShouldProcess($Name, 'New-ADComputer (mock)')) { New-AdmanMockObject -Props @{ objectClass = @('computer') } } }
 function Add-ADGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Members, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Add-ADGroupMember (mock)')) { } }
 function Remove-ADGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Members, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Remove-ADGroupMember (mock)')) { } }

@@ -34,5 +34,6 @@ function Get-AdmanAllowedWriteVerbs {
         'Unlock-ADAccount'
         'Add-ADGroupMember'
         'Remove-ADGroupMember'
+        'New-ADUser'
     )
 }
