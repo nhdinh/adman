@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
 status: executing
-stopped_at: Completed 02-09-PLAN.md
-last_updated: "2026-07-16T10:44:22.595Z"
+stopped_at: Completed 02-10-PLAN.md
+last_updated: "2026-07-16T11:03:21.002Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
-Plan: 4 of 10
+Plan: 5 of 10
 Status: Ready to execute
 Last activity: 2026-07-16 — Phase 02 execution started
 
-Progress: [██████████] 95% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [██████████] 95% (Phase 1 of 6, 4 of 4 Phase 1 pla
 | Phase 02 P07 | 10m | 2 tasks | 18 files |
 | Phase 02 P08 | ~7m | 2 tasks | 2 files |
 | Phase 02 P09 | ~11m | 3 tasks | 5 files |
+| Phase 02 P10 | ~12m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: [Phase 02-06]: PromptSpec items are hashtables; Read-AdmanActionParams uses shape-agnostic key detection (.Contains() for IDictionary, PSObject.Properties.Name otherwise) so Choices/Type probe works for both shapes
 - [Phase ?]: [Phase 02-06]: Set-AdmanLocalUser appears THREE times in the menu (Reset/Enable/Disable parameter sets); Enable/Disable entries carry FixedParameters so the operator picks the action by picking the menu item
 - [Phase ?]: Phase 02-07: Test 2 uses real Confirm-AdmanAction (not mock) because Pester -ModuleName mock bodies do not preserve caller $ConfirmPreference via dynamic scope
+- [Phase ?]: [Phase 02-10]: Test-AdmanTargetAllowed -Operation ValidateSet spans all 10 gate verbs (copied verbatim from Invoke-AdmanMutation.ps1:47-49); consulted ONLY for the Remove-ADGroupMember skip (D-04 remediation asymmetry); Reset-ADComputerPassword deliberately excluded (not a gate verb)
+- [Phase ?]: [Phase 02-10]: Group-refusal audit restructured to per-member records (member DN in target field, group DN in group field) so forensics can tell which member the add was attempted on (G-02-9)
+- [Phase ?]: [Phase 02-10]: Write-Warning emitted AFTER Write-AdmanAudit on member-refusal and BEFORE throw on group-refusal; audit is authoritative log, warning is operator-visible surface (G-02-6)
 
 ### Pending Todos
 
@@ -163,7 +167,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-16T10:44:22.587Z
-Stopped at: Completed 02-09-PLAN.md
+Last session: 2026-07-16T11:03:20.995Z
+Stopped at: Completed 02-10-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
