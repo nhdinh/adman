@@ -43,7 +43,13 @@ function Write-AdmanAudit {
     )
 
     # Acquire the named mutex via the seam (the cross-writer serialization point).
+    # CR-04 fix: New-AdmanAuditMutex may itself throw (returning $null); guard the
+    # WaitOne/ReleaseMutex/Dispose calls against $null so a mutex-acquisition failure
+    # surfaces the original error rather than a secondary NullReferenceException.
     $mutex = New-AdmanAuditMutex
+    if ($null -eq $mutex) {
+        throw "AUDIT FAIL-CLOSED: cannot acquire audit mutex; refusing $Verb."
+    }
     [void]$mutex.WaitOne()
     try {
         $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f (Get-Date))
@@ -125,10 +131,29 @@ function Write-AdmanAudit {
             $fs.Dispose()
         }
     } catch {
+        # CR-04 fix: capture the original error BEFORE reading .Exception.Message — under
+        # StrictMode, accessing properties on a malformed $_ can itself throw, masking the
+        # original audit failure. Pass the original exception as InnerException so the
+        # diagnosis trail is preserved.
+        $originalError = $_
         if ($Result -eq 'PENDING') {
             # SAFE-04: the pre-write reservation failed -> REFUSE the destructive action. This throw
             # happens BEFORE the gate's AD write (the 00-04 gate test proves the write never runs).
-            throw "AUDIT FAIL-CLOSED: cannot write audit record ($($_.Exception.Message)); refusing $Verb."
+            $msg = 'AUDIT FAIL-CLOSED: cannot write audit record'
+            $inner = $null
+            if ($null -ne $originalError -and
+                $originalError.PSObject.Properties['Exception'] -and
+                $null -ne $originalError.Exception) {
+                $inner = $originalError.Exception
+                if ($inner.PSObject.Properties['Message'] -and -not [string]::IsNullOrEmpty($inner.Message)) {
+                    $msg = "$msg ($($inner.Message))"
+                }
+            }
+            $msg = "$msg; refusing $Verb."
+            if ($null -ne $inner) {
+                throw [System.InvalidOperationException]::new($msg, $inner)
+            }
+            throw $msg
         }
         # OUTCOME failure after a successful mutation -> escalate, do NOT roll back AD (D-03).
         Write-AdmanEventLog -EventId 9001 -EntryType Error `
@@ -136,7 +161,12 @@ function Write-AdmanAudit {
         Write-Warning "AUDIT OUTCOME WRITE FAILED for cid=$CorrelationId - see Event Log."
         $script:AuditDegraded = $true
     } finally {
-        $mutex.ReleaseMutex()
-        $mutex.Dispose()
+        # CR-04 fix: guard against $null mutex (New-AdmanAuditMutex threw above) and
+        # tolerate ReleaseMutex/Dispose failures so a secondary exception in finally
+        # does not mask the original audit error.
+        if ($null -ne $mutex) {
+            try { $mutex.ReleaseMutex() } catch { }
+            try { $mutex.Dispose() } catch { }
+        }
     }
 }
