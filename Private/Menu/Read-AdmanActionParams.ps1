@@ -19,6 +19,18 @@
 
     Polymorphic Type field (D-05, Phase 2):
       * Type='Text' (default)        - free-text prompt; the value is trimmed and stored.
+      * Type='AdIdentity'            - resolves sAMAccountName or DN to an AD object DN
+                                       at prompt time via Resolve-AdmanIdentity; re-prompts
+                                       on failure (G-02-2). Honors the optional PromptSpec
+                                       'Kind' field - 'AdUser' (default) or 'AdComputer'
+                                       (tries both NAME and NAME$ sAMAccountName forms,
+                                       REV-3). The resolved DistinguishedName is stored
+                                       in $params[$name].
+      * Type='AdOuDn'                - validates the input is a DN that resolves to an
+                                       existing AD organizationalUnit via
+                                       Resolve-AdmanIdentity -Kind AdOuDn; re-prompts on
+                                       failure (G-02-4). The resolved OU DistinguishedName
+                                       is stored in $params[$name].
       * Type='GeneratedPassword'     - renders the Choices array as a numeric sub-choice
                                        (1=Generate, 2=Prompt). The Generate path calls
                                        New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length
@@ -95,6 +107,12 @@ function Read-AdmanActionParams {
         $type = 'Text'
         if ((& $hasKey 'Type') -and (& $getVal 'Type')) {
             $type = [string](& $getVal 'Type')
+        }
+        # Optional Kind hint for Type='AdIdentity' (REV-3): 'AdUser' (default) or
+        # 'AdComputer'. Read unconditionally; consumed only by the AdIdentity branch.
+        $kind = 'AdUser'
+        if ((& $hasKey 'Kind') -and (& $getVal 'Kind')) {
+            $kind = [string](& $getVal 'Kind')
         }
 
         $emptySeen = $false
@@ -234,8 +252,32 @@ function Read-AdmanActionParams {
                     continue
                 }
 
-                $params[$name] = $trimmed
-                $resolved = $true
+                # Type dispatch (G-02-2 / G-02-4): AdIdentity and AdOuDn route through
+                # Resolve-AdmanIdentity at prompt time so malformed input re-prompts
+                # instead of crashing the gate. The B/Q/empty handling above already
+                # ran, so the reserved-input contract is preserved.
+                if ($type -eq 'AdIdentity') {
+                    try {
+                        $resolvedObj = Resolve-AdmanIdentity -InputValue $trimmed -Kind $kind
+                        $params[$name] = $resolvedObj.DistinguishedName
+                        $resolved = $true
+                    } catch {
+                        Write-Host $_.Exception.Message
+                        continue
+                    }
+                } elseif ($type -eq 'AdOuDn') {
+                    try {
+                        $resolvedOu = Resolve-AdmanIdentity -InputValue $trimmed -Kind 'AdOuDn'
+                        $params[$name] = $resolvedOu.DistinguishedName
+                        $resolved = $true
+                    } catch {
+                        Write-Host $_.Exception.Message
+                        continue
+                    }
+                } else {
+                    $params[$name] = $trimmed
+                    $resolved = $true
+                }
             }
         }
     }

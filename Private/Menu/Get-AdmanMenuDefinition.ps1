@@ -11,11 +11,16 @@
       * Verb       - the Public function name the menu dispatches to (MENU-04: same
                      function a senior calls directly). $null for non-selectable
                      section separator entries.
-      * PromptSpec - array of @{ Name; Prompt; Required; Choices?; Type? } records
+      * PromptSpec - array of @{ Name; Prompt; Required; Choices?; Type?; Kind? } records
                      consumed by Read-AdmanActionParams to build the parameter
                      hashtable. The optional Type field defaults to 'Text'; the
                      value 'GeneratedPassword' triggers the D-05 Generate/Prompt
-                     numeric sub-choice.
+                     numeric sub-choice. The values 'AdIdentity' and 'AdOuDn'
+                     (G-02-2 / G-02-4) route through Resolve-AdmanIdentity at
+                     prompt time so malformed input re-prompts instead of
+                     crashing the gate. 'AdIdentity' honors the optional Kind
+                     field: 'AdUser' (default) or 'AdComputer' (REV-3 - tries
+                     both NAME and NAME$ sAMAccountName forms).
       * Properties - [string[]] of D-03 schema column names the verb emits. Plan 01-04
                      passes this to Format-AdmanReport / Export-AdmanReportCsv /
                      Export-AdmanReportHtml so a zero-row report still renders headers
@@ -155,7 +160,7 @@ function Get-AdmanMenuDefinition {
                 @{ Name = 'Name'; Prompt = 'Enter full name (CN)'; Required = $true }
                 @{ Name = 'SamAccountName'; Prompt = 'Enter sAMAccountName'; Required = $true }
                 @{ Name = 'UserPrincipalName'; Prompt = 'Enter UPN (user@domain)'; Required = $true }
-                @{ Name = 'ParentOuDn'; Prompt = 'Enter parent OU DN'; Required = $true }
+                @{ Name = 'ParentOuDn'; Prompt = 'Enter parent OU DN'; Required = $true; Type = 'AdOuDn' }
                 @{
                     Name     = 'AccountPassword'
                     Prompt   = 'Password source'
@@ -171,7 +176,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Disable user'
             Verb            = 'Disable-AdmanUser'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -180,7 +185,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Enable user'
             Verb            = 'Enable-AdmanUser'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -189,7 +194,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Reset user password'
             Verb            = 'Set-AdmanUserPassword'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
                 @{
                     Name     = 'NewPassword'
                     Prompt   = 'Password source'
@@ -205,7 +210,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Unlock user'
             Verb            = 'Unlock-AdmanUser'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -214,8 +219,8 @@ function Get-AdmanMenuDefinition {
             Label           = 'Move user to OU'
             Verb            = 'Move-AdmanUser'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true }
-                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
+                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true; Type = 'AdOuDn' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -227,7 +232,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Disable computer'
             Verb            = 'Disable-AdmanComputer'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity (NAME or NAME$)'; Required = $true; Type = 'AdIdentity'; Kind = 'AdComputer' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -236,7 +241,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Enable computer'
             Verb            = 'Enable-AdmanComputer'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity (NAME or NAME$)'; Required = $true; Type = 'AdIdentity'; Kind = 'AdComputer' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -245,8 +250,8 @@ function Get-AdmanMenuDefinition {
             Label           = 'Move computer to OU'
             Verb            = 'Move-AdmanComputer'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
-                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity (NAME or NAME$)'; Required = $true; Type = 'AdIdentity'; Kind = 'AdComputer' }
+                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN'; Required = $true; Type = 'AdOuDn' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -255,7 +260,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Reset computer account'
             Verb            = 'Reset-AdmanComputerAccount'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter computer identity'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter computer identity (NAME or NAME$)'; Required = $true; Type = 'AdIdentity'; Kind = 'AdComputer' }
             )
             Properties      = $emptyProperties
             FixedParameters = $null
@@ -349,7 +354,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Add to AD group'
             Verb            = 'Add-AdmanGroupMember'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true; Type = 'AdIdentity' }
                 @{ Name = 'GroupIdentity'; Prompt = 'Enter AD group identity'; Required = $true }
             )
             Properties      = $emptyProperties
@@ -359,7 +364,7 @@ function Get-AdmanMenuDefinition {
             Label           = 'Remove from AD group'
             Verb            = 'Remove-AdmanGroupMember'
             PromptSpec      = @(
-                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true }
+                @{ Name = 'Identity'; Prompt = 'Enter user/computer identity'; Required = $true; Type = 'AdIdentity' }
                 @{ Name = 'GroupIdentity'; Prompt = 'Enter AD group identity'; Required = $true }
             )
             Properties      = $emptyProperties
