@@ -201,11 +201,14 @@ Describe 'Resolve-AdmanIdentity: AdComputer kind (REV-3)' -Tag 'Unit' {
 
     It 'Test 8: bare NAME resolves via the trailing-dollar fallback (NAME$)' {
         # Exact form returns zero hits; trailing-dollar form returns the computer.
+        # WR-04 fix: the trailing-dollar lookup now filters by objectClass -eq 'computer'
+        # so a user account with a trailing-dollar sAMAccountName cannot false-positive
+        # as a computer target.
         Mock Get-ADObject -ModuleName adman { @() } `
             -ParameterFilter { $Filter -eq "sAMAccountName -eq 'PC01'" }
         Mock Get-ADObject -ModuleName adman {
             New-Pc01ComputerAdObject
-        } -ParameterFilter { $Filter -eq "sAMAccountName -eq 'PC01$'" }
+        } -ParameterFilter { $Filter -eq "(&(sAMAccountName -eq 'PC01$')(objectClass -eq 'computer'))" }
 
         $r = & (Get-Module adman) { param($i) Resolve-AdmanIdentity -InputValue $i -Kind 'AdComputer' } -i 'PC01'
         $r.DistinguishedName | Should -Be 'CN=PC01,OU=Computers,DC=mock,DC=local'
@@ -215,6 +218,6 @@ Describe 'Resolve-AdmanIdentity: AdComputer kind (REV-3)' -Tag 'Unit' {
         Should -Invoke Get-ADObject -ModuleName adman -Times 1 `
             -ParameterFilter { $Filter -eq "sAMAccountName -eq 'PC01'" }
         Should -Invoke Get-ADObject -ModuleName adman -Times 1 `
-            -ParameterFilter { $Filter -eq "sAMAccountName -eq 'PC01$'" }
+            -ParameterFilter { $Filter -eq "(&(sAMAccountName -eq 'PC01$')(objectClass -eq 'computer'))" }
     }
 }
