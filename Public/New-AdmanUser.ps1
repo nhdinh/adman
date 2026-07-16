@@ -180,7 +180,13 @@ function New-AdmanUser {
         -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
-    # returned successfully AND NOT under -WhatIf. Plaintext never touches any stream.
+    # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
+    # Error/Warning/Verbose streams or any audit field; it DOES go to the host display
+    # via Write-Host (WR-05). Caveat: when Start-Transcript is running, the host display
+    # buffer is captured to the transcript file on disk - operators should NOT run
+    # password-generating verbs under Start-Transcript. (Write-Host is the only practical
+    # way to render to the console across PS 5.1 + 7 + remoting hosts; [Console]::WriteLine
+    # bypasses the Information stream but still hits the same transcript capture.)
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $AccountPassword) {
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($AccountPassword)
         try {

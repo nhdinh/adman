@@ -176,7 +176,11 @@ function Set-AdmanUserPassword {
     }
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
-    # returned successfully AND NOT under -WhatIf. Plaintext never touches any stream.
+    # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
+    # Error/Warning/Verbose streams or any audit field; it DOES go to the host display
+    # via Write-Host (WR-05). Caveat: when Start-Transcript is running, the host display
+    # buffer is captured to the transcript file on disk - operators should NOT run
+    # password-generating verbs under Start-Transcript.
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword)
         try {
