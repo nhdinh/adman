@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    AdmanWriteVerbs - the single-sourced 9-verb AD write allow-list (SAFE-09).
+    AdmanWriteVerbs - the single-sourced AD write allow-list (SAFE-09).
 
 .DESCRIPTION
     Get-AdmanAllowedWriteVerbs returns the EXACT set of AD write verbs the mutation gate may
@@ -19,7 +19,7 @@ Set-StrictMode -Version Latest
 function Get-AdmanAllowedWriteVerbs {
     <#
     .SYNOPSIS
-        Return the 9-verb AD write allow-list (SAFE-09; the hard-delete verb is excluded).
+        Return the AD write allow-list (SAFE-09; the hard-delete verb is excluded).
     #>
     [CmdletBinding()]
     param()
