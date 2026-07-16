@@ -58,5 +58,5 @@ function Remove-AdmanGroupMember {
     $params = @{ GroupIdentity = $GroupIdentity }
 
     Invoke-AdmanMutation -Verb 'Remove-ADGroupMember' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

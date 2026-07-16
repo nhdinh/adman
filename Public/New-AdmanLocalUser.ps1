@@ -148,7 +148,7 @@ function New-AdmanLocalUser {
     }
 
     $result = Invoke-AdmanLocalMutation -Verb 'New-LocalUser' -Targets @($Name) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
     # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/

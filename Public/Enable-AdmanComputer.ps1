@@ -42,5 +42,5 @@ function Enable-AdmanComputer {
     }
 
     Invoke-AdmanMutation -Verb 'Enable-ADAccount' -Targets @($Identity) `
-        -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Force:$Force -WhatIf:$WhatIfPreference
 }

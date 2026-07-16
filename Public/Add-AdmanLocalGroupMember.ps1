@@ -66,5 +66,5 @@ function Add-AdmanLocalGroupMember {
     }
 
     Invoke-AdmanLocalMutation -Verb 'Add-LocalGroupMember' -Targets @($Name) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

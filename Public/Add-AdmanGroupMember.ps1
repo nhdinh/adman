@@ -59,5 +59,5 @@ function Add-AdmanGroupMember {
     $params = @{ GroupIdentity = $GroupIdentity }
 
     Invoke-AdmanMutation -Verb 'Add-ADGroupMember' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

@@ -66,5 +66,5 @@ function Remove-AdmanLocalGroupMember {
     }
 
     Invoke-AdmanLocalMutation -Verb 'Remove-LocalGroupMember' -Targets @($Name) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

@@ -65,5 +65,5 @@ function Remove-AdmanLocalUser {
     $params = @{ ComputerName = $ComputerName }
 
     Invoke-AdmanLocalMutation -Verb 'Remove-LocalUser' -Targets @($Name) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

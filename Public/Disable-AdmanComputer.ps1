@@ -42,5 +42,5 @@ function Disable-AdmanComputer {
     }
 
     Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets @($Identity) `
-        -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Force:$Force -WhatIf:$WhatIfPreference
 }

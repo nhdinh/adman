@@ -101,12 +101,12 @@ function Set-AdmanLocalUser {
     if ($PSCmdlet.ParameterSetName -eq 'Enable') {
         $params = @{ Name = $Name; ComputerName = $ComputerName }
         return Invoke-AdmanLocalMutation -Verb 'Enable-LocalUser' -Targets @($Name) `
-            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
     }
     if ($PSCmdlet.ParameterSetName -eq 'Disable') {
         $params = @{ Name = $Name; ComputerName = $ComputerName }
         return Invoke-AdmanLocalMutation -Verb 'Disable-LocalUser' -Targets @($Name) `
-            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
     }
 
     # 'Reset' set: require -Password OR source one per D-05. If neither -Password nor
@@ -184,7 +184,7 @@ function Set-AdmanLocalUser {
         }
 
         $result = Invoke-AdmanLocalMutation -Verb 'Set-LocalUser' -Targets @($Name) `
-            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 
         # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
         # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/

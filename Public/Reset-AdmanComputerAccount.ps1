@@ -64,7 +64,7 @@ function Reset-AdmanComputerAccount {
     $params = @{ Reset = $true }
 
     $gateResult = Invoke-AdmanMutation -Verb 'Set-ADAccountPassword' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 
     # COMP-04: emit the honest guidance naming BOTH methods and the trade-off.
     # Skip under -WhatIf (no real mutation occurred; nothing to recover from).

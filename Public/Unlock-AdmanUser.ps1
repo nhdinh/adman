@@ -90,5 +90,5 @@ function Unlock-AdmanUser {
     $params = @{ Server = $pdc }
 
     Invoke-AdmanMutation -Verb 'Unlock-ADAccount' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }

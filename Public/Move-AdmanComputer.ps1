@@ -71,5 +71,5 @@ function Move-AdmanComputer {
     $params = @{ TargetPath = $TargetPath }
 
     Invoke-AdmanMutation -Verb 'Move-ADObject' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 }
