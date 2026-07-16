@@ -154,26 +154,46 @@ function Set-AdmanUserPassword {
     }
 
     # CR-01 fix: invoke the gate once per sub-operation so each gets its own PENDING/OUTCOME
-    # audit pair and its own confirmation. Sub-operation 1: the password reset itself.
+    # audit pair and its own confirmation. Capture ALL three results and aggregate failures
+    # so a follow-up throw does not surface as an unhandled exception with no correlation
+    # ID while the audit log shows 'Success' for the earlier sub-operation.
+    $results = @()
+    $errors  = @()
+
+    # Sub-operation 1: the password reset itself.
     $resetParams = @{ NewPassword = $NewPassword }
-    $result = Invoke-AdmanMutation -Verb 'Set-ADAccountPassword' -Targets @($Identity) `
-        -Parameters $resetParams -Force:$Force -WhatIf:$WhatIfPreference
+    try {
+        $results += Invoke-AdmanMutation -Verb 'Set-ADAccountPassword' -Targets @($Identity) `
+            -Parameters $resetParams -Force:$Force -WhatIf:$WhatIfPreference
+    } catch { $errors += $_ }
 
     # Sub-operation 2: apply ChangePasswordAtLogon via Set-ADUser. Set-ADAccountPassword does
     # NOT accept -ChangePasswordAtLogon (HIGH #4); it belongs on Set-ADUser. Running this as
     # its own gate invocation means a Set-ADUser failure does NOT mislabel the (already
     # successful) password reset as 'Failure' in the audit log.
-    $setUserParams = @{ ChangePasswordAtLogon = $mustChange }
-    $null = Invoke-AdmanMutation -Verb 'Set-ADUser' -Targets @($Identity) `
-        -Parameters $setUserParams -Force:$Force -WhatIf:$WhatIfPreference
+    if ($errors.Count -eq 0) {
+        $setUserParams = @{ ChangePasswordAtLogon = $mustChange }
+        try {
+            $results += Invoke-AdmanMutation -Verb 'Set-ADUser' -Targets @($Identity) `
+                -Parameters $setUserParams -Force:$Force -WhatIf:$WhatIfPreference
+        } catch { $errors += $_ }
+    }
 
     # Sub-operation 3: optional Unlock. A locked account cannot have its password reset by
     # some paths (B5), so Unlock runs AFTER the reset; as its own gate call it gets its own
     # audit pair and the operator sees a distinct confirmation.
-    if ($Unlock) {
-        $null = Invoke-AdmanMutation -Verb 'Unlock-ADAccount' -Targets @($Identity) `
-            -Parameters @{} -Force:$Force -WhatIf:$WhatIfPreference
+    if ($Unlock -and $errors.Count -eq 0) {
+        try {
+            $results += Invoke-AdmanMutation -Verb 'Unlock-ADAccount' -Targets @($Identity) `
+                -Parameters @{} -Force:$Force -WhatIf:$WhatIfPreference
+        } catch { $errors += $_ }
     }
+
+    if ($errors.Count -gt 0) {
+        $errMsgs = ($errors | ForEach-Object { $_.Exception.Message }) -join '; '
+        throw "One or more sub-operations failed: $errMsgs"
+    }
+    $result = $results[0]
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
     # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
