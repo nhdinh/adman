@@ -85,7 +85,7 @@ Plans (finalized during `/gsd-plan-phase 1`):
   3. Admin can create/disable/enable/reset-password/remove a local user and manage local group membership (e.g., local Administrators) on a target via the `LocalAccounts` module, mutations through the gate (LUSR-01/02).
   4. Admin can add/remove a user from groups (GRP-01/02), the tool refuses adding any principal to a protected group per SAFE-06 (GRP-03), protected/out-of-scope targets are refused and logged, and no verb bypasses the gate (lint + Pester re-proven against the new verbs).
 
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 2`):
@@ -94,7 +94,7 @@ Plans (finalized during `/gsd-plan-phase 2`):
 - [x] 02-02-PLAN.md — AD user lifecycle Public verbs: New-AdmanUser, Disable/Enable-AdmanUser, Set-AdmanUserPassword, Unlock-AdmanUser (PDCe-pinned), Move-AdmanUser (destination validated). (USER-02, USER-03, USER-04, USER-05, USER-06)
 - [x] 02-03-PLAN.md — AD computer lifecycle Public verbs: Disable/Enable-AdmanComputer, Move-AdmanComputer, Reset-AdmanComputerAccount (with honest AD-side vs on-machine guidance). (COMP-02, COMP-03, COMP-04)
 - [x] 02-04-PLAN.md — Local user/group Public verbs: New/Set/Remove-AdmanLocalUser, Add/Remove-AdmanLocalGroupMember, all through the sibling local gate with localhost-only -ComputerName validation. (LUSR-01, LUSR-02)
-- [ ] 02-05-PLAN.md — Group membership Public verbs: Add/Remove-AdmanGroupMember through the gate's dual-resolution path; GRP-03 protected-group refusal + D-04 asymmetric remove. (GRP-01, GRP-02, GRP-03)
+- [x] 02-05-PLAN.md — Group membership Public verbs: Add/Remove-AdmanGroupMember through the gate's dual-resolution path; GRP-03 protected-group refusal + D-04 asymmetric remove. (GRP-01, GRP-02, GRP-03)
 - [ ] 02-06-PLAN.md — Menu integration (section-grouped write entries + D-05 password prompt Type), manifest exports, phase exit gate (full suite green + AST guard re-proof + lint clean). (All 13 Phase 2 requirements)
 
 ### Phase 3: Remote Computer Operations (isolated)
@@ -168,7 +168,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 |-------|----------------|--------|-----------|
 | 0. Foundation & Safety Harness | 6/6 | Complete    | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
-| 2. Single-Object Lifecycle (writes begin) | 4/6 | In Progress|  |
+| 2. Single-Object Lifecycle (writes begin) | 5/6 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |
 | 4. Bulk & Workflows (highest blast radius, last) | 0/4 | Not started | - |
 | 5. Hardening & Portability | 0/3 | Not started | - |
