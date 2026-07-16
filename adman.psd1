@@ -50,7 +50,7 @@
     # Functions to export from this module. Explicit list ONLY (SAFE-08). The gate
     # Invoke-AdmanMutation is intentionally NOT exported. 00-02 appends the *-AdmanConfig
     # verbs and Test-AdmanCapability; Phase 1 wires Start-Adman to the menu.
-    FunctionsToExport = @('Initialize-Adman', 'Start-Adman', 'Get-AdmanConfig', 'Set-AdmanConfig', 'Export-AdmanConfig', 'Import-AdmanConfig', 'Test-AdmanCapability', 'Find-AdmanUser', 'Find-AdmanComputer', 'Get-AdmanStaleReport', 'Get-AdmanAccountStateReport', 'Get-AdmanRecoveryPostureReport', 'Format-AdmanReport', 'Export-AdmanReportCsv', 'Export-AdmanReportHtml', 'Get-AdmanInventoryReport', 'New-AdmanUser', 'Disable-AdmanUser', 'Enable-AdmanUser')
+    FunctionsToExport = @('Initialize-Adman', 'Start-Adman', 'Get-AdmanConfig', 'Set-AdmanConfig', 'Export-AdmanConfig', 'Import-AdmanConfig', 'Test-AdmanCapability', 'Find-AdmanUser', 'Find-AdmanComputer', 'Get-AdmanStaleReport', 'Get-AdmanAccountStateReport', 'Get-AdmanRecoveryPostureReport', 'Format-AdmanReport', 'Export-AdmanReportCsv', 'Export-AdmanReportHtml', 'Get-AdmanInventoryReport', 'New-AdmanUser', 'Disable-AdmanUser', 'Enable-AdmanUser', 'Set-AdmanUserPassword', 'Unlock-AdmanUser', 'Move-AdmanUser')
 
     # Cmdlets to export from this module.
     CmdletsToExport = @()
