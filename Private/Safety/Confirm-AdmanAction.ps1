@@ -44,8 +44,18 @@ function Confirm-AdmanAction {
 
     $count = @($Targets).Count
     $threshold = [int]$script:Config.safety.bulkConfirmThreshold   # default 5 (D-07)
-    # D-03: Remove-LocalUser forces typed-count confirmation even at count=1.
-    if ($Verb -eq 'Remove-LocalUser') { $threshold = 1 }
+    # WR-02 fix: data-driven per-verb typed-count override. Verbs listed in
+    # safety.typedCountVerbs (default @('Remove-LocalUser'); D-03) force typed-count
+    # confirmation even at count=1, regardless of bulkConfirmThreshold. Adding a new
+    # irreversible verb no longer requires a code change here.
+    $typedCountVerbs = @('Remove-LocalUser')
+    if ($script:Config.PSObject.Properties['safety'] -and
+        $null -ne $script:Config.safety -and
+        $script:Config.safety.PSObject.Properties['typedCountVerbs'] -and
+        $null -ne $script:Config.safety.typedCountVerbs) {
+        $typedCountVerbs = @($script:Config.safety.typedCountVerbs | ForEach-Object { [string]$_ })
+    }
+    if ($Verb -in $typedCountVerbs) { $threshold = 1 }
 
     # D-04: when -Group is supplied, render the group in the prompt so the operator sees
     # both sides of the membership change.

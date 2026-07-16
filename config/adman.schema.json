@@ -50,6 +50,12 @@
           "type": "boolean",
           "description": "Opt-in D-04 group-OU enforcement. When true, the group side of a two-object mutation must also live under a managed OU. Default false (protected groups live in CN=Users/Builtin and legitimate shared groups typically live outside managed user/computer OUs).",
           "default": false
+        },
+        "typedCountVerbs": {
+          "type": "array",
+          "description": "Verbs that ALWAYS require typed-count confirmation, even below bulkConfirmThreshold (WR-02; data-driven replacement for the hardcoded Remove-LocalUser override). Use for irreversible or high-blast-radius verbs. Default ['Remove-LocalUser'] (D-03).",
+          "items": { "type": "string" },
+          "default": [ "Remove-LocalUser" ]
         }
       }
     },
