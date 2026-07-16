@@ -147,8 +147,14 @@ function Start-Adman {
         # Used by the Set-AdmanLocalUser Enable/Disable entries to inject the
         # -Enable / -Disable switch declaratively (the operator picked the action
         # by picking the menu item; no further prompt).
+        # WR-06 fix: warn when a FixedParameters key collides with a prompted parameter
+        # so a future menu entry that accidentally overwrites operator input is visible
+        # at runtime, not silently discarded.
         if ($null -ne $entry.FixedParameters) {
             foreach ($key in $entry.FixedParameters.Keys) {
+                if ($params.ContainsKey($key)) {
+                    Write-Warning "FixedParameters key '$key' collides with prompted parameter; using fixed value."
+                }
                 $params[$key] = $entry.FixedParameters[$key]
             }
         }
