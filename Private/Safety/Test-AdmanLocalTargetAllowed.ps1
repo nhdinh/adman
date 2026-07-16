@@ -82,7 +82,19 @@ function Test-AdmanLocalTargetAllowed {
             if ($m.SID) { $adminSids += ([System.Security.Principal.SecurityIdentifier]$m.SID).Value }
         }
     } catch {
-        if ($_.Exception.Message -match '0x80070534|0x534') {
+        # CR-02 fix: match structured HResult/NativeErrorCode, not message substring.
+        # The previous regex '0x80070534|0x534' was a substring match that false-positived
+        # on unrelated hex codes (e.g. 0x5340, 0x15340). Orphaned-SID is HRESULT
+        # 0x80070534 (== -2147023564 signed, == 2147943732 unsigned) / Win32 error 1332
+        # (ERROR_NONE_MAPPED: "No mapping between account names and security IDs was done").
+        $hr = $null
+        $native = $null
+        if ($null -ne $_.Exception) {
+            if ($_.Exception.PSObject.Properties['HResult']) { $hr = $_.Exception.HResult }
+            if ($_.Exception.PSObject.Properties['NativeErrorCode']) { $native = $_.Exception.NativeErrorCode }
+        }
+        $isOrphanedSid = ($hr -eq -2147023564) -or ($hr -eq 2147943732) -or ($native -eq 1332)
+        if ($isOrphanedSid) {
             # Orphaned-SID fallback: WMI Win32_GroupUser.
             try {
                 $wmiMembers = @(Get-CimInstance -ClassName Win32_GroupUser -ErrorAction Stop |
