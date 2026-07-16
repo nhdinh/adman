@@ -62,6 +62,11 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             AdmanProtectedGroup  = ''
             DC                   = ''
             delegatedAdminGroup  = ''
+            security             = @{
+                passwordSource         = 'Generate'
+                passwordGeneration     = @{ length = 20 }
+                mustChangeAtNextLogon  = $true
+            }
         }
         if (-not $NoDenyList) { $o['DenyList'] = $DenyList }
         return [pscustomobject]$o

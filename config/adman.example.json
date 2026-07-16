@@ -14,8 +14,18 @@
     { "token": "S-1-5-32-544", "note": "example well-known SID literal - builtin Administrators group" }
   ],
 
-  "_comment_safety": "Scaled confirmation (SAFE-02). At/above bulkConfirmThreshold the operator must type the exact count (no Enter-to-accept). Default 5 (D-07).",
-  "safety": { "bulkConfirmThreshold": 5 },
+  "_comment_safety": "Scaled confirmation (SAFE-02). At/above bulkConfirmThreshold the operator must type the exact count (no Enter-to-accept). Default 5 (D-07). requireManagedGroupOU is the D-04 opt-in group-OU enforcement (default false; protected groups live in CN=Users/Builtin and legitimate shared groups typically live outside managed user/computer OUs).",
+  "safety": {
+    "bulkConfirmThreshold": 5,
+    "requireManagedGroupOU": false
+  },
+
+  "_comment_security": "D-05 password sourcing. passwordSource = Generate (CSPRNG via New-AdmanRandomPassword; junior default) | Prompt (Read-Host -AsSecureString with complexity validation; senior escape hatch) | Ask (per-action sub-choice). passwordGeneration.length sets the generated-password length (min 8). mustChangeAtNextLogon is OPTIONAL (shipped default true) and consumed by New-AdmanUser / Set-AdmanUserPassword / Adman.AD.Write.New-ADUser as the ChangePasswordAtLogon fallback.",
+  "security": {
+    "passwordSource": "Generate",
+    "passwordGeneration": { "length": 20 },
+    "mustChangeAtNextLogon": true
+  },
 
   "_comment_bulk": "maxCount is a placeholder cap; ENFORCEMENT is Phase 4 (BULK-02) and is NOT applied in Phase 0.",
   "bulk": { "maxCount": 50 },

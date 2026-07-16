@@ -140,6 +140,28 @@ function Test-AdmanConfigValid {
         throw "Config validation failed: 'AuditDir' and 'ReportDir' must be strings."
     }
 
+    # D-05 security block (schema-required top-level key; the required-keys loop above already
+    # refuses when 'security' itself is absent - these checks fire when the block is present but
+    # malformed).
+    if ($null -eq $Config.security -or $null -eq $Config.security.passwordSource) {
+        throw "Config validation failed: 'security.passwordSource' is required."
+    }
+    if ([string]$Config.security.passwordSource -notin @('Generate', 'Prompt', 'Ask')) {
+        throw "Config validation failed: 'security.passwordSource' must be one of Generate, Prompt, Ask."
+    }
+    if ($null -eq $Config.security.passwordGeneration -or $null -eq $Config.security.passwordGeneration.length) {
+        throw "Config validation failed: 'security.passwordGeneration.length' is required."
+    }
+    if ([int]$Config.security.passwordGeneration.length -lt 8) {
+        throw "Config validation failed: 'security.passwordGeneration.length' must be >= 8."
+    }
+    # OPTIONAL mustChangeAtNextLogon (shipped default $true): when present, must be a boolean.
+    if ($Config.security.PSObject.Properties.Name -contains 'mustChangeAtNextLogon' -and
+        $null -ne $Config.security.mustChangeAtNextLogon -and
+        -not ($Config.security.mustChangeAtNextLogon -is [bool])) {
+        throw "Config validation failed: 'security.mustChangeAtNextLogon' must be a boolean when present."
+    }
+
     return $true
 }
 

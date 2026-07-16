@@ -206,7 +206,7 @@ Describe 'D-05: config schema additions (security block)' -Tag 'Unit' {
         # A config WITHOUT mustChangeAtNextLogon still validates (optional key with shipped default).
         $cfg = [pscustomobject][ordered]@{
             ManagedOUs          = @('OU=Managed,DC=mock,DC=local')
-            DenyList            = @(@{ token = '500'; note = 'starter, not exhaustive' })
+            DenyList            = @([pscustomobject]@{ token = '500'; note = 'starter, not exhaustive' })
             safety              = @{ bulkConfirmThreshold = 5 }
             bulk                = @{ maxCount = 50 }
             AuditDir            = '.store/audit'

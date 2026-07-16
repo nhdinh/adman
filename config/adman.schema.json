@@ -15,7 +15,8 @@
     "credentialPolicy",
     "AdmanProtectedGroup",
     "DC",
-    "delegatedAdminGroup"
+    "delegatedAdminGroup",
+    "security"
   ],
   "properties": {
     "ManagedOUs": {
@@ -44,6 +45,41 @@
           "description": "At/above this target count the operator must type the exact count (SAFE-02). Default 5 (D-07).",
           "default": 5,
           "minimum": 1
+        },
+        "requireManagedGroupOU": {
+          "type": "boolean",
+          "description": "Opt-in D-04 group-OU enforcement. When true, the group side of a two-object mutation must also live under a managed OU. Default false (protected groups live in CN=Users/Builtin and legitimate shared groups typically live outside managed user/computer OUs).",
+          "default": false
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "description": "Password sourcing + generation policy (D-05). passwordSource selects Generate (CSPRNG via New-AdmanRandomPassword), Prompt (Read-Host -AsSecureString with complexity validation), or Ask (per-action sub-choice). passwordGeneration.length sets the generated-password length (min 8). mustChangeAtNextLogon is OPTIONAL (shipped default true) and consumed by New-AdmanUser / Set-AdmanUserPassword / the Adman.AD.Write.New-ADUser wrapper as the ChangePasswordAtLogon fallback.",
+      "required": [ "passwordSource", "passwordGeneration" ],
+      "properties": {
+        "passwordSource": {
+          "type": "string",
+          "description": "Password sourcing strategy (D-05).",
+          "enum": [ "Generate", "Prompt", "Ask" ],
+          "default": "Generate"
+        },
+        "passwordGeneration": {
+          "type": "object",
+          "required": [ "length" ],
+          "properties": {
+            "length": {
+              "type": "integer",
+              "description": "Generated-password length (D-05). Minimum 8 to guarantee all four character classes with headroom.",
+              "default": 20,
+              "minimum": 8
+            }
+          }
+        },
+        "mustChangeAtNextLogon": {
+          "type": "boolean",
+          "description": "OPTIONAL. Shipped default true. Consumed by New-AdmanUser / Set-AdmanUserPassword (Plan 02-02) and by Adman.AD.Write.New-ADUser as the ChangePasswordAtLogon fallback when the caller does not pass the parameter explicitly (D-05 config-overridable per-installation).",
+          "default": true
         }
       }
     },

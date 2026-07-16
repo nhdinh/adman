@@ -370,6 +370,30 @@ function Remove-ADGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Id
 function New-CimSession { [CmdletBinding(SupportsShouldProcess)] param($ComputerName, $SessionOption) if ($PSCmdlet.ShouldProcess($ComputerName, 'New-CimSession (mock)')) { [pscustomobject]@{ ComputerName = $ComputerName; Mock = $true } } }
 function New-PSSession { [CmdletBinding(SupportsShouldProcess)] param($ComputerName, $Credential) if ($PSCmdlet.ShouldProcess($ComputerName, 'New-PSSession (mock)')) { [pscustomobject]@{ ComputerName = $ComputerName; Mock = $true } } }
 
+# --- LocalAccounts write stubs (SupportsShouldProcess keeps the lint gate clean) ------------
+function New-LocalUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $Password, $FullName, $Description, [switch]$Disabled, [switch]$NoPassword, [switch]$PasswordNeverExpires, [switch]$UserMayNotChangePassword) if ($PSCmdlet.ShouldProcess($Name, 'New-LocalUser (mock)')) { [pscustomobject]@{ Name = $Name; SID = 'S-1-5-21-111-222-333-1001'; Enabled = -not [bool]$Disabled; FullName = $FullName } } }
+function Disable-LocalUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SID) if ($PSCmdlet.ShouldProcess($Name, 'Disable-LocalUser (mock)')) { } }
+function Enable-LocalUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SID) if ($PSCmdlet.ShouldProcess($Name, 'Enable-LocalUser (mock)')) { } }
+function Set-LocalUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SID, $Password, $FullName, $Description, [switch]$AccountNeverExpires, [switch]$PasswordNeverExpires, [switch]$UserMayChangePassword) if ($PSCmdlet.ShouldProcess($Name, 'Set-LocalUser (mock)')) { } }
+function Remove-LocalUser { [CmdletBinding(SupportsShouldProcess)] param($Name, $SID) if ($PSCmdlet.ShouldProcess($Name, 'Remove-LocalUser (mock)')) { } }
+function Add-LocalGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Group, $SID, $Member) if ($PSCmdlet.ShouldProcess("$Group\$Member", 'Add-LocalGroupMember (mock)')) { } }
+function Remove-LocalGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Group, $SID, $Member) if ($PSCmdlet.ShouldProcess("$Group\$Member", 'Remove-LocalGroupMember (mock)')) { } }
+
+# --- LocalAccounts read stubs ----------------------------------------------------------------
+function Get-LocalUser {
+    [CmdletBinding()] param($Name, $SID)
+    [pscustomobject]@{
+        Name     = $Name
+        SID      = 'S-1-5-21-111-222-333-1001'
+        Enabled  = $true
+        FullName = 'Mock Local User'
+    }
+}
+function Get-LocalGroupMember {
+    [CmdletBinding()] param($Group, $Name, $SID, $Member)
+    @([pscustomobject]@{ Name = 'MOCK\alice'; SID = 'S-1-5-21-111-222-333-1002'; ObjectClass = 'User'; PrincipalSource = 'Local' })
+}
+
 Export-ModuleMember -Function @(
     'Get-ADUser', 'Get-ADComputer', 'Get-ADObject', 'Get-ADGroup', 'Get-ADGroupMember',
     'Get-ADDomain', 'Get-ADForest', 'Get-ADOrganizationalUnit', 'Get-ADOptionalFeature', 'Search-ADAccount',
@@ -377,5 +401,8 @@ Export-ModuleMember -Function @(
     'Disable-ADAccount', 'Enable-ADAccount', 'Unlock-ADAccount', 'Move-ADObject',
     'New-ADUser', 'New-ADComputer', 'Add-ADGroupMember', 'Remove-ADGroupMember',
     'Get-CimInstance', 'New-CimSession', 'Invoke-Command', 'New-PSSession', 'Test-WSMan',
+    'New-LocalUser', 'Disable-LocalUser', 'Enable-LocalUser', 'Set-LocalUser',
+    'Remove-LocalUser', 'Add-LocalGroupMember', 'Remove-LocalGroupMember',
+    'Get-LocalUser', 'Get-LocalGroupMember',
     'Reset-AdmanMockCapture', 'Get-AdmanMockCapture', 'Set-AdmanMockLogonSyncInterval'
 )

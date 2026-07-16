@@ -51,6 +51,11 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             AdmanProtectedGroup = ''
             DC                  = ''
             delegatedAdminGroup = ''
+            security            = @{
+                passwordSource        = 'Generate'
+                passwordGeneration    = @{ length = 20 }
+                mustChangeAtNextLogon = $true
+            }
         }
     }
 }
