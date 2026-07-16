@@ -60,13 +60,30 @@ function Unlock-AdmanUser {
     }
 
     # Resolve the PDC emulator. Lockout state is PDCe-authoritative (Pitfall 2).
-    $pdc = (Get-ADDomain -Server $script:Config.DC).PDCEmulator
+    # WR-03 fix: under -WhatIf, skip the LockedOut pre-read entirely. The pre-read is a
+    # UX fail-fast for the real path; under -WhatIf the operator expects a dry-run preview
+    # of what WOULD happen, and the pre-read can both throw its own error (DC unreachable,
+    # user not found) AND suppress the preview when the account happens to not be locked.
+    # Let the gate produce the dry-run preview instead.
+    $pdc = $null
+    if (-not $WhatIfPreference) {
+        $pdc = (Get-ADDomain -Server $script:Config.DC).PDCEmulator
 
-    # Read LockedOut first on the PDCe. If not locked, no-op with a clear message.
-    $user = Get-ADUser -Identity $Identity -Server $pdc -Properties LockedOut -ErrorAction Stop
-    if (-not $user.LockedOut) {
-        Write-Output "Account is not locked out."
-        return
+        # Read LockedOut first on the PDCe. If not locked, no-op with a clear message.
+        $user = Get-ADUser -Identity $Identity -Server $pdc -Properties LockedOut -ErrorAction Stop
+        if (-not $user.LockedOut) {
+            Write-Output "Account is not locked out."
+            return
+        }
+    } else {
+        # Under -WhatIf, still resolve the PDCe for the gate's $Parameters['Server'] so the
+        # preview line names the PDCe the write WOULD target. If the PDCe lookup itself
+        # fails under -WhatIf, fall back to the configured DC so the preview still renders.
+        try {
+            $pdc = (Get-ADDomain -Server $script:Config.DC).PDCEmulator
+        } catch {
+            $pdc = $script:Config.DC
+        }
     }
 
     # Build the gate $Parameters with the PDCe pin.
