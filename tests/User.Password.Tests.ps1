@@ -87,7 +87,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
 Describe 'Set-AdmanUserPassword: gate routing + parameter shape (USER-04, D-05)' -Tag 'Unit' {
 
-    It 'calls Invoke-AdmanMutation with -Verb Set-ADAccountPassword and $Parameters containing NewPassword and ChangePasswordAtLogon' {
+    It 'calls Invoke-AdmanMutation once per sub-operation: Set-ADAccountPassword, Set-ADUser (ChangePasswordAtLogon), and no Unlock when -Unlock not supplied' {
         Mock -ModuleName adman Invoke-AdmanMutation { }
         Mock -ModuleName adman New-AdmanRandomPassword { New-TestSecureString }
         Mock -ModuleName adman Read-Host { '' }
@@ -96,12 +96,34 @@ Describe 'Set-AdmanUserPassword: gate routing + parameter shape (USER-04, D-05)'
         $sec = New-TestSecureString
         Set-AdmanUserPassword -Identity 'jdoe' -NewPassword $sec
 
+        # CR-01 fix: the composite is split into separate gate invocations, each with its
+        # own audit pair. Expect exactly 2 calls when -Unlock is not supplied.
         Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1 -ParameterFilter {
             $Verb -eq 'Set-ADAccountPassword' -and
             $Targets.Count -eq 1 -and
             $Targets[0] -eq 'jdoe' -and
             $Parameters['NewPassword'] -is [securestring] -and
+            -not $Parameters.ContainsKey('ChangePasswordAtLogon') -and
+            -not $Parameters.ContainsKey('Unlock')
+        }
+        Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1 -ParameterFilter {
+            $Verb -eq 'Set-ADUser' -and
+            $Targets[0] -eq 'jdoe' -and
             $Parameters.ContainsKey('ChangePasswordAtLogon')
+        }
+    }
+
+    It 'invokes the gate a third time for Unlock-ADAccount when -Unlock is supplied' {
+        Mock -ModuleName adman Invoke-AdmanMutation { }
+        Mock -ModuleName adman New-AdmanRandomPassword { New-TestSecureString }
+        Mock -ModuleName adman Read-Host { '' }
+        Mock -ModuleName adman Write-Host { }
+
+        $sec = New-TestSecureString
+        Set-AdmanUserPassword -Identity 'jdoe' -NewPassword $sec -Unlock
+
+        Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1 -ParameterFilter {
+            $Verb -eq 'Unlock-ADAccount' -and $Targets[0] -eq 'jdoe'
         }
     }
 
@@ -145,6 +167,8 @@ Describe 'Set-AdmanUserPassword: gate routing + parameter shape (USER-04, D-05)'
         }
         Mock -ModuleName adman Test-AdmanTargetAllowed { return @{ Allowed=$true; Reason='' } }
         Mock -ModuleName adman Adman.AD.Write.Set-ADAccountPassword { }
+        Mock -ModuleName adman Adman.AD.Write.Set-ADUser { }
+        Mock -ModuleName adman Adman.AD.Write.Unlock-ADAccount { }
 
         Set-AdmanUserPassword -Identity 'jdoe' -Force
 
@@ -192,7 +216,7 @@ Describe 'Set-AdmanUserPassword: must-change resolution (warning fix)' -Tag 'Uni
         Set-AdmanUserPassword -Identity 'jdoe'
 
         Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1 -ParameterFilter {
-            $Parameters['ChangePasswordAtLogon'] -eq $true
+            $Verb -eq 'Set-ADUser' -and $Parameters['ChangePasswordAtLogon'] -eq $true
         }
     }
 
@@ -205,7 +229,7 @@ Describe 'Set-AdmanUserPassword: must-change resolution (warning fix)' -Tag 'Uni
         Set-AdmanUserPassword -Identity 'jdoe' -ChangePasswordAtLogon $false
 
         Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1 -ParameterFilter {
-            $Parameters['ChangePasswordAtLogon'] -eq $false
+            $Verb -eq 'Set-ADUser' -and $Parameters['ChangePasswordAtLogon'] -eq $false
         }
     }
 

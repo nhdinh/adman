@@ -153,16 +153,27 @@ function Set-AdmanUserPassword {
         $cfgVal
     }
 
-    # Build the gate $Parameters. DO NOT forward $NewPasswordSource — it is a verb-local
-    # display hint, not gate input.
-    $params = @{
-        NewPassword           = $NewPassword
-        ChangePasswordAtLogon = $mustChange
-    }
-    if ($Unlock) { $params['Unlock'] = $true }
-
+    # CR-01 fix: invoke the gate once per sub-operation so each gets its own PENDING/OUTCOME
+    # audit pair and its own confirmation. Sub-operation 1: the password reset itself.
+    $resetParams = @{ NewPassword = $NewPassword }
     $result = Invoke-AdmanMutation -Verb 'Set-ADAccountPassword' -Targets @($Identity) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+        -Parameters $resetParams -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+
+    # Sub-operation 2: apply ChangePasswordAtLogon via Set-ADUser. Set-ADAccountPassword does
+    # NOT accept -ChangePasswordAtLogon (HIGH #4); it belongs on Set-ADUser. Running this as
+    # its own gate invocation means a Set-ADUser failure does NOT mislabel the (already
+    # successful) password reset as 'Failure' in the audit log.
+    $setUserParams = @{ ChangePasswordAtLogon = $mustChange }
+    $null = Invoke-AdmanMutation -Verb 'Set-ADUser' -Targets @($Identity) `
+        -Parameters $setUserParams -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+
+    # Sub-operation 3: optional Unlock. A locked account cannot have its password reset by
+    # some paths (B5), so Unlock runs AFTER the reset; as its own gate call it gets its own
+    # audit pair and the operator sees a distinct confirmation.
+    if ($Unlock) {
+        $null = Invoke-AdmanMutation -Verb 'Unlock-ADAccount' -Targets @($Identity) `
+            -Parameters @{} -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+    }
 
     # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
     # returned successfully AND NOT under -WhatIf. Plaintext never touches any stream.

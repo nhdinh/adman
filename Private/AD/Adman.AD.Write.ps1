@@ -96,22 +96,15 @@ function Adman.AD.Write.Set-ADAccountPassword {
         [Parameter(Mandatory)]$Objects,
         [hashtable]$Parameters = @{}
     )
-    # HIGH #4: Set-ADAccountPassword does NOT accept -ChangePasswordAtLogon (that parameter
-    # belongs on Set-ADUser). Compute the must-change flag here, strip it from the splat,
-    # and apply it via a follow-up Set-ADUser call AFTER the reset succeeds.
-    $changePwd = $true
-    if ($Parameters.ContainsKey('ChangePasswordAtLogon')) {
-        $changePwd = [bool]$Parameters['ChangePasswordAtLogon']
-    } elseif ($script:Config.PSObject.Properties['security'] -and
-        $null -ne $script:Config.security -and
-        $script:Config.security.PSObject.Properties['mustChangeAtNextLogon'] -and
-        $null -ne $script:Config.security.mustChangeAtNextLogon) {
-        $changePwd = [bool]$script:Config.security.mustChangeAtNextLogon
-    }
-    # B5: the Unlock flag is stripped from the splat and applied via Unlock-ADAccount AFTER
-    # the reset succeeds (a locked account cannot have its password reset by some paths).
-    $doUnlock = ($Parameters.ContainsKey('Unlock') -and [bool]$Parameters['Unlock'])
-
+    # CR-01 fix: this wrapper invokes ONLY Set-ADAccountPassword. The ChangePasswordAtLogon
+    # and Unlock follow-ups are separate AD writes with separate failure modes; conflating
+    # them under one gate invocation produced a single audit record whose 'what' field
+    # misrepresented the directory mutations (and a partial-failure state where the password
+    # was reset but the audit said 'Failure'). The Public verb (Set-AdmanUserPassword) now
+    # invokes the gate separately for Set-ADUser (ChangePasswordAtLogon) and Unlock-ADAccount,
+    # giving each sub-operation its own PENDING/OUTCOME audit pair and its own confirmation.
+    # Strip the follow-up keys here so a legacy caller that still splats them in does not
+    # leak them into the Set-ADAccountPassword call (which would throw: unknown parameter).
     foreach ($o in @($Objects)) {
         if ($PSCmdlet.ShouldProcess($o.DistinguishedName, 'Set-ADAccountPassword')) {
             $p = $Parameters.Clone()
@@ -119,15 +112,6 @@ function Adman.AD.Write.Set-ADAccountPassword {
             $p.Remove('Unlock')
             Set-ADAccountPassword -Identity $o.DistinguishedName -Server $script:Config.DC @p `
                 -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
-            # Apply the must-change flag AFTER the reset succeeds (same ShouldProcess guard;
-            # skipped under -WhatIf because ShouldProcess returned $false above).
-            Set-ADUser -Identity $o.DistinguishedName -ChangePasswordAtLogon $changePwd `
-                -Server $script:Config.DC `
-                -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
-            if ($doUnlock) {
-                Unlock-ADAccount -Identity $o.DistinguishedName -Server $script:Config.DC `
-                    -WhatIf:$WhatIfPreference -Confirm:$false -ErrorAction Stop
-            }
         }
     }
 }
