@@ -46,6 +46,11 @@ function Test-AdmanAuditWritable {
             if ($null -ne $fs) { $fs.Dispose() }
         }
     } catch {
+        # Surface the cause before failing closed - 'audit path not writable' is an
+        # admission gate, and a silent $false leaves the operator no way to tell an
+        # ACL problem from an invalid path. Write-Warning (not Write-PSFMessage) so
+        # the reason survives even a session where PSFramework failed to load.
+        Write-Warning "Test-AdmanAuditWritable: probe of '$dir' failed - $($_.Exception.Message)"
         return $false
     }
 }

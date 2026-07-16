@@ -19,6 +19,15 @@ $script:Config = @{}
 # this constant when the config value is missing.
 $script:DefaultPasswordLength = 20
 
+# Default store location (gitignored). Initialized here because consumers run under
+# Set-StrictMode -Version Latest: reading an UNSET $script:StorePath to lazy-default it
+# throws before the default can apply. Tests override this with a $TestDrive path.
+$script:StorePath = '.store'
+
+# Per-machine local-scope cache (Test-AdmanLocalTargetAllowed). Same StrictMode rule:
+# its lazy default reads the unset variable, which throws before assignment.
+$script:LocalMachineScopeCache = @{}
+
 # Load Private (helpers/gate) first, then Public (exported verbs).
 foreach ($scope in @('Private', 'Public')) {
     $dir = Join-Path $PSScriptRoot $scope

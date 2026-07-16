@@ -30,7 +30,7 @@ function Initialize-Adman {
         [switch]$SetupMode
     )
 
-    Initialize-AdmanConfig -SetupMode:$SetupMode
+    Initialize-AdmanConfig -SetupMode:$SetupMode | Out-Null
 
     if ($SetupMode) {
         $script:Initialized = $true

@@ -247,6 +247,19 @@ function Initialize-AdmanConfig {
         }
     }
 
+    # Absolutize relative paths ONCE at load (AuditDir/ReportDir ship as '.store/audit' / 'reports').
+    # PowerShell cmdlets resolve relative paths against $PWD but raw .NET file I/O (the audit
+    # probe/writer FileStreams) resolves against the PROCESS CWD - the two diverge (e.g. runas
+    # launched from another directory) and the audit probe then fails closed on a 'missing' dir
+    # that actually exists under $PWD. Resolved here so every downstream consumer agrees; the
+    # on-disk file keeps its portable relative values (this mutates only the in-memory copy).
+    if ($config.AuditDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.AuditDir)) {
+        $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.AuditDir)
+    }
+    if ($config.ReportDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.ReportDir)) {
+        $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.ReportDir)
+    }
+
     # PSFramework config backbone (D-01): pinned with -Path, never the auto-import persistence. The
     # result is NOT used for any safety decision (those came from the direct parse above), so a
     # non-envelope/plain file can never weaken scope or fail-open (Pitfall 7 / T-00-07).
