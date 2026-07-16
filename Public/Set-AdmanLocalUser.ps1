@@ -188,15 +188,16 @@ function Set-AdmanLocalUser {
 
         # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
         # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
-        # Error/Warning/Verbose streams or any audit field; it DOES go to the host display
-        # via Write-Host (WR-05). Caveat: when Start-Transcript is running, the host display
-        # buffer is captured to the transcript file on disk - operators should NOT run
-        # password-generating verbs under Start-Transcript.
+        # Error/Warning/Verbose/Information streams or any audit field; it is written directly
+        # to the console via [Console]::WriteLine (WR-08 fix), bypassing the Information
+        # stream that Write-Host would use. Caveat: when Start-Transcript is running, the
+        # console display buffer is captured to the transcript file on disk - operators
+        # should NOT run password-generating verbs under Start-Transcript.
         if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
             $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
             try {
                 $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-                Write-Host "Generated password for ${Name}: $plain"
+                [Console]::WriteLine("Generated password for ${Name}: $plain")
                 Read-Host -Prompt 'Press Enter when recorded' | Out-Null
                 try { [Console]::Clear() } catch [System.IO.IOException] { }
             } finally {
