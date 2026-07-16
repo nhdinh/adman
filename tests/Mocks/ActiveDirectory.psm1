@@ -305,7 +305,14 @@ function Search-ADAccount {
     $inScope = [pscustomobject]$inScopeProps
     $inScope.PSObject.TypeNames.Insert(0, $typeName)
 
-    $outScopeDn = "CN=OutScope{0},OU=NotManaged,DC=mock,DC=local" -f $bucket
+    # IN-04 fix: derive the out-of-scope row's DN from a sibling of $sb rather than
+    # hardcoding 'OU=NotManaged,DC=mock,DC=local'. The previous hardcode meant a future
+    # test that searched a DIFFERENT base (e.g. 'OU=NotManaged,...') would receive the
+    # same out-of-scope row, which would then be IN scope - breaking the test's premise.
+    # Strip the leftmost RDN from $sb and prepend 'OU=NotManaged' so the row is always
+    # outside whatever base the caller searched.
+    $sbParent = $sb -replace '^[^,]+,', ''
+    $outScopeDn = "CN=OutScope{0},OU=NotManaged,{1}" -f $bucket, $sbParent
     $outScopeSam = "outscope.{0}{1}" -f $bucket.ToLower(), $samSuffix
     $outScopeProps = [ordered]@{} + $fixedProps
     $outScopeProps['Name'] = ($outScopeDn -replace '^CN=([^,]+),.*$', '$1')
