@@ -131,6 +131,11 @@ function Test-AdmanTargetAllowed {
         if (-not [string]::IsNullOrEmpty($or)) {
             # WR-02: contract is a hashtable return, not a throw. If the DC is unreachable,
             # record a refusal reason instead of letting the exception propagate.
+            # WR-05 fix: distinguish infrastructure failures (DC unreachable / network /
+            # timeout) from query/parse failures. Both fail closed (safety invariant), but
+            # the reason text categorizes the failure so the operator can tell a transient
+            # DC outage from a policy refusal, and so internal DC topology details from
+            # infrastructure error messages are not leaked verbatim into the audit log.
             try {
                 $hit = Get-ADObject -Server $script:Config.DC `
                     -LDAPFilter "(&(distinguishedName=$dnEsc)(|$or))" -ErrorAction Stop
@@ -138,7 +143,30 @@ function Test-AdmanTargetAllowed {
                     $reasons.Add('recursive member of protected group')
                 }
             } catch {
-                $reasons.Add("protected-membership check failed: $($_.Exception.Message)")
+                $exc = $_.Exception
+                $isInfra = $false
+                # Walk the exception chain looking for well-known infrastructure error types.
+                while ($null -ne $exc) {
+                    $tname = $exc.GetType().FullName
+                    if ($tname -match 'System\.DirectoryServices\.AccountManagement\.PrincipalServerDownException' -or
+                        $tname -match 'System\.Net\.Sockets\.SocketException' -or
+                        $tname -match 'System\.DirectoryServices\.Protocols\.LdapException' -or
+                        $tname -match 'Microsoft\.ActiveDirectory\.Management\.ADServerDownException' -or
+                        $tname -match 'Microsoft\.ActiveDirectory\.Management\.ADIdentityNotFoundException' -or
+                        ($exc.PSObject.Properties['HResult'] -and ($exc.HResult -eq -2147023541 -or $exc.HResult -eq -2147016646))) {
+                        $isInfra = $true
+                        break
+                    }
+                    $exc = $exc.InnerException
+                }
+                if ($isInfra) {
+                    # Infrastructure failure: do NOT leak the raw exception message (may
+                    # contain DC hostnames / topology). Categorize so operator knows to
+                    # retry rather than treat as a policy refusal.
+                    $reasons.Add('protected-membership check unavailable: DC unreachable (infrastructure failure; fail-closed)')
+                } else {
+                    $reasons.Add("protected-membership check failed: $($_.Exception.Message)")
+                }
             }
         }
     }
