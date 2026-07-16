@@ -6,14 +6,14 @@ current_phase: 02
 current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-07-16T02:05:29.490Z"
+last_updated: "2026-07-16T02:27:32.201Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 16
-  completed_plans: 11
+  completed_plans: 12
   percent: 33
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-07-16 — Phase 02 execution started
 
@@ -68,6 +68,7 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 01 P03 | 14m | 3 tasks | 13 files |
 | Phase 01 P04 | 25m | - tasks | - files |
 | Phase 02 P01 | 3h | 3 tasks | 27 files |
+| Phase 02 P02 | 45m | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: D-02 local gate mirrors AD gate byte-for-byte; create-branch + uniqueness pre-flight + TOCTOU closure strictly parallel to D-01
 - [Phase ?]: D-04 protected-group add refused by DIRECT SID equality (not IN_CHAIN); Remove skips the check (asymmetric remediation)
 - [Phase ?]: HIGH #1: both gates write Failure outcome audit on wrapper throw before rethrowing (no PENDING orphan)
+- [Phase ?]: [Phase 02-02]: D-05 display-once [Console]::Clear() wrapped in try/catch IOException for headless hosts; shoulder-surf shrink is UX nicety, not security boundary (BSTR already zeroed)
+- [Phase ?]: [Phase 02-02]: Unlock-AdmanUser PDCe resolver note — Resolve-AdmanTarget intentionally NOT extended with -Server pass-through; DN/SID identity stable across DCs, only lockout STATE is PDCe-authoritative and read explicitly on PDCe before gate
 
 ### Pending Todos
 
@@ -144,7 +147,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-16T02:04:16.431Z
+Last session: 2026-07-16T02:27:32.194Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one/02-CONTEXT.md
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).

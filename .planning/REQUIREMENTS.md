@@ -43,10 +43,10 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 - [x] **USER-01**: Admin can search/view users by name, `sAMAccountName`, or display name (scoped to managed OU)
 - [x] **USER-02**: Admin can create a single user with required attributes (name, `sAMAccountName`, UPN, OU, password, must-change-at-next-logon, enabled)
-- [ ] **USER-03**: Admin can disable and enable a user (through the gate)
+- [x] **USER-03**: Admin can disable and enable a user (through the gate)
 - [x] **USER-04**: Admin can reset a user's password (optionally force change at next logon and unlock) without ever echoing or logging the password
-- [ ] **USER-05**: Admin can unlock a locked account (reads `LockedOut` first; pinned to the PDC emulator)
-- [ ] **USER-06**: Admin can move a user to another OU within managed scope
+- [x] **USER-05**: Admin can unlock a locked account (reads `LockedOut` first; pinned to the PDC emulator)
+- [x] **USER-06**: Admin can move a user to another OU within managed scope
 
 ### Local (Per-Machine) User Lifecycle (LUSR)
 
@@ -174,10 +174,10 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | SAFE-10 | Phase 0 | Complete |
 | USER-01 | Phase 1 | Complete |
 | USER-02 | Phase 2 | Complete |
-| USER-03 | Phase 2 | Pending |
+| USER-03 | Phase 2 | Complete |
 | USER-04 | Phase 2 | Complete |
-| USER-05 | Phase 2 | Pending |
-| USER-06 | Phase 2 | Pending |
+| USER-05 | Phase 2 | Complete |
+| USER-06 | Phase 2 | Complete |
 | LUSR-01 | Phase 2 | Complete |
 | LUSR-02 | Phase 2 | Complete |
 | COMP-01 | Phase 1 | Complete |
