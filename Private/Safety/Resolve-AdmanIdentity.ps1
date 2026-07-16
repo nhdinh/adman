@@ -109,7 +109,7 @@ function Resolve-AdmanIdentity {
             if ($exactHits.Count -eq 1) {
                 return $exactHits[0]
             }
-            $dollarHits = @(Get-ADObject -Filter "sAMAccountName -eq '$esc`$'" -Server $script:Config.DC `
+            $dollarHits = @(Get-ADObject -Filter "(&(sAMAccountName -eq '$esc`$')(objectClass -eq 'computer'))" -Server $script:Config.DC `
                 -Properties objectSid, objectClass, DistinguishedName, memberOf -ErrorAction Stop)
             if ($dollarHits.Count -gt 1) {
                 throw "Multiple AD objects match sAMAccountName '$InputValue`'$'."
