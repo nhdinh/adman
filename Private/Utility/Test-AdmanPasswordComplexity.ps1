@@ -18,7 +18,11 @@ function Test-AdmanPasswordComplexity {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][securestring]$Password,
-        [int]$MinLength = 20
+        # IN-04 fix: source the default from the same module-level constant as
+        # New-AdmanRandomPassword so a config default change cannot diverge between
+        # the generator and the validator. Evaluated at call time so tests that
+        # override the script variable see the new default.
+        [int]$MinLength = $script:DefaultPasswordLength
     )
 
     # Transient plaintext for validation only. BSTR is zeroed in finally.
