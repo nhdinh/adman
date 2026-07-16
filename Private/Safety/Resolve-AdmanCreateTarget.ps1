@@ -43,9 +43,19 @@ function ConvertTo-AdmanRdnEscaped {
     $v = $v -replace ';', '\;'
     # Leading '#' must be escaped (otherwise parsed as hex BER encoding).
     if ($v.StartsWith('#')) { $v = '\' + $v }
-    # Leading/trailing spaces must be escaped.
-    if ($v -match '^ ') { $v = '\' + $v }
-    if ($v -match ' $') { $v = $v -replace ' $', '\ ' }
+    # IN-01 fix: escape ALL leading/trailing spaces per RFC 4514, not just the first/last.
+    # The previous code only handled a single leading or trailing space; a value like
+    # '  John' (two leading spaces) would leave the second space unescaped.
+    if ($v -match '^(\s+)') {
+        $leading = $Matches[1]
+        $escapedLeading = $leading -replace ' ', '\ '
+        $v = $escapedLeading + $v.Substring($leading.Length)
+    }
+    if ($v -match '(\s+)$') {
+        $trailing = $Matches[1]
+        $escapedTrailing = $trailing -replace ' ', '\ '
+        $v = $v.Substring(0, $v.Length - $trailing.Length) + $escapedTrailing
+    }
     return $v
 }
 
