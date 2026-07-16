@@ -138,3 +138,149 @@ Source-grounding pass performed against the **grep** authority. All file paths a
 - UNCHECKABLE → severity:INFO, hardBlock:false
 
 No MISSING symbols. No hardBlock. Plan may proceed once Codex's cycle-3 MEDIUM concern (menu contract test does not prove parameter-set binding) is incorporated.
+
+---
+
+# Cross-AI Plan Review — Phase 02 (Cycle 4: Gap-Closure Plans 02-07..02-10)
+
+---
+phase: 02
+reviewers: [codex]
+reviewed_at: 2026-07-16T16:30:00.000Z
+plans_reviewed: [02-07-PLAN.md, 02-08-PLAN.md, 02-09-PLAN.md, 02-10-PLAN.md]
+mode: gap_closure
+note: Only codex CLI was available on this host. Claude CLI detected but skipped (running inside Claude Code — independence rule). Gemini/opencode/qwen/cursor/agy not installed.
+---
+
+Reviewer: **codex** (codex-cli 0.144.1, default model). Source-grounded against the live repo.
+
+## Codex Review
+
+### 02-07 Confirmation Restoration
+
+**Summary**
+Sound plan. The root cause is real: public mutation verbs forward `-Confirm:$false` into the gate, e.g. `Public/Disable-AdmanUser.ps1:42-43`, while `Confirm-AdmanAction` only prompts when `$ConfirmPreference -ne 'None'` at `Private/Safety/Confirm-AdmanAction.ps1:80-88`. Removing only those public gate-call forwards should restore confirmation while keeping wrapper-level `-Confirm:$false` intact.
+
+**Strengths**
+- Correctly targets the public call sites; verified the pattern across AD and local public verbs, including multi-site files like `Public/Set-AdmanUserPassword.ps1:159-175` and `Public/Set-AdmanLocalUser.ps1:103-187`.
+- Preserves the intended wrapper behavior: private wrappers still use `-Confirm:$false` after the gate confirms once, matching `Private/AD/Adman.AD.Write.ps1` and `Private/Local/Adman.Local.Write.ps1`.
+- Keeps `-WhatIf:$WhatIfPreference`; the dry-run branch is explicitly handled first in `Confirm-AdmanAction.ps1:72-77`.
+
+**Concerns**
+- **LOW:** The source assertion scanning "within 3 lines" is adequate for current formatting, but brittle if future invocations expand beyond that.
+
+**Suggestions**
+- Make the source assertion parse command blocks or scan from `Invoke-AdmanMutation` until the next non-continuation line.
+- Include one direct source assertion for `Private/AD` and `Private/Local` wrappers still retaining `-Confirm:$false`.
+
+**Risk Assessment**
+**LOW.** Mechanism matches the code and closes G-02-5 directly.
+
+---
+
+### 02-08 Create Audit StrictMode Fix
+
+**Summary**
+The plan addresses the correct failure. `Write-AdmanAudit` currently dereferences `($t.objectSid.Value)` for any AD-shaped target at `Private/Audit/Write-AdmanAudit.ps1:73-79`, while synthetic create targets intentionally set `objectSid = $null` in `Private/Safety/Resolve-AdmanCreateTarget.ps1:70-78`. A guarded SID extraction is the right fix and preserves fail-closed I/O behavior at `Write-AdmanAudit.ps1:139-156`.
+
+**Strengths**
+- Fix is narrowly scoped to audit target normalization.
+- Does not weaken the PENDING fail-closed path.
+- Test plan covers synthetic target, real SID, local target, and I/O failure.
+
+**Concerns**
+- **MEDIUM:** The proposed guard reads `$t.objectSid` directly. Under StrictMode, an AD-shaped object with `DistinguishedName` but no `objectSid` property would still throw. Current real resolvers include the property, but mocks/deserialized objects are explicitly mentioned by the plan.
+- **LOW:** The proposed verify regex may pass while `($t.objectSid.Value)` remains, because the current expression has a closing parenthesis immediately after `.Value`.
+
+**Suggestions**
+- Use property-existence first: `$sidSource = if ($t.PSObject.Properties['objectSid']) { $t.objectSid } else { $null }`.
+- Replace the regex verify with an AST/source assertion that no AD-target branch contains `.objectSid.Value`.
+
+**Risk Assessment**
+**LOW-MEDIUM.** Correct root fix, but make the guard fully StrictMode-safe for missing properties.
+
+---
+
+### 02-09 Menu Identity/DN Resolver
+
+**Summary**
+Mostly solid. `Read-AdmanActionParams` already reads `Type` at `Private/Menu/Read-AdmanActionParams.ps1:95-98`, and the free-text branch at `Read-AdmanActionParams.ps1:215-238` is the right place to validate and re-prompt. The menu currently lacks `Type` on identity and OU prompts, e.g. `Get-AdmanMenuDefinition.ps1:158`, `174`, `217-218`, so this plan targets the real menu crash class.
+
+**Strengths**
+- Preserves B/Q handling because it adds resolver dispatch after `Read-AdmanActionParams.ps1:219-224`.
+- New private function will be loaded automatically; `adman.psm1:31-37` dot-sources `Private/**/*.ps1`.
+- Keeps gate-side `Resolve-AdmanTarget` as authoritative downstream safety resolution.
+
+**Concerns**
+- **MEDIUM:** Computer prompts marked `AdIdentity` will exact-match `sAMAccountName`; many operators enter `PC01`, while the computer sAMAccountName is normally `PC01$`. Current prompt text at `Get-AdmanMenuDefinition.ps1:230`, `239`, `248`, `258` says "computer identity," not "computer sAMAccountName including `$`."
+- **LOW:** The plan intentionally skips `GroupIdentity` prompts. `Resolve-AdmanGroup` already uses `Get-ADGroup -Identity` at `Private/Safety/Resolve-AdmanGroup.ps1:22-23`, so this is not a gap blocker, but menu group errors may still surface later than member identity errors.
+
+**Suggestions**
+- Add an optional `Kind='AdComputer'` or `ObjectClass` hint so computer prompts can try `PC01` and `PC01$`.
+- Consider `Write-Warning` or distinct host color for resolver failures, but keep no-throw re-prompt behavior.
+
+**Risk Assessment**
+**MEDIUM.** It closes the reported user and OU failures, but bare computer-name UX may remain rough.
+
+---
+
+### 02-10 Group Remediation, Audit Member DN, Refusal Warnings
+
+**Summary**
+The plan correctly identifies all three code locations: group refusal currently audits `-Target $groupObj` at `Invoke-AdmanMutation.ps1:122-126`, member checks do not receive operation context at `Invoke-AdmanMutation.ps1:132-133`, and denied-only return has no operator-facing reason at `Invoke-AdmanMutation.ps1:148-157`. However, the proposed `-Operation` ValidateSet is wrong/incomplete for the actual gate verbs.
+
+**Strengths**
+- Per-member group-refusal audit is the right fix for G-02-9.
+- Adding warnings in the refusal branches directly closes G-02-6.
+- Skipping only protected recursive membership for `Remove-ADGroupMember` matches the documented remediation asymmetry.
+
+**Concerns**
+- **HIGH:** The plan says pass `-Operation $Verb` unconditionally, but its ValidateSet omits actual gate verbs `Set-ADUser`, `Set-ADComputer`, and `New-ADUser` from `Invoke-AdmanMutation.ps1:47-49`, and includes non-gate `Reset-ADComputerPassword`. This would break create and follow-up mutation paths before policy checks run.
+- **LOW:** The plan text says "ValidateSet spans all 8 gate verbs," but the gate currently has 10 verbs. That mismatch should be corrected before execution.
+
+**Suggestions**
+- Define the `-Operation` ValidateSet by copying the exact gate ValidateSet from `Invoke-AdmanMutation.ps1:47-49`: include `Set-ADUser`, `Set-ADComputer`, `New-ADUser`; do not include `Reset-ADComputerPassword` unless the gate actually accepts it.
+- Add a test that `New-AdmanUser` and `Set-AdmanUserPassword -ChangePasswordAtLogon` still reach policy/audit after the signature change.
+
+**Risk Assessment**
+**HIGH until corrected.** The idea is right, but the current parameter contract would introduce regressions.
+
+---
+
+### Cross-Plan Assessment (Codex)
+
+- Ordering: 02-07 and 02-08 are independent. 02-10 overlaps gate/audit behavior but can run after 02-08 safely. 02-09 is mostly independent, though UAT create flow needs both 02-08 and 02-09 for a clean menu create.
+- Edge cases: strongest missing edge is 02-10's incomplete operation ValidateSet; second is 02-09 bare computer names.
+- Scope: no major over-engineering. 02-09's resolver is a reasonable menu-layer UX adapter, not a gate replacement.
+- Security: 02-07 restores the most important guardrail. 02-08 preserves fail-closed audit. 02-10 improves audit forensics and operator visibility, but must not ship with the ValidateSet mismatch.
+- Closure: collectively they should close all 6 gaps if 02-10's ValidateSet is fixed and 02-08's SID guard checks property existence under StrictMode.
+
+---
+
+## Cycle-4 Consensus Summary
+
+Only one reviewer ran (codex). Orchestrator independently verified the HIGH finding against `Private/Safety/Invoke-AdmanMutation.ps1:47-49` (actual gate ValidateSet contains 10 verbs including `Set-ADUser`, `Set-ADComputer`, `New-ADUser`; `Reset-ADComputerPassword` is NOT a gate verb — confirmed by `grep "Invoke-AdmanMutation -Verb" Public/`).
+
+### Agreed Strengths
+
+- 02-07's root-cause diagnosis is correct and verifiable at multiple call sites.
+- 02-08 correctly identifies the StrictMode `objectSid.Value` dereference as the create-flow blocker.
+- 02-09's shared resolver preserves the B/Q menu contract and keeps the gate's `Resolve-AdmanTarget` authoritative.
+- 02-10's per-member group-refusal audit and Write-Warning refusal surface are the right fixes for G-02-9 and G-02-6.
+
+### Agreed Concerns (highest priority first)
+
+1. **HIGH — 02-10 ValidateSet regression.** Plan prescribes 8 verbs but the gate actually accepts 10 (`Set-ADUser`, `Set-ADComputer`, `New-ADUser` are missing from the plan's set; `Reset-ADComputerPassword` is in the plan's set but is not a gate verb). If implemented as written, `New-AdmanUser`, `Disable-AdmanUser`/`Enable-AdmanUser` (via `Set-ADUser`), and `Disable-AdmanComputer`/`Enable-AdmanComputer` (via `Set-ADComputer`) would fail ValidateSet and break. **This regression was introduced by the revision cycle** (option (a) from plan-checker) and was not caught by re-verification. **Must fix before execute.**
+2. **MEDIUM — 02-08 StrictMode property-existence.** The prescribed guard reads `$t.objectSid` directly; under StrictMode an AD-shaped object lacking the property (mock, deserialized) still throws. Should use `$t.PSObject.Properties['objectSid']` existence check.
+3. **MEDIUM — 02-09 bare computer-name UX.** `sAMAccountName` exact match won't accept `PC01` for a computer (real sAM is `PC01$`). Operators will hit this; consider trying both `PC01` and `PC01$` when the resolver detects an AdComputer prompt (or a `Kind` hint).
+
+### Divergent Views
+
+None (single reviewer).
+
+### Actionable Findings (for /gsd-plan-phase 02 --reviews)
+
+- **REV-1 (HIGH, 02-10):** Replace the prescribed ValidateSet with the exact gate ValidateSet from `Invoke-AdmanMutation.ps1:47-49`: `'Disable-ADAccount','Enable-ADAccount','Move-ADObject','Set-ADUser','Set-ADComputer','Set-ADAccountPassword','Unlock-ADAccount','Add-ADGroupMember','Remove-ADGroupMember','New-ADUser'` (10 verbs). Remove `Reset-ADComputerPassword`. Update plan prose from "all 8 gate verbs" to "all 10 gate verbs." Add a test that `New-AdmanUser` and a `Set-ADUser`-based verb (e.g. Disable-AdmanUser) still reach policy/audit after the signature change.
+- **REV-2 (MEDIUM, 02-08):** Change the prescribed SID guard from direct property read to a property-existence check: `$sidSource = if ($t.PSObject.Properties['objectSid']) { $t.objectSid } else { $null }`. Also tighten the verify from regex to AST assertion that no AD-target branch contains `.objectSid.Value`.
+- **REV-3 (MEDIUM, 02-09):** Add an optional `Kind='AdComputer'` (or `ObjectClass`) hint so computer prompts try both `NAME` and `NAME$` when resolving `sAMAccountName`. Update affected prompt text to say "computer identity (NAME or NAME$)".
+- **REV-4 (LOW, 02-07):** Make the source assertion robust to formatting: parse from `Invoke-AdmanMutation` to the next non-continuation line, not "within 3 lines". Optionally assert that `Private/AD/Adman.AD.Write.ps1` and `Private/Local/Adman.Local.Write.ps1` still retain `-Confirm:$false` (they are the post-confirm wrappers).
