@@ -194,10 +194,21 @@ function Read-AdmanActionParams {
                                 Write-Host ("Password does not meet complexity requirements: {0}" -f $_.Exception.Message)
                                 continue
                             }
-                            $params[$name] = $first
-                            $params["${name}Source"] = 'Prompt'
+                            # CR-03 fix: set $firstConsumed BEFORE storing into $params so
+                            # an exception between the two stores cannot cause the finally
+                            # block to dispose a SecureString that $params still references.
+                            # Wrap the store in try/catch so a partial store removes the
+                            # reference and rethrows (finally will then dispose correctly).
                             $firstConsumed = $true
-                            $resolved = $true
+                            try {
+                                $params[$name] = $first
+                                $params["${name}Source"] = 'Prompt'
+                                $resolved = $true
+                            } catch {
+                                $params.Remove($name)
+                                $params.Remove("${name}Source")
+                                throw
+                            }
                         } finally {
                             # Always dispose the duplicate. Dispose $first only when it was
                             # NOT stored into $params (i.e. mismatch or complexity failure).
