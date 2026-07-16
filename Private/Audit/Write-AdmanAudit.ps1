@@ -57,7 +57,20 @@ function Write-AdmanAudit {
     if ($null -eq $mutex) {
         throw "AUDIT FAIL-CLOSED: cannot acquire audit mutex; refusing $Verb."
     }
-    [void]$mutex.WaitOne()
+    # WR-02 fix: bound the WaitOne with a 30-second timeout so a hung/zombie peer process
+    # cannot block all subsequent audit writes indefinitely. Fail-closed on timeout so the
+    # mutation never executes without its audit record.
+    $acquired = $false
+    try {
+        $acquired = $mutex.WaitOne([timespan]::FromSeconds(30))
+    } catch [System.Threading.AbandonedMutexException] {
+        # Abandoned by a crashed peer - we now own it; treat as acquired.
+        $acquired = $true
+    }
+    if (-not $acquired) {
+        try { $mutex.Dispose() } catch { }
+        throw "AUDIT FAIL-CLOSED: timed out acquiring audit mutex after 30s; refusing $Verb."
+    }
     try {
         $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f (Get-Date))
         if (-not (Test-Path -LiteralPath $script:Config.AuditDir)) {
