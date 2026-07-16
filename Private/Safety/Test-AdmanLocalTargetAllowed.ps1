@@ -54,18 +54,8 @@ function Test-AdmanLocalTargetAllowed {
             if ($name.Length -gt 20) { $reasons.Add("local account name '$name' exceeds 20 characters") }
         }
         # (i) machine-in-scope (same as (c) below).
-        $machineSam = "$($Object.Machine)`$"
-        try {
-            $machineObj = @(Resolve-AdmanTarget -Targets @($machineSam)) | Select-Object -First 1
-            if ($null -eq $machineObj) {
-                $reasons.Add("machine '$($Object.Machine)' has no AD computer object")
-            } else {
-                $md = Test-AdmanTargetAllowed -Object $machineObj
-                if (-not $md.Allowed) { $reasons.Add("machine out of scope: $($md.Reason)") }
-            }
-        } catch {
-            $reasons.Add("machine-in-scope check failed: $($_.Exception.Message)")
-        }
+        $machineScope = Get-AdmanLocalMachineScope -Machine $Object.Machine
+        if (-not $machineScope.Allowed) { $reasons.Add($machineScope.Reason) }
         return @{
             Allowed = ($reasons.Count -eq 0)
             Reason  = ($reasons -join '; ')
@@ -121,21 +111,62 @@ function Test-AdmanLocalTargetAllowed {
 
     # (c) machine-in-scope - resolve the target machine's AD computer object (trailing `$`
     #     REQUIRED for the sAMAccountName form) and run Test-AdmanTargetAllowed.
-    $machineSam = "$($Object.Machine)`$"
-    try {
-        $machineObj = @(Resolve-AdmanTarget -Targets @($machineSam)) | Select-Object -First 1
-        if ($null -eq $machineObj) {
-            $reasons.Add("machine '$($Object.Machine)' has no AD computer object")
-        } else {
-            $md = Test-AdmanTargetAllowed -Object $machineObj
-            if (-not $md.Allowed) { $reasons.Add("machine out of scope: $($md.Reason)") }
-        }
-    } catch {
-        $reasons.Add("machine-in-scope check failed: $($_.Exception.Message)")
-    }
+    #     CR-03 fix: cached per machine per session via Get-AdmanLocalMachineScope; degrades
+    #     to 'warn but allow' when AD is unreachable and the target is localhost (the
+    #     operator's own workstation is trivially in scope for local operations on it).
+    $machineScope = Get-AdmanLocalMachineScope -Machine $Object.Machine
+    if (-not $machineScope.Allowed) { $reasons.Add($machineScope.Reason) }
 
     return @{
         Allowed = ($reasons.Count -eq 0)
         Reason  = ($reasons -join '; ')
     }
+}
+
+# CR-03 helper: per-session cached machine-in-scope check. The machine$ computer object
+# does not move between OUs mid-session, so the AD lookup is cached after the first call.
+# When the AD lookup throws (DC unreachable, machine has no computer object, etc.) AND
+# the target is the local machine, degrade to 'Allowed with warning' rather than
+# fail-closed — the project constraint is that local verbs must work even when AD is
+# degraded (the same degradation logic as WinRM -> CIM -> skip per host).
+function Get-AdmanLocalMachineScope {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Machine)
+
+    if (-not $script:LocalMachineScopeCache) {
+        $script:LocalMachineScopeCache = @{}
+    }
+    if ($script:LocalMachineScopeCache.ContainsKey($Machine)) {
+        return $script:LocalMachineScopeCache[$Machine]
+    }
+
+    $machineSam = "$Machine`$"
+    $result = $null
+    try {
+        $machineObj = @(Resolve-AdmanTarget -Targets @($machineSam)) | Select-Object -First 1
+        if ($null -eq $machineObj) {
+            $result = @{ Allowed = $false; Reason = "machine '$Machine' has no AD computer object" }
+        } else {
+            $md = Test-AdmanTargetAllowed -Object $machineObj
+            if ($md.Allowed) {
+                $result = @{ Allowed = $true; Reason = '' }
+            } else {
+                $result = @{ Allowed = $false; Reason = "machine out of scope: $($md.Reason)" }
+            }
+        }
+    } catch {
+        # Distinguish 'localhost' (the operator's own workstation) from a remote target.
+        # Local operations on the local machine are trivially in scope when AD is
+        # unreachable; remote targets remain fail-closed (cannot verify scope).
+        $isLocal = ($Machine -eq $env:COMPUTERNAME) -or ($Machine -eq 'localhost') -or ($Machine -eq '.')
+        if ($isLocal) {
+            Write-Warning "machine-in-scope AD lookup failed for localhost ($($_.Exception.Message)); proceeding because the target is the local machine."
+            $result = @{ Allowed = $true; Reason = '' }
+        } else {
+            $result = @{ Allowed = $false; Reason = "machine-in-scope check failed: $($_.Exception.Message)" }
+        }
+    }
+
+    $script:LocalMachineScopeCache[$Machine] = $result
+    return $result
 }
