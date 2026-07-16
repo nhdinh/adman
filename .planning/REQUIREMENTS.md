@@ -42,16 +42,16 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 ### AD User Lifecycle (USER)
 
 - [x] **USER-01**: Admin can search/view users by name, `sAMAccountName`, or display name (scoped to managed OU)
-- [ ] **USER-02**: Admin can create a single user with required attributes (name, `sAMAccountName`, UPN, OU, password, must-change-at-next-logon, enabled)
+- [x] **USER-02**: Admin can create a single user with required attributes (name, `sAMAccountName`, UPN, OU, password, must-change-at-next-logon, enabled)
 - [ ] **USER-03**: Admin can disable and enable a user (through the gate)
-- [ ] **USER-04**: Admin can reset a user's password (optionally force change at next logon and unlock) without ever echoing or logging the password
+- [x] **USER-04**: Admin can reset a user's password (optionally force change at next logon and unlock) without ever echoing or logging the password
 - [ ] **USER-05**: Admin can unlock a locked account (reads `LockedOut` first; pinned to the PDC emulator)
 - [ ] **USER-06**: Admin can move a user to another OU within managed scope
 
 ### Local (Per-Machine) User Lifecycle (LUSR)
 
-- [ ] **LUSR-01**: Admin can create/disable/enable/reset-password/remove a local user on a target machine via the `LocalAccounts` module (mutations through the gate)
-- [ ] **LUSR-02**: Admin can manage local group membership (e.g., local Administrators) on a target machine
+- [x] **LUSR-01**: Admin can create/disable/enable/reset-password/remove a local user on a target machine via the `LocalAccounts` module (mutations through the gate)
+- [x] **LUSR-02**: Admin can manage local group membership (e.g., local Administrators) on a target machine
 
 ### AD Computer Lifecycle (COMP)
 
@@ -62,9 +62,9 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Group Membership (GRP)
 
-- [ ] **GRP-01**: Admin can add a user to one or more groups (through the gate)
-- [ ] **GRP-02**: Admin can remove a user from a group (through the gate)
-- [ ] **GRP-03**: Tool refuses adding any principal to a protected group (Domain Admins etc.) per SAFE-06
+- [x] **GRP-01**: Admin can add a user to one or more groups (through the gate)
+- [x] **GRP-02**: Admin can remove a user from a group (through the gate)
+- [x] **GRP-03**: Tool refuses adding any principal to a protected group (Domain Admins etc.) per SAFE-06
 
 ### Reporting & Inventory (RPT)
 
@@ -173,20 +173,20 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | SAFE-09 | Phase 0 | Complete |
 | SAFE-10 | Phase 0 | Complete |
 | USER-01 | Phase 1 | Complete |
-| USER-02 | Phase 2 | Pending |
+| USER-02 | Phase 2 | Complete |
 | USER-03 | Phase 2 | Pending |
-| USER-04 | Phase 2 | Pending |
+| USER-04 | Phase 2 | Complete |
 | USER-05 | Phase 2 | Pending |
 | USER-06 | Phase 2 | Pending |
-| LUSR-01 | Phase 2 | Pending |
-| LUSR-02 | Phase 2 | Pending |
+| LUSR-01 | Phase 2 | Complete |
+| LUSR-02 | Phase 2 | Complete |
 | COMP-01 | Phase 1 | Complete |
 | COMP-02 | Phase 2 | Pending |
 | COMP-03 | Phase 2 | Pending |
 | COMP-04 | Phase 2 | Pending |
-| GRP-01 | Phase 2 | Pending |
-| GRP-02 | Phase 2 | Pending |
-| GRP-03 | Phase 2 | Pending |
+| GRP-01 | Phase 2 | Complete |
+| GRP-02 | Phase 2 | Complete |
+| GRP-03 | Phase 2 | Complete |
 | RPT-01 | Phase 1 | Complete |
 | RPT-02 | Phase 1 | Complete |
 | RPT-03 | Phase 1 | Complete |

@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: writes begin, bounded to one
+current_phase: 02
+current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-07-15T17:26:26.773Z"
-last_activity: 2026-07-15
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+last_updated: "2026-07-16T02:05:29.490Z"
+last_activity: 2026-07-16
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 16
+  completed_plans: 11
   percent: 33
 ---
 
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-14)
 
 **Core value:** Any admin on the team can perform common AD/local-user & computer tasks correctly and safely — every destructive action is previewed (`-WhatIf`), confirmed, scoped to a managed OU, blocked from protected accounts, and written to an audit log.
-**Current focus:** Phase 01 — ad-query-reporting-read-only
+**Current focus:** Phase 02 — single-object-lifecycle-writes-begin-bounded-to-one
 
 ## Current Position
 
-Phase: 2 — Single-Object Lifecycle (writes begin, bounded to one)
-Plan: Not started
+Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-07-15 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-07-16 — Phase 02 execution started
 
 Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
@@ -67,6 +67,7 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 01 P02 | 20m | 5 tasks | 13 files |
 | Phase 01 P03 | 14m | 3 tasks | 13 files |
 | Phase 01 P04 | 25m | - tasks | - files |
+| Phase 02 P01 | 3h | 3 tasks | 27 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01-03]: D-08: Initialize-Adman wraps Get-AdmanRecoveryPosture in try/catch so a posture read failure NEVER blocks startup.
 - [Phase 01-03]: Get-AdmanRecoveryPostureReport reads from $script:Config.RecoveryPosture when initialized; falls back to direct call pre-init.
 - [Phase 01-03]: Bucket column added via Add-Member -Force on D-03 schema objects (not a schema change; renderers see it as an extra NoteProperty).
+- [Phase ?]: D-01 synthetic pre-create target carries IsSynthetic=true and ParentOuDn; create-branch runs ONLY managed-OU scope against parent OU DN
+- [Phase ?]: D-02 local gate mirrors AD gate byte-for-byte; create-branch + uniqueness pre-flight + TOCTOU closure strictly parallel to D-01
+- [Phase ?]: D-04 protected-group add refused by DIRECT SID equality (not IN_CHAIN); Remove skips the check (asymmetric remediation)
+- [Phase ?]: HIGH #1: both gates write Failure outcome audit on wrapper throw before rethrowing (no PENDING orphan)
 
 ### Pending Todos
 
@@ -139,7 +144,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-15T12:03:10.652Z
+Last session: 2026-07-16T02:04:16.431Z
 Stopped at: Phase 2 context gathered
 Resume file: .planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one/02-CONTEXT.md
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
