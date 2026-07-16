@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
 status: executing
-stopped_at: context exhaustion at 75% (2026-07-16)
-last_updated: "2026-07-16T08:34:01.752Z"
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-07-16T10:12:20.627Z"
 last_activity: 2026-07-16
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 3
-  completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  completed_phases: 2
+  total_plans: 20
+  completed_plans: 17
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
-Plan: 2 of 6
+Plan: 2 of 10
 Status: Ready to execute
 Last activity: 2026-07-16 — Phase 02 execution started
 
-Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [█████████░] 85% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -72,6 +72,11 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 02 P04 | 7m | 2 tasks | 8 files |
 | Phase 02 P05 | 4m | 1 tasks | 6 files |
 | Phase 02 P06 | 10m | - tasks | - files |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02 P07 | 10m | 2 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -126,6 +131,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: [Phase 02-05]: D-04 asymmetry — Remove skips the group-side protected-SID check (remediation allowed); deny-RID and gMSA checks still apply on both Add and Remove; member-side checks unchanged
 - [Phase ?]: [Phase 02-06]: PromptSpec items are hashtables; Read-AdmanActionParams uses shape-agnostic key detection (.Contains() for IDictionary, PSObject.Properties.Name otherwise) so Choices/Type probe works for both shapes
 - [Phase ?]: [Phase 02-06]: Set-AdmanLocalUser appears THREE times in the menu (Reset/Enable/Disable parameter sets); Enable/Disable entries carry FixedParameters so the operator picks the action by picking the menu item
+- [Phase ?]: Phase 02-07: Test 2 uses real Confirm-AdmanAction (not mock) because Pester -ModuleName mock bodies do not preserve caller $ConfirmPreference via dynamic scope
 
 ### Pending Todos
 
@@ -155,7 +161,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-16T08:34:01.744Z
-Stopped at: context exhaustion at 75% (2026-07-16)
-Resume file: .planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one/02-06-PLAN.md
+Last session: 2026-07-16T10:12:20.619Z
+Stopped at: Completed 02-07-PLAN.md
+Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).

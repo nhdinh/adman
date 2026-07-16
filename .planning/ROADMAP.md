@@ -85,7 +85,7 @@ Plans (finalized during `/gsd-plan-phase 1`):
   3. Admin can create/disable/enable/reset-password/remove a local user and manage local group membership (e.g., local Administrators) on a target via the `LocalAccounts` module, mutations through the gate (LUSR-01/02).
   4. Admin can add/remove a user from groups (GRP-01/02), the tool refuses adding any principal to a protected group per SAFE-06 (GRP-03), protected/out-of-scope targets are refused and logged, and no verb bypasses the gate (lint + Pester re-proven against the new verbs).
 
-**Plans**: 6/6 plans complete (+ 4 gap-closure plans from UAT)
+**Plans**: 7/10 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 2`):
@@ -99,7 +99,7 @@ Plans (finalized during `/gsd-plan-phase 2`):
 
 Gap-closure plans (from UAT 2026-07-16, 8 passed / 4 issues / 6 open gaps):
 
-- [ ] 02-07-PLAN.md — G-02-5 BLOCKER: restore confirmation on cmdlet path. Remove `-Confirm:$false` forwarding from all 20 Public mutation call sites; regression test proves plain-cmdlet invocation prompts. (All 13 IDs — confirmation is cross-cutting)
+- [x] 02-07-PLAN.md — G-02-5 BLOCKER: restore confirmation on cmdlet path. Remove `-Confirm:$false` forwarding from all 20 Public mutation call sites; regression test proves plain-cmdlet invocation prompts. (All 13 IDs — confirmation is cross-cutting)
 - [ ] 02-08-PLAN.md — G-02-3 BLOCKER: unblock create flow. Defensive SID extraction in Write-AdmanAudit AD-target branch (null/type-guarded) so synthetic pre-create targets write PENDING without throwing under StrictMode; fail-closed preserved. (USER-02)
 - [ ] 02-09-PLAN.md — G-02-2 + G-02-4 BLOCKER: menu identity/DN resolver. New `Resolve-AdmanIdentity` (Private) + Type dispatch in Read-AdmanActionParams + PromptSpec Type='AdIdentity'/'AdOuDn' on 14 prompts; re-prompt on failure. (USER-02..06, COMP-02..04, GRP-01/02)
 - [ ] 02-10-PLAN.md — G-02-8 + G-02-9 + G-02-6: group remediation asymmetry + audit member DN + refusal surface. Test-AdmanTargetAllowed gains -Operation (skips step d on Remove-ADGroupMember); group-refusal audit names member DN; Write-Warning surfaces refusal reasons. (GRP-01/02/03, USER-03, COMP-02)
@@ -175,7 +175,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 |-------|----------------|--------|-----------|
 | 0. Foundation & Safety Harness | 6/6 | Complete    | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
-| 2. Single-Object Lifecycle (writes begin) | 6/6 | Complete   | 2026-07-16 |
+| 2. Single-Object Lifecycle (writes begin) | 7/10 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 0/3 | Not started | - |
 | 4. Bulk & Workflows (highest blast radius, last) | 0/4 | Not started | - |
 | 5. Hardening & Portability | 0/3 | Not started | - |
