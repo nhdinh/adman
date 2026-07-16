@@ -248,16 +248,28 @@ function Initialize-AdmanConfig {
     }
 
     # Absolutize relative paths ONCE at load (AuditDir/ReportDir ship as '.store/audit' / 'reports').
-    # PowerShell cmdlets resolve relative paths against $PWD but raw .NET file I/O (the audit
-    # probe/writer FileStreams) resolves against the PROCESS CWD - the two diverge (e.g. runas
-    # launched from another directory) and the audit probe then fails closed on a 'missing' dir
-    # that actually exists under $PWD. Resolved here so every downstream consumer agrees; the
-    # on-disk file keeps its portable relative values (this mutates only the in-memory copy).
+    # WR-03 fix: resolve relative paths against the MODULE ROOT, not the process CWD. The
+    # previous implementation used GetUnresolvedProviderPathFromPSPath which resolves against
+    # $PWD; when the operator launches adman from a different directory (e.g. runas /netonly
+    # from C:\Windows\System32) the audit dir would resolve to <CWD>\.store\audit instead of
+    # <module-root>\.store\audit. Resolve against the module root so every downstream
+    # consumer agrees on the intended base regardless of where the operator launched from.
+    # The on-disk file keeps its portable relative values (this mutates only the in-memory copy).
+    # Module root = parent of parent of this file (this file lives at <root>/Private/Config/).
+    $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     if ($config.AuditDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.AuditDir)) {
-        $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.AuditDir)
+        if (-not [System.IO.Path]::IsPathRooted($config.AuditDir)) {
+            $config.AuditDir = Join-Path $moduleRoot $config.AuditDir
+        } else {
+            $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.AuditDir)
+        }
     }
     if ($config.ReportDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.ReportDir)) {
-        $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.ReportDir)
+        if (-not [System.IO.Path]::IsPathRooted($config.ReportDir)) {
+            $config.ReportDir = Join-Path $moduleRoot $config.ReportDir
+        } else {
+            $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.ReportDir)
+        }
     }
 
     # PSFramework config backbone (D-01): pinned with -Path, never the auto-import persistence. The
