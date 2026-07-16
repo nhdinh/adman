@@ -28,6 +28,15 @@
 
     The stale-on-removal admin-count attribute is NEVER read (SDProp-window lag; D-02). This
     function is called identically for preview and execute (SAFE-10).
+
+    -Operation (D-04 remediation asymmetry): when Operation='Remove-ADGroupMember', step (d)
+    recursive protected-membership is SKIPPED. Rationale: removing a principal FROM a protected
+    group is remediation - the membership in the protected group IS the state being undone, so
+    refusing on that membership makes remediation impossible. Other member-side checks (a gMSA,
+    b deny-RID, c scope) still apply on Remove. For every other verb (or when -Operation is
+    absent), step (d) runs as before - no behavior change. The ValidateSet spans all 10 gate
+    verbs (copied verbatim from Invoke-AdmanMutation.ps1) so the call-site can pass -Operation
+    $Verb unconditionally; the parameter is consulted ONLY for the Remove skip.
 #>
 
 Set-StrictMode -Version Latest
@@ -36,7 +45,9 @@ function Test-AdmanTargetAllowed {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        $Object
+        $Object,
+        [ValidateSet('Disable-ADAccount','Enable-ADAccount','Move-ADObject','Set-ADUser','Set-ADComputer','Set-ADAccountPassword','Unlock-ADAccount','Add-ADGroupMember','Remove-ADGroupMember','New-ADUser')]
+        [string]$Operation
     )
 
     $reasons = [System.Collections.Generic.List[string]]::new()
@@ -107,24 +118,28 @@ function Test-AdmanTargetAllowed {
     #     via the -LDAPFilter parameter set ONLY. Every DN/value is RFC-4515-escaped BEFORE
     #     interpolation so a special-char CN fails closed (false refusal) rather than throwing a
     #     malformed filter (C2-L1). Runs even after a gMSA hit (layering).
-    $dnEsc = Escape-AdmanLdapFilterValue -Value $targetDn
-    $or = ''
-    foreach ($g in @($script:ProtectedGroupDns)) {
-        if ([string]::IsNullOrWhiteSpace([string]$g)) { continue }
-        $gEsc = Escape-AdmanLdapFilterValue -Value ([string]$g)
-        $or += "(memberOf:1.2.840.113556.1.4.1941:=$gEsc)"
-    }
-    if (-not [string]::IsNullOrEmpty($or)) {
-        # WR-02: contract is a hashtable return, not a throw. If the DC is unreachable,
-        # record a refusal reason instead of letting the exception propagate.
-        try {
-            $hit = Get-ADObject -Server $script:Config.DC `
-                -LDAPFilter "(&(distinguishedName=$dnEsc)(|$or))" -ErrorAction Stop
-            if ($hit) {
-                $reasons.Add('recursive member of protected group')
+    #     D-04 asymmetry: SKIPPED when Operation='Remove-ADGroupMember' - the membership IS the
+    #     state being remediated, so refusing on it makes remediation impossible.
+    if ($Operation -ne 'Remove-ADGroupMember') {
+        $dnEsc = Escape-AdmanLdapFilterValue -Value $targetDn
+        $or = ''
+        foreach ($g in @($script:ProtectedGroupDns)) {
+            if ([string]::IsNullOrWhiteSpace([string]$g)) { continue }
+            $gEsc = Escape-AdmanLdapFilterValue -Value ([string]$g)
+            $or += "(memberOf:1.2.840.113556.1.4.1941:=$gEsc)"
+        }
+        if (-not [string]::IsNullOrEmpty($or)) {
+            # WR-02: contract is a hashtable return, not a throw. If the DC is unreachable,
+            # record a refusal reason instead of letting the exception propagate.
+            try {
+                $hit = Get-ADObject -Server $script:Config.DC `
+                    -LDAPFilter "(&(distinguishedName=$dnEsc)(|$or))" -ErrorAction Stop
+                if ($hit) {
+                    $reasons.Add('recursive member of protected group')
+                }
+            } catch {
+                $reasons.Add("protected-membership check failed: $($_.Exception.Message)")
             }
-        } catch {
-            $reasons.Add("protected-membership check failed: $($_.Exception.Message)")
         }
     }
 

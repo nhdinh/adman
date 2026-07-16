@@ -120,17 +120,26 @@ function Invoke-AdmanMutation {
         $groupObj = Resolve-AdmanGroup -Identity $Parameters['GroupIdentity']
         $groupDecision = Test-AdmanGroupAllowed -Object $groupObj -Operation $Verb
         if (-not $groupDecision.Allowed) {
-            Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $groupObj -Result 'Refused' `
-                -Reason $groupDecision.Reason -Group $groupObj.DistinguishedName `
-                -WhatIf:$WhatIfPreference
+            # G-02-9: write one Refused record PER MEMBER so the audit names the member DN
+            # (target field) AND the group DN (group field) - forensics can tell which member
+            # the add was attempted on.
+            foreach ($memberObj in $resolved) {
+                Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $memberObj -Result 'Refused' `
+                    -Reason $groupDecision.Reason -Group $groupObj.DistinguishedName `
+                    -WhatIf:$WhatIfPreference
+            }
+            # G-02-6: surface the refusal reason to the operator before throwing.
+            Write-Warning "Group refused: $($groupDecision.Reason)"
             throw "Group refused: $($groupDecision.Reason)"
         }
     }
 
     # Deny / protected / scope: refusals logged 'Refused' and skipped (never reach the write).
+    # G-02-8: pass -Operation $Verb unconditionally so Test-AdmanTargetAllowed can skip step (d)
+    # recursive protected-membership on Remove-ADGroupMember (D-04 remediation asymmetry).
     $allowed = [System.Collections.Generic.List[object]]::new()
     foreach ($t in $resolved) {
-        $decision = Test-AdmanTargetAllowed -Object $t
+        $decision = Test-AdmanTargetAllowed -Object $t -Operation $Verb
         if (-not $decision.Allowed) {
             if ($groupObj) {
                 Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $t -Result 'Refused' `
@@ -140,6 +149,8 @@ function Invoke-AdmanMutation {
                 Write-AdmanAudit -CorrelationId $cid -Verb $Verb -Target $t -Result 'Refused' `
                     -Reason $decision.Reason -WhatIf:$WhatIfPreference
             }
+            # G-02-6: surface the precise refusal reason to the operator (not just 'Denied: 1').
+            Write-Warning "Refused $($t.DistinguishedName): $($decision.Reason)"
         } else {
             $allowed.Add($t)
         }
