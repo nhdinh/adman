@@ -16,6 +16,13 @@
     back AD; it escalates to the Windows Event Log (best-effort), a loud UI warning, and
     $script:AuditDegraded=$true, because AD object-state rollback is unreliable (D-03).
 
+    Synthetic pre-create targets (D-01): for create-verbs the target is fabricated by
+    Resolve-AdmanCreateTarget BEFORE the AD object exists, so objectSid is $null. The AD-target
+    branch below tolerates objectSid=$null (emits sid=$null in the targets[] detail) and also
+    tolerates AD-shaped objects lacking the objectSid property entirely (mocks / deserialized
+    PSCustomObjects). This is a defensive null/type guard, NOT a relaxation of fail-closed -
+    a genuine I/O failure on the PENDING write still throws and refuses the mutation.
+
     Schema (D-03, fixed field set, no sensitive fields ever): tsUtc, who, userSid, what, scope,
     target, targets[{dn,sid,objectClass}], count, whatIf, result, reason, correlationId, host,
     psEdition, moduleVersion. Never place a sensitive authentication value in any field.
@@ -71,11 +78,25 @@ function Write-AdmanAudit {
         $targetDetail = @()
         foreach ($t in $targetObjs) {
             if ($t.PSObject.Properties['DistinguishedName'] -and $t.DistinguishedName) {
-                # AD target shape.
+                # AD target shape. Guarded SID extraction (G-02-3 / D-01): the property-existence
+                # check MUST come first — under Set-StrictMode -Version Latest, reading
+                # $t.objectSid directly on an object that lacks the property throws before any
+                # null check can run. Then handle three value cases:
+                #   1. $null (synthetic pre-create target from Resolve-AdmanCreateTarget) -> sid=$null
+                #   2. [SecurityIdentifier] -> .Value
+                #   3. string (deserialized JSON / mock) -> [string] cast (no .Value on a string)
+                $sidSource = if ($t.PSObject.Properties['objectSid']) { $t.objectSid } else { $null }
+                $sidValue = if ($null -eq $sidSource) {
+                    $null
+                } elseif ($sidSource -is [System.Security.Principal.SecurityIdentifier]) {
+                    $sidSource.Value
+                } else {
+                    [string]$sidSource
+                }
                 $targetStrings += $t.DistinguishedName
                 $targetDetail += @{
                     dn          = $t.DistinguishedName
-                    sid         = ($t.objectSid.Value)
+                    sid         = $sidValue
                     objectClass = ($t.objectClass -join ',')
                 }
             } elseif ($t.PSObject.Properties['Machine'] -and $t.PSObject.Properties['Name']) {
