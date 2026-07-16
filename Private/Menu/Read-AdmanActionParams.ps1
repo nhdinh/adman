@@ -134,39 +134,54 @@ function Read-AdmanActionParams {
                         # Prompt path: Read-Host -AsSecureString twice + equality check + complexity.
                         $first = Read-Host -AsSecureString -Prompt 'Enter password'
                         $second = Read-Host -AsSecureString -Prompt 'Confirm password'
-                        # Equality check via transient BSTR, zeroed in finally.
-                        $b1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
-                        $b2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($second)
+                        # WR-04 fix: track whether $first was consumed (stored into $params)
+                        # so the finally block can dispose BOTH SecureStrings on every exit
+                        # path (mismatch, complexity failure, success-with-consume). The BSTRs
+                        # are zeroed below; the SecureString internal buffers are released
+                        # by Dispose. $first is NOT disposed when stored into $params (the
+                        # caller owns it from that point).
+                        $firstConsumed = $false
                         try {
-                            $p1 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1)
-                            $p2 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2)
-                            if ($p1 -cne $p2) {
-                                Write-Host 'Passwords do not match. Try again.'
+                            # Equality check via transient BSTR, zeroed in finally.
+                            $b1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
+                            $b2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($second)
+                            try {
+                                $p1 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1)
+                                $p2 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2)
+                                if ($p1 -cne $p2) {
+                                    Write-Host 'Passwords do not match. Try again.'
+                                    continue
+                                }
+                            } finally {
+                                if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
+                                if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+                            }
+                            $minLen = 20
+                            if ($script:Config -and
+                                $script:Config.PSObject.Properties['security'] -and
+                                $script:Config.security -and
+                                $script:Config.security.PSObject.Properties['passwordGeneration'] -and
+                                $script:Config.security.passwordGeneration -and
+                                $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
+                                $script:Config.security.passwordGeneration.length) {
+                                $minLen = [int]$script:Config.security.passwordGeneration.length
+                            }
+                            try {
+                                Test-AdmanPasswordComplexity -Password $first -MinLength $minLen | Out-Null
+                            } catch {
+                                Write-Host ("Password does not meet complexity requirements: {0}" -f $_.Exception.Message)
                                 continue
                             }
+                            $params[$name] = $first
+                            $params["${name}Source"] = 'Prompt'
+                            $firstConsumed = $true
+                            $resolved = $true
                         } finally {
-                            if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
-                            if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+                            # Always dispose the duplicate. Dispose $first only when it was
+                            # NOT stored into $params (i.e. mismatch or complexity failure).
+                            if ($null -ne $second) { $second.Dispose() }
+                            if (-not $firstConsumed -and $null -ne $first) { $first.Dispose() }
                         }
-                        $minLen = 20
-                        if ($script:Config -and
-                            $script:Config.PSObject.Properties['security'] -and
-                            $script:Config.security -and
-                            $script:Config.security.PSObject.Properties['passwordGeneration'] -and
-                            $script:Config.security.passwordGeneration -and
-                            $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
-                            $script:Config.security.passwordGeneration.length) {
-                            $minLen = [int]$script:Config.security.passwordGeneration.length
-                        }
-                        try {
-                            Test-AdmanPasswordComplexity -Password $first -MinLength $minLen | Out-Null
-                        } catch {
-                            Write-Host ("Password does not meet complexity requirements: {0}" -f $_.Exception.Message)
-                            continue
-                        }
-                        $params[$name] = $first
-                        $params["${name}Source"] = 'Prompt'
-                        $resolved = $true
                     }
                 } else {
                     Write-Host 'Invalid selection. Enter a number, B, or Q.'
