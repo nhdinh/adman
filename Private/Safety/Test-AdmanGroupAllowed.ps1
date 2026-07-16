@@ -43,8 +43,12 @@ function Test-AdmanGroupAllowed {
     $sid = if ($Object.PSObject.Properties['objectSid']) { $Object.objectSid } else { $null }
     if ($null -ne $sid) {
         $sidString = ([System.Security.Principal.SecurityIdentifier]$sid).Value
-        $rid = $sidString.Split('-')[-1]
-        if ($rid -in $script:DenyRids) {
+        # WR-07 fix: coerce both sides to string explicitly. If $script:DenyRids was
+        # loaded from JSON as integers (e.g. [512] rather than ['512']), the case-sensitive
+        # string -in comparison would fail silently and the deny-list would be bypassed.
+        $rid = [string]($sidString.Split('-')[-1])
+        $denyStrings = @($script:DenyRids | ForEach-Object { [string]$_ })
+        if ($rid -in $denyStrings) {
             $reasons.Add("deny-listed RID $rid")
         }
 

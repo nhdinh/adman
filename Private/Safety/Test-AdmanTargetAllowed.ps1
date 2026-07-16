@@ -80,8 +80,12 @@ function Test-AdmanTargetAllowed {
     #     refused. The guard never allows a principal that would otherwise be denied.
     $sid = if ($Object.PSObject.Properties['objectSid']) { $Object.objectSid } else { $null }
     if ($null -ne $sid) {
-        $rid = ([System.Security.Principal.SecurityIdentifier]$sid).Value.Split('-')[-1]
-        if ($rid -in $script:DenyRids) {
+        # WR-07 fix: coerce both sides to string explicitly. If $script:DenyRids was
+        # loaded from JSON as integers (e.g. [512] rather than ['512']), the case-sensitive
+        # string -in comparison would fail silently and the deny-list would be bypassed.
+        $rid = [string]([System.Security.Principal.SecurityIdentifier]$sid).Value.Split('-')[-1]
+        $denyStrings = @($script:DenyRids | ForEach-Object { [string]$_ })
+        if ($rid -in $denyStrings) {
             $reasons.Add("deny-listed RID $rid")
         }
     }
