@@ -74,6 +74,19 @@ function Invoke-AdmanMutation {
     # uniqueness within the immediate parent container only; the default Subtree scope
     # would over-refuse a valid create when a same-CN object exists in a child OU.
     if ($Verb -eq 'New-ADUser') {
+        # CR-04 fix: reject wildcards in CN/sAMAccountName BEFORE the pre-flight.
+        # Escape-AdmanAdFilterLiteral explicitly does NOT escape '*' or '?' — callers
+        # using -eq semantics are responsible for not passing user-controlled wildcards.
+        # The gate IS the caller; without this check a CN containing '*' could cause
+        # the pre-flight to false-negative (miss a real collision) or throw a parser
+        # error depending on the ADWS parser version.
+        if ([string]$Parameters['Name'] -match '[*?]') {
+            throw "CN '$($Parameters['Name'])' contains wildcard characters (* or ?), which are not permitted."
+        }
+        if ([string]$Parameters['SamAccountName'] -match '[*?]') {
+            throw "sAMAccountName '$($Parameters['SamAccountName'])' contains wildcard characters (* or ?), which are not permitted."
+        }
+
         $samEsc = Escape-AdmanAdFilterLiteral -Value ([string]$Parameters['SamAccountName'])
         $cnEsc = Escape-AdmanAdFilterLiteral -Value ([string]$Parameters['Name'])
         $parentDn = [string]$Parameters['ParentOuDn']
