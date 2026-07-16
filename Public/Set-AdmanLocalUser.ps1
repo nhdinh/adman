@@ -111,89 +111,95 @@ function Set-AdmanLocalUser {
 
     # 'Reset' set: require -Password OR source one per D-05. If neither -Password nor
     # a source can produce one, throw the parameter-set resolution error.
-    $passwordSupplied = $PSBoundParameters.ContainsKey('Password') -and $null -ne $Password
-    $passwordSourceSupplied = $PSBoundParameters.ContainsKey('PasswordSource') -and $PasswordSource
+    # WR-01 fix: wrap the entire Reset-only block in an explicit ParameterSetName guard.
+    # The early returns above already make this unreachable on Enable/Disable, but the
+    # explicit guard prevents a future maintainer adding code between dispatch and the
+    # gate from accidentally running password-sourcing logic on the Enable path.
+    if ($PSCmdlet.ParameterSetName -eq 'Reset') {
+        $passwordSupplied = $PSBoundParameters.ContainsKey('Password') -and $null -ne $Password
+        $passwordSourceSupplied = $PSBoundParameters.ContainsKey('PasswordSource') -and $PasswordSource
 
-    if (-not $passwordSupplied -and -not $passwordSourceSupplied) {
-        # Caller bound the default 'Reset' set with no password input at all.
-        throw 'Parameter set cannot be resolved: supply -Password, -Enable, or -Disable.'
-    }
+        if (-not $passwordSupplied -and -not $passwordSourceSupplied) {
+            # Caller bound the default 'Reset' set with no password input at all.
+            throw 'Parameter set cannot be resolved: supply -Password, -Enable, or -Disable.'
+        }
 
-    # D-05 per-call password source resolution.
-    $passwordSource = if ($passwordSourceSupplied) {
-        $PasswordSource
-    } elseif ($passwordSupplied) {
-        'Prompt'
-    } else {
-        $src = $script:Config.security.passwordSource
-        if ([string]::IsNullOrWhiteSpace([string]$src)) { 'Generate' } else { [string]$src }
-    }
-    if ($passwordSource -eq 'Ask') { $passwordSource = 'Generate' }
+        # D-05 per-call password source resolution.
+        $passwordSource = if ($passwordSourceSupplied) {
+            $PasswordSource
+        } elseif ($passwordSupplied) {
+            'Prompt'
+        } else {
+            $src = $script:Config.security.passwordSource
+            if ([string]::IsNullOrWhiteSpace([string]$src)) { 'Generate' } else { [string]$src }
+        }
+        if ($passwordSource -eq 'Ask') { $passwordSource = 'Generate' }
 
-    # D-05 password sourcing when -Password not supplied.
-    if (-not $passwordSupplied) {
-        switch ($passwordSource) {
-            'Generate' {
-                $len = 20
-                if ($script:Config.security -and
-                    $script:Config.security.PSObject.Properties['passwordGeneration'] -and
-                    $script:Config.security.passwordGeneration -and
-                    $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
-                    $script:Config.security.passwordGeneration.length) {
-                    $len = [int]$script:Config.security.passwordGeneration.length
+        # D-05 password sourcing when -Password not supplied.
+        if (-not $passwordSupplied) {
+            switch ($passwordSource) {
+                'Generate' {
+                    $len = 20
+                    if ($script:Config.security -and
+                        $script:Config.security.PSObject.Properties['passwordGeneration'] -and
+                        $script:Config.security.passwordGeneration -and
+                        $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
+                        $script:Config.security.passwordGeneration.length) {
+                        $len = [int]$script:Config.security.passwordGeneration.length
+                    }
+                    $Password = New-AdmanRandomPassword -Length $len
                 }
-                $Password = New-AdmanRandomPassword -Length $len
-            }
-            'Prompt' {
-                $first = Read-Host -AsSecureString -Prompt 'Enter new password'
-                $second = Read-Host -AsSecureString -Prompt 'Confirm new password'
-                $b1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
-                $b2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($second)
-                try {
-                    $p1 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1)
-                    $p2 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2)
-                    if ($p1 -cne $p2) { throw 'Passwords do not match.' }
-                } finally {
-                    if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
-                    if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+                'Prompt' {
+                    $first = Read-Host -AsSecureString -Prompt 'Enter new password'
+                    $second = Read-Host -AsSecureString -Prompt 'Confirm new password'
+                    $b1 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($first)
+                    $b2 = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($second)
+                    try {
+                        $p1 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b1)
+                        $p2 = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($b2)
+                        if ($p1 -cne $p2) { throw 'Passwords do not match.' }
+                    } finally {
+                        if ($b1 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b1) }
+                        if ($b2 -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b2) }
+                    }
+                    $minLen = 20
+                    if ($script:Config.security -and
+                        $script:Config.security.PSObject.Properties['passwordGeneration'] -and
+                        $script:Config.security.passwordGeneration -and
+                        $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
+                        $script:Config.security.passwordGeneration.length) {
+                        $minLen = [int]$script:Config.security.passwordGeneration.length
+                    }
+                    Test-AdmanPasswordComplexity -Password $first -MinLength $minLen | Out-Null
+                    $Password = $first
                 }
-                $minLen = 20
-                if ($script:Config.security -and
-                    $script:Config.security.PSObject.Properties['passwordGeneration'] -and
-                    $script:Config.security.passwordGeneration -and
-                    $script:Config.security.passwordGeneration.PSObject.Properties['length'] -and
-                    $script:Config.security.passwordGeneration.length) {
-                    $minLen = [int]$script:Config.security.passwordGeneration.length
-                }
-                Test-AdmanPasswordComplexity -Password $first -MinLength $minLen | Out-Null
-                $Password = $first
             }
         }
-    }
 
-    # Build the gate $Parameters. DO NOT forward $PasswordSource — verb-local display hint.
-    $params = @{
-        Name         = $Name
-        Password     = $Password
-        ComputerName = $ComputerName
-    }
-
-    $result = Invoke-AdmanLocalMutation -Verb 'Set-LocalUser' -Targets @($Name) `
-        -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
-
-    # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
-    # returned successfully AND NOT under -WhatIf.
-    if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
-        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
-        try {
-            $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-            Write-Host "Generated password for ${Name}: $plain"
-            Read-Host -Prompt 'Press Enter when recorded' | Out-Null
-            try { [Console]::Clear() } catch [System.IO.IOException] { }
-        } finally {
-            if ($bstr -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        # Build the gate $Parameters. DO NOT forward $PasswordSource — verb-local display hint.
+        $params = @{
+            Name         = $Name
+            Password     = $Password
+            ComputerName = $ComputerName
         }
-    }
 
-    return $result
+        $result = Invoke-AdmanLocalMutation -Verb 'Set-LocalUser' -Targets @($Name) `
+            -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference -Confirm:$false
+
+        # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
+        # returned successfully AND NOT under -WhatIf.
+        if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
+            $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+            try {
+                $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+                Write-Host "Generated password for ${Name}: $plain"
+                Read-Host -Prompt 'Press Enter when recorded' | Out-Null
+                try { [Console]::Clear() } catch [System.IO.IOException] { }
+            } finally {
+                if ($bstr -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+            }
+        }
+
+        return $result
+    }
 }
