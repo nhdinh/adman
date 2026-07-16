@@ -154,6 +154,15 @@ function Start-Adman {
         }
 
         # MENU-04: dispatch the same Public verb a senior calls directly.
+        # WR-09 fix: validate the verb resolves to a loaded function BEFORE dispatch.
+        # A typo in the menu definition or a verb that failed to export from the module
+        # would otherwise throw a generic CommandNotFoundException with no context about
+        # which menu entry failed.
+        $cmd = Get-Command -Name $Verb -ErrorAction SilentlyContinue
+        if ($null -eq $cmd) {
+            Write-Host "Menu entry '$($entry.Label)' dispatches to '$Verb' which is not loaded. Contact the adman maintainer." -ForegroundColor Red
+            continue
+        }
         $reportData = & $Verb @params
 
         # --- Output-format prompt (D-04) -------------------------------------
