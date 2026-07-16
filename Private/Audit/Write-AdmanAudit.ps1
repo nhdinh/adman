@@ -33,10 +33,12 @@ function Write-AdmanAudit {
         [string]$CorrelationId,
         [string]$Verb,
         $Targets,
+        $Target,
         [Parameter(Mandatory)]
         [ValidateSet('PENDING', 'Success', 'Failure', 'Refused', 'Cancelled')]
         [string]$Result,
         [string]$Reason,
+        [string]$Group,
         [switch]$WhatIf
     )
 
@@ -49,16 +51,45 @@ function Write-AdmanAudit {
             $null = New-Item -ItemType Directory -Path $script:Config.AuditDir -Force -ErrorAction Stop
         }
 
-        # Normalize targets to DN list + per-target detail (dn / sid / objectClass).
-        $targetObjs = @($Targets)
-        $targetDns = $targetObjs | ForEach-Object { $_.DistinguishedName }
-        $targetDetail = @($targetObjs | ForEach-Object {
-            @{
-                dn          = $_.DistinguishedName
-                sid         = ($_.objectSid.Value)
-                objectClass = ($_.objectClass -join ',')
+        # Normalize targets. Accept either -Targets (array) or -Target (single). Local
+        # targets carry Machine+Name+SID (no DistinguishedName) and emit "MACHINE\username"
+        # plus a @{machine,name,sid} detail shape; AD targets carry DistinguishedName and
+        # emit the DN plus a @{dn,sid,objectClass} detail shape. The optional preDeleteState
+        # field is emitted on local targets when the resolved object carries PreDeleteState
+        # (D-03).
+        $targetObjs = @()
+        if ($PSBoundParameters.ContainsKey('Targets') -and $null -ne $Targets) { $targetObjs = @($Targets) }
+        elseif ($PSBoundParameters.ContainsKey('Target') -and $null -ne $Target) { $targetObjs = @($Target) }
+
+        $targetStrings = @()
+        $targetDetail = @()
+        foreach ($t in $targetObjs) {
+            if ($t.PSObject.Properties['DistinguishedName'] -and $t.DistinguishedName) {
+                # AD target shape.
+                $targetStrings += $t.DistinguishedName
+                $targetDetail += @{
+                    dn          = $t.DistinguishedName
+                    sid         = ($t.objectSid.Value)
+                    objectClass = ($t.objectClass -join ',')
+                }
+            } elseif ($t.PSObject.Properties['Machine'] -and $t.PSObject.Properties['Name']) {
+                # Local target shape.
+                $targetStrings += ("{0}\{1}" -f $t.Machine, $t.Name)
+                $detail = @{
+                    machine = $t.Machine
+                    name    = $t.Name
+                    sid     = if ($null -ne $t.SID) { ([System.Security.Principal.SecurityIdentifier]$t.SID).Value } else { $null }
+                }
+                if ($t.PSObject.Properties['PreDeleteState'] -and $null -ne $t.PreDeleteState) {
+                    $detail['preDeleteState'] = $t.PreDeleteState
+                }
+                $targetDetail += $detail
+            } else {
+                # Fallback: string-form target.
+                $targetStrings += ([string]$t)
+                $targetDetail += @{ value = ([string]$t) }
             }
-        })
+        }
 
         $rec = [ordered]@{
             tsUtc         = (Get-Date).ToUniversalTime().ToString('o')
@@ -66,7 +97,7 @@ function Write-AdmanAudit {
             userSid       = ([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
             what          = $Verb
             scope         = ($script:Config.ManagedOUs -join '|')
-            target        = ($targetDns -join '|')
+            target        = ($targetStrings -join '|')
             targets       = $targetDetail
             count         = $targetObjs.Count
             whatIf        = [bool]$WhatIf
@@ -76,7 +107,13 @@ function Write-AdmanAudit {
             host          = $env:COMPUTERNAME
             psEdition     = $PSEdition
             moduleVersion = (Get-Module adman).Version.ToString()
-        } | ConvertTo-Json -Compress -Depth 5
+        }
+        # D-04: emit the group field ONLY when -Group is supplied (preserves the exact-key-set
+        # Test 1 invariant for non-group records).
+        if (-not [string]::IsNullOrEmpty($Group)) {
+            $rec['group'] = $Group
+        }
+        $rec = $rec | ConvertTo-Json -Compress -Depth 5
 
         # Open via the seam (Append / Write / Read-share); write UTF8 bytes; flush durably.
         $fs = Open-AdmanAuditStream -Path $path

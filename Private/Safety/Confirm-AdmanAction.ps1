@@ -38,11 +38,21 @@ function Confirm-AdmanAction {
         [string]$Verb,
         [Parameter(Mandatory)]
         $Targets,
+        [string]$Group,
         [switch]$Force
     )
 
     $count = @($Targets).Count
     $threshold = [int]$script:Config.safety.bulkConfirmThreshold   # default 5 (D-07)
+    # D-03: Remove-LocalUser forces typed-count confirmation even at count=1.
+    if ($Verb -eq 'Remove-LocalUser') { $threshold = 1 }
+
+    # D-04: when -Group is supplied, render the group in the prompt so the operator sees
+    # both sides of the membership change.
+    $targetDesc = "$count object(s)"
+    if (-not [string]::IsNullOrEmpty($Group)) {
+        $targetDesc = "$count object(s) -> group $Group"
+    }
 
     # (1) -WhatIf FIRST: a real -WhatIf is a dry-run, NOT a decline. The discriminator is the
     #     boolean cast [bool]$WhatIfPreference (truthy under a real -WhatIf: the engine sets a
@@ -53,19 +63,19 @@ function Confirm-AdmanAction {
     if ($isWhatIf) {
         # Under -WhatIf this ShouldProcess returns $false by design - that $false is the
         # simulation, NOT a refusal. Emit the what-if line once and return DryRun.
-        [void]$PSCmdlet.ShouldProcess("$count object(s)", $Verb)
+        [void]$PSCmdlet.ShouldProcess($targetDesc, $Verb)
         return @{ Outcome = 'DryRun'; WhatIf = $true }
     }
 
     # (2) Prompt unless -Force / -Confirm:$false (ConfirmPreference='None'). Skips ONLY the prompt.
     if (-not $Force -and ($ConfirmPreference -ne 'None')) {
         if ($count -ge $threshold) {
-            $token = Read-Host "Type the exact count ($count) to $Verb these $count objects"
+            $token = Read-Host "Type the exact count ($count) to $Verb these $targetDesc"
             if ($token -cne "$count") {
                 throw "Confirmation failed: expected $count. Refused."
             }
         } else {
-            if (-not $PSCmdlet.ShouldProcess("$count object(s)", $Verb)) {
+            if (-not $PSCmdlet.ShouldProcess($targetDesc, $Verb)) {
                 # GENUINE decline (no -WhatIf). This function writes nothing; the gate throws the
                 # decline message and writes no record (confirm-first -> no orphan PENDING).
                 return @{ Outcome = 'Declined'; WhatIf = $false }

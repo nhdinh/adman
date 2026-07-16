@@ -46,6 +46,28 @@ function Get-AdmanBannedWriteVerbs {
     return $script:AdmanBannedWriteVerbs
 }
 
+# Single source of truth for the banned LOCAL write cmdlet set (D-02). Public/ verbs must
+# route local writes through Invoke-AdmanLocalMutation, never call these directly.
+$script:AdmanBannedLocalWriteVerbs = @(
+    'New-LocalUser'
+    'Disable-LocalUser'
+    'Enable-LocalUser'
+    'Set-LocalUser'
+    'Remove-LocalUser'
+    'Add-LocalGroupMember'
+    'Remove-LocalGroupMember'
+)
+
+function Get-AdmanBannedLocalWriteVerbs {
+    <#
+    .SYNOPSIS
+        Return the banned LocalAccounts write cmdlet set (D-02; single source of truth).
+    #>
+    [CmdletBinding()]
+    param()
+    return $script:AdmanBannedLocalWriteVerbs
+}
+
 function Test-AdmanIsPublicScope {
     <#
     .SYNOPSIS
@@ -212,6 +234,7 @@ function Measure-AdmanPublicWriteSafety {
 
 Export-ModuleMember -Function @(
     'Get-AdmanBannedWriteVerbs'
+    'Get-AdmanBannedLocalWriteVerbs'
     'Test-AdmanIsPublicScope'
     'Find-AdmanBannedHit'
     'Test-AdmanBannedWriteAst'

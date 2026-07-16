@@ -51,7 +51,9 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
     $script:LocalGatePath = Join-Path $script:RepoRoot 'Private\Safety\Invoke-AdmanLocalMutation.ps1'
     $script:WriterPath = Join-Path $script:RepoRoot 'Private\Audit\Write-AdmanAudit.ps1'
+    $script:RuleModule = Join-Path $script:RepoRoot 'rules\AdmanSafetyRules.psm1'
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
+    Import-Module $script:RuleModule -Force -ErrorAction SilentlyContinue
 
     # Global stubs so Pester's Mock resolver finds module-private collaborators at RED.
     function global:Resolve-AdmanLocalTarget { param($Targets, $ComputerName, $Verb, [switch]$Create) }
@@ -341,7 +343,7 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
     }
 
     It 'Test 10: AST guard flags any Public/*.ps1 that names a LocalAccounts mutation cmdlet directly' {
-        $banned = & (Get-Module adman) { Get-AdmanBannedLocalWriteVerbs }
+        $banned = Get-AdmanBannedLocalWriteVerbs
         $banned | Should -Not -BeNullOrEmpty
         foreach ($v in @('New-LocalUser', 'Disable-LocalUser', 'Enable-LocalUser', 'Set-LocalUser',
                 'Remove-LocalUser', 'Add-LocalGroupMember', 'Remove-LocalGroupMember')) {
@@ -381,7 +383,11 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
             $script:AdmanLocalOrder.Add('resolve-create')
             $synthetic
         }
-        Mock Get-LocalUser -ModuleName adman { throw 'Get-LocalUser must NOT run for the create-branch resolver' }
+        # The create-branch resolver must NOT call Get-LocalUser. The gate's uniqueness
+        # pre-flight DOES call it (by design, D-02) - return $null (no collision) so the
+        # gate proceeds. The resolver is mocked here, so the real resolver never runs;
+        # any Get-LocalUser call comes from the pre-flight, not the resolver.
+        Mock Get-LocalUser -ModuleName adman { $null }
         Mock Test-AdmanLocalTargetAllowed -ModuleName adman {
             param($Object, $Verb)
             $script:SyntheticSeen = $Object
@@ -400,8 +406,10 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
 
         $script:SyntheticSeen.IsSynthetic | Should -BeTrue `
             -Because 'Test-AdmanLocalTargetAllowed must receive the IsSynthetic=$true synthetic local target'
-        Should -Invoke Get-LocalUser -ModuleName adman -Times 0 `
-            -Because 'the create-branch resolver must NOT call Get-LocalUser'
+        # The resolver mock received the create-branch signal (-Create / -Verb New-LocalUser).
+        Should -Invoke Resolve-AdmanLocalTarget -ModuleName adman -Times 1 -ParameterFilter {
+            $Create -or $Verb -eq 'New-LocalUser'
+        } -Because 'New-LocalUser must route through the create-branch resolver (D-02)'
     }
 
     It 'Test 12: Test-AdmanLocalTargetAllowed for an IsSynthetic local target SKIPS SID-dependent checks; runs ONLY machine-in-scope + name-shape validation' {
