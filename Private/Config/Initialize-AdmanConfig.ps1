@@ -133,6 +133,18 @@ function Test-AdmanConfigValid {
     if ($null -eq $Config.transport.timeouts.WinRM -or $null -eq $Config.transport.timeouts.CIM) {
         throw "Config validation failed: 'transport.timeouts.WinRM' and 'transport.timeouts.CIM' are required."
     }
+    if ($null -eq $Config.transport.timeouts.perHostProbeCap) {
+        throw "Config validation failed: 'transport.timeouts.perHostProbeCap' is required."
+    }
+    if ([int]$Config.transport.timeouts.perHostProbeCap -lt 1) {
+        throw "Config validation failed: 'transport.timeouts.perHostProbeCap' must be >= 1."
+    }
+    if ($null -eq $Config.transport.timeouts.totalInventoryRemoteCap) {
+        throw "Config validation failed: 'transport.timeouts.totalInventoryRemoteCap' is required."
+    }
+    if ([int]$Config.transport.timeouts.totalInventoryRemoteCap -lt 1) {
+        throw "Config validation failed: 'transport.timeouts.totalInventoryRemoteCap' must be >= 1."
+    }
     if ($null -eq $Config.credentialPolicy -or $null -eq $Config.credentialPolicy.allowRememberMe) {
         throw "Config validation failed: 'credentialPolicy.allowRememberMe' is required (non-secret metadata)."
     }
@@ -226,6 +238,29 @@ function Initialize-AdmanConfig {
     }
 
     $config = ConvertTo-AdmanCleanConfig -Node $parsed
+
+    # Phase 3 additive timeout defaults (D-02): on every load, seed any missing
+    # transport.timeouts keys from shipped defaults without overwriting user values.
+    # This keeps existing configs valid when new timeout keys ship.
+    $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
+    if (Test-Path -LiteralPath $defaultsPath) {
+        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
+        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
+        if ($null -ne $defaults.transport -and $null -ne $defaults.transport.timeouts) {
+            if ($null -eq $config.transport) {
+                $config | Add-Member -MemberType NoteProperty -Name transport -Value ([pscustomobject]@{}) -Force
+            }
+            if ($null -eq $config.transport.timeouts) {
+                $config.transport | Add-Member -MemberType NoteProperty -Name timeouts -Value ([pscustomobject]@{}) -Force
+            }
+            foreach ($prop in $defaults.transport.timeouts.PSObject.Properties) {
+                $existing = $config.transport.timeouts.PSObject.Properties.Name
+                if (-not ($existing -contains $prop.Name)) {
+                    $config.transport.timeouts | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                }
+            }
+        }
+    }
 
     # Seed the deny-list once when absent (D-05); the file is the source of truth thereafter.
     # Membership-tested (not property-accessed) so Set-StrictMode does not throw on a NoDenyList file.

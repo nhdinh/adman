@@ -37,7 +37,14 @@
   "_comment_transport": "Per-host remote-op fallback ladder (Phase 3) with short timeouts so a probe never hangs. WinRM -> CIM/WSMan -> CIM/DCOM -> Skip.",
   "transport": {
     "order": [ "WinRM", "CimWsman", "CimDcom", "Skip" ],
-    "timeouts": { "WinRM": 15, "CIM": 20 }
+    "timeouts": {
+      "WinRM": 15,
+      "CIM": 20,
+      "_comment_perHostProbeCap": "Phase 3 (RMT-02): maximum seconds to classify one target host; dead/offline hosts become Skipped.",
+      "perHostProbeCap": 10,
+      "_comment_totalInventoryRemoteCap": "Phase 3 (RMT-02): maximum seconds for the entire fleet enrichment pass; remaining hosts become Skipped once exceeded.",
+      "totalInventoryRemoteCap": 120
+    }
   },
 
   "_comment_credentialPolicy": "Non-secret metadata only. allowRememberMe gates the opt-in DPAPI remember-me flow (D-06); NO credential is stored in this file - the DPAPI blob is a separate .store/ file written only on explicit consent. Default false = pass-through.",

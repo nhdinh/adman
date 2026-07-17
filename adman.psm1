@@ -28,6 +28,10 @@ $script:StorePath = '.store'
 # its lazy default reads the unset variable, which throws before assignment.
 $script:LocalMachineScopeCache = @{}
 
+# Phase 3 process-only transport-name cache (D-04): keyed by uppercase computer name,
+# stores 'WinRM' | 'CimWsman' | 'CimDcom' | 'Skipped'. Never holds live session objects.
+$script:TransportCache = @{}
+
 # Load Private (helpers/gate) first, then Public (exported verbs).
 foreach ($scope in @('Private', 'Public')) {
     $dir = Join-Path $PSScriptRoot $scope

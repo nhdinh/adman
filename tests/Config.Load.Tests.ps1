@@ -212,8 +212,8 @@ Describe 'Initialize-AdmanConfig Phase 3 timeout config (RMT-01/02, D-02)' -Tag 
 
     It '$script:TransportCache is initialized as an empty hashtable in adman.psm1' {
         & (Get-Module adman) {
-            $script:TransportCache | Should -Not -BeNullOrEmpty
-            $script:TransportCache -is [hashtable] | Should -BeTrue
+            $script:TransportCache | Should -Not -Be $null
+            ($script:TransportCache -is [hashtable]) | Should -BeTrue
             $script:TransportCache.Count | Should -Be 0
         }
     }

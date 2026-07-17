@@ -30,7 +30,14 @@
   "ReportDir": "reports",
   "transport": {
     "order": [ "WinRM", "CimWsman", "CimDcom", "Skip" ],
-    "timeouts": { "WinRM": 15, "CIM": 20 }
+    "timeouts": {
+      "WinRM": 15,
+      "CIM": 20,
+      "_comment_perHostProbeCap": "Phase 3 (RMT-02): hard ceiling for classifying one target host (WinRM -> CIM/WSMan -> CIM/DCOM). Dead hosts return Skipped instead of hanging.",
+      "perHostProbeCap": 10,
+      "_comment_totalInventoryRemoteCap": "Phase 3 (RMT-02): hard ceiling for the entire fleet remote-enrichment pass inside Get-AdmanInventoryReport. Remaining hosts marked Skipped once exceeded.",
+      "totalInventoryRemoteCap": 120
+    }
   },
   "credentialPolicy": {
     "allowRememberMe": false

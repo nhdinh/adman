@@ -124,10 +124,23 @@
         },
         "timeouts": {
           "type": "object",
-          "required": [ "WinRM", "CIM" ],
+          "description": "Per-host probe timeout ceiling for remote enrichment (D-02). perHostProbeCap caps each host's transport-ladder time; totalInventoryRemoteCap caps the entire fleet enrichment pass.",
+          "required": [ "WinRM", "CIM", "perHostProbeCap", "totalInventoryRemoteCap" ],
           "properties": {
-            "WinRM": { "type": "integer", "description": "WinRM probe timeout (seconds).", "default": 15 },
-            "CIM":   { "type": "integer", "description": "CIM/DCOM probe timeout (seconds).", "default": 20 }
+            "WinRM": { "type": "integer", "description": "Startup WinRM capability probe timeout (seconds); kept separate from per-host probe cap.", "default": 15 },
+            "CIM":   { "type": "integer", "description": "Startup CIM/DCOM capability probe timeout (seconds); kept separate from per-host probe cap.", "default": 20 },
+            "perHostProbeCap": {
+              "type": "integer",
+              "description": "Maximum seconds spent classifying a single target host (WinRM -> CIM/WSMan -> CIM/DCOM). Hosts exceeding this are reported as Skipped (D-02, RMT-02).",
+              "default": 10,
+              "minimum": 1
+            },
+            "totalInventoryRemoteCap": {
+              "type": "integer",
+              "description": "Maximum seconds for the entire remote-enrichment pass inside Get-AdmanInventoryReport. Once exceeded, remaining hosts are reported as Skipped without further network attempts (D-02, RMT-02).",
+              "default": 120,
+              "minimum": 1
+            }
           }
         }
       }
