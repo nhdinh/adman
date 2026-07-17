@@ -97,23 +97,25 @@ function Test-AdmanConfigValid {
         throw "Config validation failed: 'ManagedOUs' must be an array of DN strings."
     }
 
-    # DenyList: array of { token:string, note:string }. Absent/null is handled by the seed step
-    # (D-05) before validation; a present-but-wrong-typed value is a hard failure (CONF-02).
+    # DenyList: required array of { token:string, note:string }. A missing or null DenyList is
+    # a hard validation failure; the seed step in Initialize-AdmanConfig ensures it is populated
+    # before this validator runs (CR-02).
     # Membership-tested (not property-accessed) so Set-StrictMode does not throw when DenyList
     # is absent - this validator is shared by Set-/Import-AdmanConfig which validate directly.
-    if ($Config.PSObject.Properties.Name -contains 'DenyList' -and $null -ne $Config.DenyList) {
-        if (-not ($Config.DenyList -is [array])) {
-            throw "Config validation failed: 'DenyList' must be an array of { token, note } objects."
+    if (-not ($Config.PSObject.Properties.Name -contains 'DenyList') -or $null -eq $Config.DenyList) {
+        throw "Config validation failed: 'DenyList' is required and must be an array."
+    }
+    if (-not ($Config.DenyList -is [array])) {
+        throw "Config validation failed: 'DenyList' must be an array of { token, note } objects."
+    }
+    foreach ($entry in $Config.DenyList) {
+        $hasToken = $entry.PSObject.Properties.Name -contains 'token'
+        $hasNote = $entry.PSObject.Properties.Name -contains 'note'
+        if (-not $hasToken -or -not $hasNote) {
+            throw "Config validation failed: each DenyList entry must have 'token' and 'note'."
         }
-        foreach ($entry in $Config.DenyList) {
-            $hasToken = $entry.PSObject.Properties.Name -contains 'token'
-            $hasNote = $entry.PSObject.Properties.Name -contains 'note'
-            if (-not $hasToken -or -not $hasNote) {
-                throw "Config validation failed: each DenyList entry must have 'token' and 'note'."
-            }
-            if (-not ($entry.token -is [string]) -or -not ($entry.note -is [string])) {
-                throw "Config validation failed: DenyList 'token' and 'note' must be strings."
-            }
+        if (-not ($entry.token -is [string]) -or -not ($entry.note -is [string])) {
+            throw "Config validation failed: DenyList 'token' and 'note' must be strings."
         }
     }
 
@@ -262,9 +264,10 @@ function Initialize-AdmanConfig {
         }
     }
 
-    # Seed the deny-list once when absent (D-05); the file is the source of truth thereafter.
-    # Membership-tested (not property-accessed) so Set-StrictMode does not throw on a NoDenyList file.
-    if (-not ($config.PSObject.Properties.Name -contains 'DenyList')) {
+    # Seed the deny-list once when absent or explicitly null (D-05, CR-02); the file is the
+    # source of truth thereafter. Membership-tested (not property-accessed) so Set-StrictMode
+    # does not throw on a NoDenyList file.
+    if (-not ($config.PSObject.Properties.Name -contains 'DenyList') -or $null -eq $config.DenyList) {
         $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
         $seed = (Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json).DenyList
         $seed = ConvertTo-AdmanCleanConfig -Node $seed

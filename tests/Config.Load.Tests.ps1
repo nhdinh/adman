@@ -151,6 +151,31 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         @($second.DenyList).Count | Should -Be 3 -Because 'a second load must not re-seed/duplicate the deny-list'
     }
 
+    It 'seeds the deny-list when DenyList is present but null (CR-02)' {
+        $store = Join-Path $TestDrive 'seed-null-denylist'
+        $cfg = New-AdmanTestConfig
+        $cfg.DenyList = $null
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        $loaded = Get-Content -LiteralPath (Join-Path $store 'config.json') -Raw | ConvertFrom-Json
+        @($loaded.DenyList).Count | Should -Be 3
+        $tokens = @($loaded.DenyList | ForEach-Object { $_.token })
+        $tokens | Should -Contain '500'
+        $tokens | Should -Contain '501'
+        $tokens | Should -Contain '502'
+    }
+
+    It 'Test-AdmanConfigValid throws when DenyList is null (CR-02)' {
+        $cfg = New-AdmanTestConfig
+        $cfg.DenyList = $null
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } |
+            Should -Throw -ExpectedMessage '*DenyList*required*'
+    }
+
     It 'static source invariants: pinned -Path, no per-user auto-import, strips _comment, 5.1-safe' {
         Test-Path -LiteralPath $script:ImplPath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:ImplPath -Raw
