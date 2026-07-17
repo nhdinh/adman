@@ -85,24 +85,26 @@ function Get-AdmanInventoryReport {
         $transport = 'Skipped'
         $targetName = if ($row.DNSHostName) { $row.DNSHostName } else { $row.Name }
 
-        if ($totalStopwatch.Elapsed.TotalSeconds -ge $totalCap) {
+        $totalRemaining = [int]($totalCap - $totalStopwatch.Elapsed.TotalSeconds)
+        if ($totalRemaining -le 0) {
             $transport = 'Skipped'
             $skipped++
         }
         else {
             $hostStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            $transport = Connect-AdmanTarget -ComputerName $targetName
+            $hostBudget = [math]::Min($perHostCap, $totalRemaining)
+            $transport = Connect-AdmanTarget -ComputerName $targetName -TimeoutSeconds $hostBudget
             if ($transport -eq 'Skipped') {
                 $skipped++
             }
 
-            $remainingSeconds = [int]($perHostCap - $hostStopwatch.Elapsed.TotalSeconds)
-            if ($remainingSeconds -le 0) {
+            $queryRemaining = [int]($hostBudget - $hostStopwatch.Elapsed.TotalSeconds)
+            if ($queryRemaining -le 0) {
                 if ($transport -ne 'Skipped') { $skipped++ }
                 $transport = 'Skipped'
             }
             else {
-                $remote = Invoke-AdmanRemoteQuery -ComputerName $targetName -Transport $transport -TimeoutSeconds $remainingSeconds
+                $remote = Invoke-AdmanRemoteQuery -ComputerName $targetName -Transport $transport -TimeoutSeconds $queryRemaining
                 if ($remote.Transport -eq 'Skipped' -and $transport -ne 'Skipped') {
                     $skipped++
                     $transport = 'Skipped'
