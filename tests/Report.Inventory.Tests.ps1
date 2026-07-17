@@ -149,3 +149,108 @@ Describe 'Get-AdmanInventoryReport: inventory contract (RPT-06)' -Tag 'Unit' {
         $result[0].PSObject.Properties.Name | Should -Not -Contain 'PropertyNames'
     }
 }
+
+Describe 'Get-AdmanInventoryReport: remote enrichment (RMT-03, D-01)' -Tag 'Unit' {
+
+    BeforeEach {
+        Mock Connect-AdmanTarget -ModuleName adman { 'WinRM' }
+        Mock Invoke-AdmanRemoteQuery -ModuleName adman { [pscustomobject]@{ RemoteOS = 'Windows 11 Pro 10.0 (26200)'; Uptime = [timespan]'7.12:34:56'; LoggedOnUser = 'MOCK\alice'; Transport = 'WinRM' } }
+        Mock Write-Warning -ModuleName adman { }
+    }
+
+    It 'enriched rows contain Transport, RemoteOS, Uptime, LoggedOnUser and Bucket=Inventory' {
+        $result = Invoke-InventoryReport
+        $result.Count | Should -BeGreaterOrEqual 1
+        foreach ($row in $result) {
+            $row.PSObject.Properties.Name | Should -Contain 'Transport'
+            $row.PSObject.Properties.Name | Should -Contain 'RemoteOS'
+            $row.PSObject.Properties.Name | Should -Contain 'Uptime'
+            $row.PSObject.Properties.Name | Should -Contain 'LoggedOnUser'
+            $row.Bucket | Should -Be 'Inventory'
+        }
+    }
+
+    It 'preserves AD-side OperatingSystem, OperatingSystemVersion, OperatingSystemServicePack' {
+        $result = Invoke-InventoryReport
+        $result.Count | Should -BeGreaterOrEqual 1
+        $result[0].OperatingSystem | Should -Not -BeNullOrEmpty
+        $result[0].OperatingSystemVersion | Should -Not -BeNullOrEmpty
+        # ServicePack may be empty on the mock; assert it exists as a property.
+        $result[0].PSObject.Properties.Name | Should -Contain 'OperatingSystemServicePack'
+    }
+
+    It 'marks Skipped and warns once when Connect-AdmanTarget returns Skipped' {
+        Mock Connect-AdmanTarget -ModuleName adman { 'Skipped' }
+        Mock Invoke-AdmanRemoteQuery -ModuleName adman { [pscustomobject]@{ RemoteOS = $null; Uptime = $null; LoggedOnUser = $null; Transport = 'Skipped' } }
+
+        $result = Invoke-InventoryReport
+
+        foreach ($row in $result) {
+            $row.Transport | Should -Be 'Skipped'
+            $row.RemoteOS | Should -BeNullOrEmpty
+            $row.Uptime | Should -BeNullOrEmpty
+            $row.LoggedOnUser | Should -BeNullOrEmpty
+        }
+        Should -Invoke Write-Warning -ModuleName adman -Times 1
+    }
+
+    It 'marks Skipped and warns once when Invoke-AdmanRemoteQuery returns Skipped due to CIM error' {
+        Mock Invoke-AdmanRemoteQuery -ModuleName adman { [pscustomobject]@{ RemoteOS = $null; Uptime = $null; LoggedOnUser = $null; Transport = 'Skipped' } }
+
+        $result = Invoke-InventoryReport
+
+        foreach ($row in $result) {
+            $row.Transport | Should -Be 'Skipped'
+        }
+        Should -Invoke Write-Warning -ModuleName adman -Times 1
+    }
+
+    It 'passes a shrinking remaining timeout budget and marks hosts Skipped when the per-host cap is exhausted' {
+        # Cap=2s gives headroom for one fast host and one slow host.
+        & (Get-Module adman) {
+            $script:Config.transport.timeouts.perHostProbeCap = 2
+        }
+        $captured = @{ Timeouts = [System.Collections.Generic.List[int]]::new() }
+        Mock Connect-AdmanTarget -ModuleName adman {
+            param($ComputerName)
+            if ($ComputerName -eq 'PC-INSCOPE-01') { Start-Sleep -Milliseconds 600; 'WinRM' }
+            else { Start-Sleep -Milliseconds 2100; 'WinRM' }
+        }
+        Mock Invoke-AdmanRemoteQuery -ModuleName adman {
+            param($ComputerName, $Transport, $TimeoutSeconds)
+            $captured.Timeouts.Add([int]$TimeoutSeconds)
+            [pscustomobject]@{ RemoteOS = 'Windows 11 Pro'; Uptime = [timespan]'1.00:00:00'; LoggedOnUser = 'MOCK\alice'; Transport = 'WinRM' }
+        }
+
+        $result = Invoke-InventoryReport
+
+        $captured.Timeouts.Count | Should -Be 1
+        $captured.Timeouts[0] | Should -BeLessThan 2
+        $skippedRows = @($result | Where-Object { $_.Transport -eq 'Skipped' })
+        $skippedRows.Count | Should -BeGreaterOrEqual 1
+    }
+
+    It 'enforces the total cap by skipping remaining rows without further probes' {
+        & (Get-Module adman) {
+            $script:Config.transport.timeouts.totalInventoryRemoteCap = 0
+        }
+
+        $result = Invoke-InventoryReport
+
+        Should -Invoke Connect-AdmanTarget -ModuleName adman -Times 0
+        foreach ($row in $result) {
+            $row.Transport | Should -Be 'Skipped'
+        }
+        Should -Invoke Write-Warning -ModuleName adman -Times 1
+    }
+
+    It 'comment-based help mentions remote enrichment, new columns, and Skipped hosts' {
+        $content = Get-Content $script:InventoryPath -Raw
+        $content | Should -BeLike '*remote enrichment*'
+        $content | Should -BeLike '*Transport*'
+        $content | Should -BeLike '*RemoteOS*'
+        $content | Should -BeLike '*Uptime*'
+        $content | Should -BeLike '*LoggedOnUser*'
+        $content | Should -BeLike '*Skipped*'
+    }
+}
