@@ -14,6 +14,11 @@
     data, not session setup twice. Refactoring it to call the single-class helper would
     double the session-setup cost per host - do not do that.
 
+    The session setup and both CIM queries run inside a single Start-Job bounded by the
+    remaining per-host timeout (WR-02). This prevents a hung provider or dropped host from
+    blocking the menu on Windows PowerShell 5.1, where -OperationTimeoutSec does not always
+    cover the initial TCP handshake as reliably as the job wrapper.
+
     Skipped transport, session-setup failure, budget exhaustion, or any CIM error returns
     empty remote fields with Transport='Skipped' so the report counts the host as skipped.
 #>
@@ -55,26 +60,46 @@ function Invoke-AdmanRemoteQuery {
         return $emptyResult
     }
 
-    $session = $null
+    # WR-02: run the real session setup + CIM queries inside a single Start-Job so the entire
+    # data path is bounded by the hard timeout on Windows PowerShell 5.1. The job extracts only
+    # the primitive properties we need so CIM-instance serialization cannot surprise us.
+    $job = $null
     try {
-        $opt = New-CimSessionOption -Protocol $protocol
-        $session = New-CimSession -ComputerName $ComputerName -SessionOption $opt -OperationTimeoutSec $remainingSeconds -ErrorAction Stop
+        $job = Start-Job -ScriptBlock {
+            param($cn, $proto, $to)
+            $opt = New-CimSessionOption -Protocol $proto
+            $sess = New-CimSession -ComputerName $cn -SessionOption $opt -OperationTimeoutSec $to -ErrorAction Stop
+            $os = Get-CimInstance -CimSession $sess -ClassName 'Win32_OperatingSystem' -OperationTimeoutSec $to -ErrorAction Stop
+            $cs = Get-CimInstance -CimSession $sess -ClassName 'Win32_ComputerSystem' -OperationTimeoutSec $to -ErrorAction Stop
+            Remove-CimSession -CimSession $sess -ErrorAction SilentlyContinue
+            @{
+                Caption        = $os.Caption
+                Version        = $os.Version
+                CSDVersion     = $os.CSDVersion
+                LastBootUpTime = $os.LastBootUpTime
+                UserName       = $cs.UserName
+            }
+        } -ArgumentList $ComputerName, $protocol, $remainingSeconds
 
-        $remainingSeconds = [int]($TimeoutSeconds - $stopwatch.Elapsed.TotalSeconds)
-        if ($remainingSeconds -le 0) {
+        $completed = $job | Wait-Job -Timeout $remainingSeconds -ErrorAction SilentlyContinue
+        if (-not $completed) {
             return $emptyResult
         }
-        $os = Get-CimInstance -CimSession $session -ClassName 'Win32_OperatingSystem' -OperationTimeoutSec $remainingSeconds -ErrorAction Stop
 
-        $remainingSeconds = [int]($TimeoutSeconds - $stopwatch.Elapsed.TotalSeconds)
-        if ($remainingSeconds -le 0) {
+        $output = Receive-Job -Job $job -ErrorAction SilentlyContinue
+
+        # Arrays containing an ErrorRecord are failures even if other objects are present.
+        $hasError = $output -is [System.Management.Automation.ErrorRecord]
+        if (-not $hasError -and $output -is [array]) {
+            $hasError = $null -ne ($output.Where({ $_ -is [System.Management.Automation.ErrorRecord] }, 'First'))
+        }
+        if ($hasError -or $null -eq $output -or -not ($output -is [hashtable])) {
             return $emptyResult
         }
-        $cs = Get-CimInstance -CimSession $session -ClassName 'Win32_ComputerSystem' -OperationTimeoutSec $remainingSeconds -ErrorAction Stop
 
-        $remoteOS = (@($os.Caption, $os.Version, $os.CSDVersion) -join ' ').Trim()
-        $uptime = if ($os.LastBootUpTime) { (Get-Date) - $os.LastBootUpTime } else { $null }
-        $loggedOn = $cs.UserName
+        $remoteOS = (@($output.Caption, $output.Version, $output.CSDVersion) -join ' ').Trim()
+        $uptime = if ($output.LastBootUpTime) { (Get-Date) - $output.LastBootUpTime } else { $null }
+        $loggedOn = $output.UserName
 
         return [pscustomobject]@{
             RemoteOS     = $remoteOS
@@ -88,8 +113,9 @@ function Invoke-AdmanRemoteQuery {
         return $emptyResult
     }
     finally {
-        if ($null -ne $session) {
-            Remove-CimSession -CimSession $session -ErrorAction SilentlyContinue
+        if ($null -ne $job) {
+            Stop-Job -Job $job -ErrorAction SilentlyContinue
+            Remove-Job -Job $job -ErrorAction SilentlyContinue
         }
     }
 }

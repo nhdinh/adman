@@ -45,14 +45,22 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
-    # Create a real local CimSession so Get-CimInstance parameter binding accepts the mock return.
-    # Use module-qualified cmdlet names to bypass any module-scope mock left behind by earlier tests.
-    $script:LocalCimSession = CimCmdlets\New-CimSession -ComputerName localhost -SessionOption (CimCmdlets\New-CimSessionOption -Protocol Dcom) -OperationTimeoutSec 5 -ErrorAction Stop
+    # Build a real Microsoft.Management.Infrastructure.CimSession object without a live DCOM
+    # connection so Get-CimInstance parameter binding accepts the mock return (WR-07).
+    $script:LocalCimSession = [Microsoft.Management.Infrastructure.CimSession]::Create('localhost')
+
+    # Create one real completed background job so the Start-Job mock can return an object that
+    # Wait-Job/Receive-Job accept without running a live job per test (WR-02).
+    $script:FakeJob = Start-Job { $null }
+    $null = Wait-Job $script:FakeJob
 }
 
 AfterAll {
     if ($null -ne $script:LocalCimSession) {
         CimCmdlets\Remove-CimSession -CimSession $script:LocalCimSession -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $script:FakeJob) {
+        Remove-Job -Job $script:FakeJob -ErrorAction SilentlyContinue
     }
 }
 
@@ -117,24 +125,30 @@ Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit
 
 Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
 
+    BeforeAll {
+        $script:FakeJobOutput = @{
+            Caption        = 'Windows 11 Pro'
+            Version        = '10.0 (26200)'
+            CSDVersion     = ''
+            LastBootUpTime = [datetime]'2026-07-10T00:00:00Z'
+            UserName       = 'MOCK\alice'
+        }
+    }
+
     BeforeEach {
         $script:CapturedTimeouts = [System.Collections.Generic.List[int]]::new()
         Mock Test-AdmanCimSessionTimeout -ModuleName adman { $true }
-        Mock New-CimSession -ModuleName adman {
-            param($ComputerName, $SessionOption, $OperationTimeoutSec)
-            $script:CapturedTimeouts.Add([int]$OperationTimeoutSec)
-            $script:LocalCimSession
-        }
-        Mock Get-CimInstance -ModuleName adman {
-            param($CimSession, $ClassName, $OperationTimeoutSec)
-            $script:CapturedTimeouts.Add([int]$OperationTimeoutSec)
-            switch ($ClassName) {
-                'Win32_OperatingSystem' { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0 (26200)'; CSDVersion = ''; LastBootUpTime = [datetime]'2026-07-10T00:00:00Z' } }
-                'Win32_ComputerSystem' { [pscustomobject]@{ UserName = 'MOCK\alice' } }
-                default { $null }
+        Mock Start-Job -ModuleName adman {
+            param($ScriptBlock, $InitializationScript, $ArgumentList)
+            if ($null -ne $ArgumentList -and $ArgumentList.Count -gt 2) {
+                $script:CapturedTimeouts.Add([int]$ArgumentList[2])
             }
+            $script:FakeJob
         }
-        Mock Remove-CimSession -ModuleName adman { param($CimSession) }
+        Mock Wait-Job -ModuleName adman { $script:FakeJob }
+        Mock Receive-Job -ModuleName adman { $script:FakeJobOutput }
+        Mock Stop-Job -ModuleName adman { }
+        Mock Remove-Job -ModuleName adman { }
     }
 
     It 'returns empty fields for Transport Skipped without touching CIM' {
@@ -145,7 +159,7 @@ Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
         $result.Uptime | Should -BeNullOrEmpty
         $result.LoggedOnUser | Should -BeNullOrEmpty
         Should -Invoke Test-AdmanCimSessionTimeout -ModuleName adman -Times 0
-        Should -Invoke New-CimSession -ModuleName adman -Times 0
+        Should -Invoke Start-Job -ModuleName adman -Times 0
     }
 
     It 'returns RemoteOS, TimeSpan Uptime, and LoggedOnUser for a reachable host' {
@@ -157,21 +171,22 @@ Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
         $result.LoggedOnUser | Should -Be 'MOCK\alice'
     }
 
-    It 'creates exactly one CIM session and queries both classes against it' {
+    It 'starts exactly one CIM job per host' {
         $null = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteQuery -ComputerName $cn -Transport $tr } -cn 'PC01' -tr 'WinRM'
 
-        Should -Invoke New-CimSession -ModuleName adman -Times 1
-        Should -Invoke Get-CimInstance -ModuleName adman -Times 2
+        Should -Invoke Start-Job -ModuleName adman -Times 1
+        Should -Invoke Wait-Job -ModuleName adman -Times 1
+        Should -Invoke Receive-Job -ModuleName adman -Times 1
     }
 
-    It 'probes session setup with Test-AdmanCimSessionTimeout before creating the real session' {
+    It 'probes session setup with Test-AdmanCimSessionTimeout before starting the CIM job' {
         $null = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteQuery -ComputerName $cn -Transport $tr } -cn 'PC01' -tr 'WinRM'
 
         Should -Invoke Test-AdmanCimSessionTimeout -ModuleName adman -Times 1
     }
 
     It 'catches a CIM error and returns empty fields with Transport Skipped' {
-        Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) throw [System.Exception]::new('RPC server unavailable') }
+        Mock Receive-Job -ModuleName adman { [System.Management.Automation.ErrorRecord]::new([System.Exception]::new('RPC server unavailable'), 'MockError', 'OperationStopped', $null) }
         Mock Write-Verbose -ModuleName adman { }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteQuery -ComputerName $cn -Transport $tr } -cn 'PC01' -tr 'WinRM'
@@ -182,16 +197,14 @@ Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
         $result.LoggedOnUser | Should -BeNullOrEmpty
     }
 
-    It 'forwards a shrinking TimeoutSeconds to New-CimSession and each Get-CimInstance' {
+    It 'forwards a shrinking TimeoutSeconds to the CIM job' {
         Mock Test-AdmanCimSessionTimeout -ModuleName adman { Start-Sleep -Milliseconds 50; $true }
         $script:CapturedTimeouts.Clear()
 
         $null = & (Get-Module adman) { param($cn, $tr, $to) Invoke-AdmanRemoteQuery -ComputerName $cn -Transport $tr -TimeoutSeconds $to } -cn 'PC01' -tr 'WinRM' -to 10
 
-        $script:CapturedTimeouts.Count | Should -Be 3
-        $script:CapturedTimeouts[0] | Should -Be 10
-        $script:CapturedTimeouts[1] | Should -BeLessOrEqual 10
-        $script:CapturedTimeouts[2] | Should -BeLessOrEqual $script:CapturedTimeouts[1]
+        $script:CapturedTimeouts.Count | Should -Be 1
+        $script:CapturedTimeouts[0] | Should -BeLessOrEqual 10
     }
 
     It 'never calls Invoke-AdmanRemoteCimQuery; the two helpers stay separate' {

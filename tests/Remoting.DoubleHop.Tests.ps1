@@ -47,13 +47,22 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
-    # Real local CimSession so the New-CimSession mock can return a validly-typed object.
-    $script:LocalCimSession = CimCmdlets\New-CimSession -ComputerName localhost -SessionOption (CimCmdlets\New-CimSessionOption -Protocol Dcom) -OperationTimeoutSec 5 -ErrorAction Stop
+    # Build a real Microsoft.Management.Infrastructure.CimSession object without a live DCOM
+    # connection so Get-CimInstance parameter binding accepts the mock return (WR-07).
+    $script:LocalCimSession = [Microsoft.Management.Infrastructure.CimSession]::Create('localhost')
+
+    # Create one real completed background job so the Start-Job mock can return an object that
+    # Wait-Job/Receive-Job accept without running a live job per test (WR-02).
+    $script:FakeJob = Start-Job { $null }
+    $null = Wait-Job $script:FakeJob
 }
 
 AfterAll {
     if ($null -ne $script:LocalCimSession) {
         CimCmdlets\Remove-CimSession -CimSession $script:LocalCimSession -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $script:FakeJob) {
+        Remove-Job -Job $script:FakeJob -ErrorAction SilentlyContinue
     }
 }
 
@@ -140,16 +149,19 @@ Describe 'Static proof: no CredSSP or remote-session constructs in connector (RM
 Describe 'Invoke-AdmanRemoteQuery runtime: no second-hop cmdlets invoked (RMT-04)' -Tag 'Unit' {
 
     BeforeEach {
-        Mock Test-AdmanCimSessionTimeout -ModuleName adman { $true }
-        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) }
-        Mock Get-CimInstance -ModuleName adman {
-            param($CimSession, $ClassName, $OperationTimeoutSec)
-            switch ($ClassName) {
-                'Win32_OperatingSystem' { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0 (26200)'; CSDVersion = ''; LastBootUpTime = [datetime]'2026-07-10T00:00:00Z' } }
-                'Win32_ComputerSystem' { [pscustomobject]@{ UserName = 'MOCK\alice' } }
-            }
+        $script:FakeJobOutput = @{
+            Caption        = 'Windows 11 Pro'
+            Version        = '10.0 (26200)'
+            CSDVersion     = ''
+            LastBootUpTime = [datetime]'2026-07-10T00:00:00Z'
+            UserName       = 'MOCK\alice'
         }
-        Mock Remove-CimSession -ModuleName adman { param($CimSession) }
+        Mock Test-AdmanCimSessionTimeout -ModuleName adman { $true }
+        Mock Start-Job -ModuleName adman { $script:FakeJob }
+        Mock Wait-Job -ModuleName adman { $script:FakeJob }
+        Mock Receive-Job -ModuleName adman { $script:FakeJobOutput }
+        Mock Stop-Job -ModuleName adman { }
+        Mock Remove-Job -ModuleName adman { }
         Mock Invoke-Command -ModuleName adman { }
         Mock New-PSSession -ModuleName adman { }
     }
