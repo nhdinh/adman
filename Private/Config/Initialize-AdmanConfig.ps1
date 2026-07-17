@@ -318,7 +318,7 @@ function Initialize-AdmanConfig {
     # PSFramework config backbone (D-01): pinned with -Path, never the auto-import persistence. The
     # result is NOT used for any safety decision (those came from the direct parse above), so a
     # non-envelope/plain file can never weaken scope or fail-open (Pitfall 7 / T-00-07).
-    try { Import-PSFConfig -Path $path -ErrorAction SilentlyContinue } catch { }
+    try { Import-PSFConfig -Path $path -ErrorAction SilentlyContinue } catch { Write-Verbose "PSFramework config import skipped for '$path': $_" }
 
     $script:Config = $config
     $script:ConfigLoaded = $true
