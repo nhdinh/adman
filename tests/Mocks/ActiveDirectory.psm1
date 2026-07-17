@@ -89,7 +89,7 @@ function New-AdmanMockScopedRow {
         OperatingSystemVersion     = '10.0 (26200)'
         OperatingSystemServicePack = ''
         IPv4Address                = '10.0.0.10'
-        DNSHostName                = 'mockpc.mock.local'
+        DNSHostName                = "$(($DistinguishedName -replace '^CN=([^,]+),.*$', '$1')).mock.local"
         LastLogonDate              = [datetime]'2026-07-01T00:00:00Z'
         whenCreated                = [datetime]'2025-01-01T00:00:00Z'
         whenChanged                = [datetime]'2026-06-01T00:00:00Z'

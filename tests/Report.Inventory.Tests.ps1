@@ -213,7 +213,7 @@ Describe 'Get-AdmanInventoryReport: remote enrichment (RMT-03, D-01)' -Tag 'Unit
         $captured = @{ Timeouts = [System.Collections.Generic.List[int]]::new() }
         Mock Connect-AdmanTarget -ModuleName adman {
             param($ComputerName)
-            if ($ComputerName -eq 'PC-INSCOPE-01') { Start-Sleep -Milliseconds 600; 'WinRM' }
+            if ($ComputerName -eq 'PC-INSCOPE-01.mock.local') { Start-Sleep -Milliseconds 600; 'WinRM' }
             else { Start-Sleep -Milliseconds 2100; 'WinRM' }
         }
         Mock Invoke-AdmanRemoteQuery -ModuleName adman {
