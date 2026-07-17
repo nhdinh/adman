@@ -346,7 +346,7 @@ function Get-ADForest {
 }
 
 function Get-CimInstance {
-    [CmdletBinding()] param($ClassName, $CimSession, $ComputerName, $Filter)
+    [CmdletBinding()] param($ClassName, $CimSession, $ComputerName, $Filter, [int]$OperationTimeoutSec)
     $o = [pscustomobject]@{ ClassName = $ClassName; Mock = $true }
     $o.PSObject.TypeNames.Insert(0, 'AdmanMock.CimInstance')
     return $o
@@ -374,7 +374,7 @@ function New-ADComputer { [CmdletBinding(SupportsShouldProcess)] param($Name, $S
 function Add-ADGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Members, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Add-ADGroupMember (mock)')) { } }
 function Remove-ADGroupMember { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Members, $Server) if ($PSCmdlet.ShouldProcess($Identity, 'Remove-ADGroupMember (mock)')) { } }
 
-function New-CimSession { [CmdletBinding(SupportsShouldProcess)] param($ComputerName, $SessionOption) if ($PSCmdlet.ShouldProcess($ComputerName, 'New-CimSession (mock)')) { [pscustomobject]@{ ComputerName = $ComputerName; Mock = $true } } }
+function New-CimSession { [CmdletBinding(SupportsShouldProcess)] param($ComputerName, $SessionOption, [int]$OperationTimeoutSec) if ($PSCmdlet.ShouldProcess($ComputerName, 'New-CimSession (mock)')) { [pscustomobject]@{ ComputerName = $ComputerName; Mock = $true } } }
 function New-PSSession { [CmdletBinding(SupportsShouldProcess)] param($ComputerName, $Credential) if ($PSCmdlet.ShouldProcess($ComputerName, 'New-PSSession (mock)')) { [pscustomobject]@{ ComputerName = $ComputerName; Mock = $true } } }
 
 # --- LocalAccounts write stubs (SupportsShouldProcess keeps the lint gate clean) ------------

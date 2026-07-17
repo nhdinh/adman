@@ -46,12 +46,13 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
     # Create a real local CimSession so Get-CimInstance parameter binding accepts the mock return.
-    $script:LocalCimSession = New-CimSession -ComputerName localhost -SessionOption (New-CimSessionOption -Protocol Dcom) -OperationTimeoutSec 5 -ErrorAction Stop
+    # Use module-qualified cmdlet names to bypass any module-scope mock left behind by earlier tests.
+    $script:LocalCimSession = CimCmdlets\New-CimSession -ComputerName localhost -SessionOption (CimCmdlets\New-CimSessionOption -Protocol Dcom) -OperationTimeoutSec 5 -ErrorAction Stop
 }
 
 AfterAll {
     if ($null -ne $script:LocalCimSession) {
-        Remove-CimSession -CimSession $script:LocalCimSession -ErrorAction SilentlyContinue
+        CimCmdlets\Remove-CimSession -CimSession $script:LocalCimSession -ErrorAction SilentlyContinue
     }
 }
 
@@ -59,12 +60,12 @@ Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit
 
     BeforeEach {
         $script:CapturedTimeouts = [System.Collections.Generic.List[int]]::new()
-        Mock New-CimSession -ModuleName adman { $script:LocalCimSession }
-        Mock Remove-CimSession -ModuleName adman { }
+        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) $script:LocalCimSession }
+        Mock Remove-CimSession -ModuleName adman { param($CimSession) }
     }
 
     It 'returns the mocked OS object for Win32_OperatingSystem' {
-        Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0 (26200)'; CSDVersion = ''; LastBootUpTime = [datetime]'2026-07-10T00:00:00Z' } }
+        Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0 (26200)'; CSDVersion = ''; LastBootUpTime = [datetime]'2026-07-10T00:00:00Z' } }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_OperatingSystem' } -cn 'PC01' -tr 'WinRM'
 
@@ -74,7 +75,7 @@ Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit
     }
 
     It 'returns the mocked computer system object for Win32_ComputerSystem' {
-        Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ UserName = 'MOCK\alice' } }
+        Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) [pscustomobject]@{ UserName = 'MOCK\alice' } }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_ComputerSystem' } -cn 'PC01' -tr 'WinRM'
 
@@ -91,8 +92,8 @@ Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit
     It 'builds the session with the protocol that matches the supplied transport' {
         $captured = @{ Protocol = $null }
         Mock New-CimSessionOption -ModuleName adman { param($Protocol) $captured.Protocol = $Protocol; New-CimSessionOption -Protocol $Protocol }
-        Mock New-CimSession -ModuleName adman { $script:LocalCimSession }
-        Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0'; CSDVersion = '' } }
+        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) $script:LocalCimSession }
+        Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0'; CSDVersion = '' } }
 
         $null = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_OperatingSystem' } -cn 'PC01' -tr 'WinRM'
         $captured.Protocol | Should -Be 'Wsman'
@@ -133,7 +134,7 @@ Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
                 default { $null }
             }
         }
-        Mock Remove-CimSession -ModuleName adman { }
+        Mock Remove-CimSession -ModuleName adman { param($CimSession) }
     }
 
     It 'returns empty fields for Transport Skipped without touching CIM' {
@@ -170,7 +171,7 @@ Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
     }
 
     It 'catches a CIM error and returns empty fields with Transport Skipped' {
-        Mock Get-CimInstance -ModuleName adman { throw [System.Exception]::new('RPC server unavailable') }
+        Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) throw [System.Exception]::new('RPC server unavailable') }
         Mock Write-Verbose -ModuleName adman { }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteQuery -ComputerName $cn -Transport $tr } -cn 'PC01' -tr 'WinRM'
