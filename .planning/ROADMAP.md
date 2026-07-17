@@ -136,15 +136,15 @@ Plans (finalized during `/gsd-plan-phase 3`):
   3. Offboarding disables, strips non-protected groups (recorded for restore), moves to quarantine OU, and surfaces related cleanup (mailbox/home-dir/GPO) as a checklist only (FLOW-02), and is reversible via restore-from-quarantine with recorded groups/original location (FLOW-03).
   4. Workflows compose existing single-object verbs through the same gate (no new AD primitives) and a mid-workflow failure stops later steps for that target and logs FAIL (FLOW-04); bulk `-WhatIf` shows a truthful count, the cap trips as configured, and `Remove-ADObject` appears nowhere.
 
-**Plans**: TBD (suggested 4-plan split below)
+**Plans**: 4/4 plans planned
 **UI hint**: no
 
-Suggested plan split (refined during `/gsd-plan-phase 4`):
+Plans (finalized during `/gsd-plan-phase 4`):
 
-- [ ] 04-01: Gated bulk engine — build target set from search → preview → max-count cap → typed count confirm → per-item continue-on-failure + per-item results; CSV ingestion only through this path with schema validation (BULK-01/02/03/04).
-- [ ] 04-02: Onboarding workflow (name format → role/OU template → create → password → baseline groups → audit) composing Phase-2 verbs (FLOW-01).
-- [ ] 04-03: Offboarding workflow (disable → strip non-protected groups recorded for restore → move to quarantine OU → cleanup checklist only) + restore-from-quarantine path (FLOW-02/03).
-- [ ] 04-04: Workflow orchestration guarantees — compose verbs through the gate (no new AD primitives), mid-workflow failure stops later steps for that target + logs FAIL, per-item audit + summary; verify no `Remove-ADObject` anywhere (FLOW-04).
+- [ ] 04-01-PLAN.md — Config template keys + gated bulk engine: normalize pipeline/CSV input, resolve + filter, enforce cap after filtering, typed-count confirmation, per-item continue-on-failure + result summary; CSV strict-schema validation (BULK-01/02/03/04).
+- [ ] 04-02-PLAN.md — Onboarding workflow: apply config template, validate baseline groups, create user via New-AdmanUser, add baseline groups via Add-AdmanGroupMember; mid-step failure stops and logs FAIL (FLOW-01/04).
+- [ ] 04-03-PLAN.md — Offboarding + restore: extend audit writer with OriginalOU/Groups, disable/strip non-protected groups/move to quarantine, read latest offboarding audit to restore; validate quarantine OU before restore (FLOW-02/03/04).
+- [ ] 04-04-PLAN.md — Menu integration + manifest exports + phase exit gate: wire bulk/onboarding/offboarding/restore into Get-AdmanMenuDefinition, update adman.psd1 FunctionsToExport, run recursive PSScriptAnalyzer and full unit suite (FLOW-01..04, BULK-01..04).
 
 ### Phase 5: Hardening & Portability
 
