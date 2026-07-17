@@ -11,19 +11,21 @@
       * CIM errors are caught, translated, and returned as Skipped.
       * Exactly one CIM session is created per host and the timeout budget shrinks.
 
-    Runs entirely offline; no RSAT, no live domain. Pester 6 syntax.
+    Get-CimInstance's -CimSession parameter requires a real Microsoft.Management.Infrastructure.
+    CimSession object, so the New-CimSession mock returns a short-lived local DCOM session. The
+    session is removed in AfterAll; no remote targets are contacted.
+
+    Runs offline; no RSAT, no live domain. Pester 6 syntax.
 #>
 
-Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit' {
+BeforeAll {
+    $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
 
-    BeforeAll {
-        $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-        $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
-
-        $stubRoot = Join-Path $TestDrive 'Modules'
-        $stubDir = Join-Path $stubRoot 'PSFramework'
-        New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
-        @"
+    $stubRoot = Join-Path $TestDrive 'Modules'
+    $stubDir = Join-Path $stubRoot 'PSFramework'
+    New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+    @"
 @{
     RootModule        = 'PSFramework.psm1'
     ModuleVersion     = '1.14.457'
@@ -31,7 +33,7 @@ Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit
     FunctionsToExport = @('Set-PSFConfig','Get-PSFConfig','Register-PSFConfigValidation','Export-PSFConfig','Import-PSFConfig','Write-PSFMessage')
 }
 "@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psd1') -Encoding UTF8
-        @'
+    @'
 function Set-PSFConfig { [CmdletBinding()] param($Value, [switch]$Initialize, $Name, $Module) }
 function Get-PSFConfig { [CmdletBinding()] param($Name, $Module) }
 function Register-PSFConfigValidation { [CmdletBinding()] param() }
@@ -39,16 +41,30 @@ function Export-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
 function Import-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
 function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 '@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psm1') -Encoding UTF8
-        $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
+    $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
 
-        Import-Module $script:ManifestPath -Force -ErrorAction Stop
+    Import-Module $script:ManifestPath -Force -ErrorAction Stop
+
+    # Create a real local CimSession so Get-CimInstance parameter binding accepts the mock return.
+    $script:LocalCimSession = New-CimSession -ComputerName localhost -SessionOption (New-CimSessionOption -Protocol Dcom) -OperationTimeoutSec 5 -ErrorAction Stop
+}
+
+AfterAll {
+    if ($null -ne $script:LocalCimSession) {
+        Remove-CimSession -CimSession $script:LocalCimSession -ErrorAction SilentlyContinue
+    }
+}
+
+Describe 'Invoke-AdmanRemoteCimQuery local-only guard (RMT-04, D-07)' -Tag 'Unit' {
+
+    BeforeEach {
+        $script:CapturedTimeouts = [System.Collections.Generic.List[int]]::new()
+        Mock New-CimSession -ModuleName adman { $script:LocalCimSession }
+        Mock Remove-CimSession -ModuleName adman { }
     }
 
     It 'returns the mocked OS object for Win32_OperatingSystem' {
-        $mockSess = [pscustomobject]@{ ComputerName = 'PC01'; Mock = $true }
-        Mock New-CimSession -ModuleName adman { $mockSess }
         Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0 (26200)'; CSDVersion = ''; LastBootUpTime = [datetime]'2026-07-10T00:00:00Z' } }
-        Mock Remove-CimSession -ModuleName adman { }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_OperatingSystem' } -cn 'PC01' -tr 'WinRM'
 
@@ -58,10 +74,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     }
 
     It 'returns the mocked computer system object for Win32_ComputerSystem' {
-        $mockSess = [pscustomobject]@{ ComputerName = 'PC01'; Mock = $true }
-        Mock New-CimSession -ModuleName adman { $mockSess }
         Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ UserName = 'MOCK\alice' } }
-        Mock Remove-CimSession -ModuleName adman { }
 
         $result = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_ComputerSystem' } -cn 'PC01' -tr 'WinRM'
 
@@ -76,11 +89,10 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     }
 
     It 'builds the session with the protocol that matches the supplied transport' {
-        $mockSess = [pscustomobject]@{ ComputerName = 'PC01'; Mock = $true }
         $captured = @{ Protocol = $null }
-        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) $captured.Protocol = $SessionOption.Protocol; $mockSess }
+        Mock New-CimSessionOption -ModuleName adman { param($Protocol) $captured.Protocol = $Protocol; New-CimSessionOption -Protocol $Protocol }
+        Mock New-CimSession -ModuleName adman { $script:LocalCimSession }
         Mock Get-CimInstance -ModuleName adman { [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0'; CSDVersion = '' } }
-        Mock Remove-CimSession -ModuleName adman { }
 
         $null = & (Get-Module adman) { param($cn, $tr) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_OperatingSystem' } -cn 'PC01' -tr 'WinRM'
         $captured.Protocol | Should -Be 'Wsman'
@@ -91,11 +103,9 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     }
 
     It 'passes TimeoutSeconds to both New-CimSession and Get-CimInstance OperationTimeoutSec' {
-        $mockSess = [pscustomobject]@{ ComputerName = 'PC01'; Mock = $true }
         $captured = @{ NewSession = $null; Query = $null }
-        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) $captured.NewSession = $OperationTimeoutSec; $mockSess }
+        Mock New-CimSession -ModuleName adman { param($ComputerName, $SessionOption, $OperationTimeoutSec) $captured.NewSession = $OperationTimeoutSec; $script:LocalCimSession }
         Mock Get-CimInstance -ModuleName adman { param($CimSession, $ClassName, $OperationTimeoutSec) $captured.Query = $OperationTimeoutSec; [pscustomobject]@{ Caption = 'Windows 11 Pro'; Version = '10.0'; CSDVersion = '' } }
-        Mock Remove-CimSession -ModuleName adman { }
 
         $null = & (Get-Module adman) { param($cn, $tr, $to) Invoke-AdmanRemoteCimQuery -ComputerName $cn -Transport $tr -ClassName 'Win32_OperatingSystem' -TimeoutSeconds $to } -cn 'PC01' -tr 'WinRM' -to 17
 
@@ -106,42 +116,13 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
 Describe 'Invoke-AdmanRemoteQuery enrichment (RMT-03, D-01)' -Tag 'Unit' {
 
-    BeforeAll {
-        $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-        $script:ManifestPath = Join-Path $script:RepoRoot 'adman.psd1'
-
-        $stubRoot = Join-Path $TestDrive 'Modules'
-        $stubDir = Join-Path $stubRoot 'PSFramework'
-        New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
-        @"
-@{
-    RootModule        = 'PSFramework.psm1'
-    ModuleVersion     = '1.14.457'
-    GUID              = 'b0000000-0000-0000-0000-0000000000e9'
-    FunctionsToExport = @('Set-PSFConfig','Get-PSFConfig','Register-PSFConfigValidation','Export-PSFConfig','Import-PSFConfig','Write-PSFMessage')
-}
-"@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psd1') -Encoding UTF8
-        @'
-function Set-PSFConfig { [CmdletBinding()] param($Value, [switch]$Initialize, $Name, $Module) }
-function Get-PSFConfig { [CmdletBinding()] param($Name, $Module) }
-function Register-PSFConfigValidation { [CmdletBinding()] param() }
-function Export-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
-function Import-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
-function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
-'@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psm1') -Encoding UTF8
-        $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
-
-        Import-Module $script:ManifestPath -Force -ErrorAction Stop
-    }
-
     BeforeEach {
-        $script:MockSession = [pscustomobject]@{ ComputerName = 'PC01'; Mock = $true }
         $script:CapturedTimeouts = [System.Collections.Generic.List[int]]::new()
         Mock Test-AdmanCimSessionTimeout -ModuleName adman { $true }
         Mock New-CimSession -ModuleName adman {
             param($ComputerName, $SessionOption, $OperationTimeoutSec)
             $script:CapturedTimeouts.Add([int]$OperationTimeoutSec)
-            $script:MockSession
+            $script:LocalCimSession
         }
         Mock Get-CimInstance -ModuleName adman {
             param($CimSession, $ClassName, $OperationTimeoutSec)
