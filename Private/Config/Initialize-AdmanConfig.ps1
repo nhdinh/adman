@@ -34,7 +34,7 @@ function ConvertTo-AdmanCleanConfig {
     #>
     [CmdletBinding()]
     [OutputType([object])]
-    param([Parameter(Mandatory)]$Node)
+    param([Parameter(Mandatory)][AllowNull()]$Node)
 
     if ($null -eq $Node) { return $null }
     if ($Node -is [string]) { return $Node }
