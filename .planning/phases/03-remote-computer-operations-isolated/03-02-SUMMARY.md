@@ -125,6 +125,8 @@ Each task was committed atomically (TDD RED/GREEN):
    - `2cdf087` feat(03-02): enrich inventory report with remote data and update menu
 3. **Task 3: Test remote query behavior and inventory enrichment**
    - `3239aef` test(03-02): extend inventory tests for remote enrichment
+4. **Post-execution test-isolation fix**
+   - `e2a8e15` test(03-02): harden Remoting.Query tests against full-suite mock pollution
 
 ## Files Created/Modified
 - `Private/Remoting/Invoke-AdmanRemoteCimQuery.ps1` - Allow-listed, local-only single-class CIM runner with session cleanup.
@@ -141,12 +143,23 @@ Each task was committed atomically (TDD RED/GREEN):
 
 ## Deviations from Plan
 
-None - plan executed exactly as written. The TDD RED/GREEN sequence was preserved: query-helper tests were committed before the helpers, and inventory tests were extended after the enrichment implementation.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Remoting.Query.Tests.ps1 failed when run as part of the full test suite**
+- **Found during:** Final verification
+- **Issue:** The shared `tests/Mocks/ActiveDirectory.psm1` stub defines `New-CimSession` and `Get-CimInstance` with incomplete parameter signatures (missing `OperationTimeoutSec`). When earlier test files import that mock module, the stubs shadow the real CIM cmdlets in the global session. Pester's mock metadata inference then builds module-scope mocks that reject the `-OperationTimeoutSec` parameter used by `Invoke-AdmanRemoteCimQuery` and `Invoke-AdmanRemoteQuery`, causing `Remoting.Query.Tests.ps1` to fail only in full-suite runs.
+- **Fix:**
+  - Added `[int]$OperationTimeoutSec` to the `New-CimSession` and `Get-CimInstance` stubs in `tests/Mocks/ActiveDirectory.psm1` so their signatures align with the real cmdlets.
+  - Changed `Remoting.Query.Tests.ps1` `BeforeAll`/`AfterAll` to use module-qualified `CimCmdlets\New-CimSession`, `CimCmdlets\New-CimSessionOption`, and `CimCmdlets\Remove-CimSession`, bypassing any globally-shadowing stub when creating the real local test session.
+  - Added explicit `param(...)` blocks to the `New-CimSession`, `Get-CimInstance`, and `Remove-CimSession` mocks in `Remoting.Query.Tests.ps1` for consistent parameter binding regardless of how Pester resolves the underlying command.
+- **Files modified:** `tests/Mocks/ActiveDirectory.psm1`, `tests/Remoting.Query.Tests.ps1`
+- **Commit:** `e2a8e15`
 
 ## Issues Encountered
 - **Get-CimInstance -CimSession parameter binding rejected PSCustomObject stand-ins.** Fixed by creating a real local DCOM `CimSession` in the test `BeforeAll` and returning it from the `New-CimSession` mock.
 - **PowerShell `[int]` cast rounds doubles rather than truncating.** This affects the shrinking-timeout calculation but was accepted because the plan explicitly specified `[int]`; tests were written with enough elapsed time to prove the budget shrinks.
 - **Pester 6 has no `-MatchLike` operator.** Replaced with `-BeLike` in the comment-based help text test.
+- **Full-suite mock pollution from `tests/Mocks/ActiveDirectory.psm1`.** Fixed as documented in Deviations; `Remoting.Query.Tests.ps1` now passes both in isolation and inside the full suite.
 
 ## User Setup Required
 None - no external service configuration required.
@@ -157,9 +170,10 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 - All created files verified present.
-- Commits `96061b0`, `e358dab`, `2cdf087`, and `3239aef` verified in repository history.
+- Commits `96061b0`, `e358dab`, `2cdf087`, `3239aef`, and `e2a8e15` verified in repository history.
 - `Invoke-Pester -Path tests/Remoting.Query.Tests.ps1, tests/Report.Inventory.Tests.ps1, tests/Result.Schema.Tests.ps1 -Tag Unit` passes (50 tests).
 - `Invoke-ScriptAnalyzer` reports zero findings on all changed files.
+- `Remoting.Query.Tests.ps1` now passes in the full test suite; the remaining full-suite failures (`Menu.Tests.ps1` parse error, `Harness.Tests.ps1` lint findings from that parse error, `Audit.FailClosed.Tests.ps1`, `Local.Gate.Tests.ps1`, `Safety.GateOrder.Tests.ps1`, `Utility.Password.Tests.ps1`) are pre-existing and unrelated to this plan.
 
 ---
 *Phase: 03-remote-computer-operations-isolated*
