@@ -105,6 +105,23 @@ public class AdmanTestJob : Job {
         Should -Invoke Remove-Job -ModuleName adman -Times 1
     }
 
+    It 'returns $null when the job output is an array containing an ErrorRecord (WR-02)' {
+        $err = [System.Management.Automation.ErrorRecord]::new(
+            [System.Exception]::new('WS-Man failure'),
+            'TestWSManError',
+            [System.Management.Automation.ErrorCategory]::NotSpecified,
+            $null
+        )
+        Mock Start-Job -ModuleName adman {
+            return [AdmanTestJob]::new('Completed', @([pscustomobject]@{ ProductVersion = 'OS: 0.0.0' }, $err))
+        }
+
+        $result = & (Get-Module adman) { param($cn, $to) Test-AdmanWsmanTimeout -ComputerName $cn -TimeoutSeconds $to } -cn 'PC01' -to 10
+
+        $result | Should -BeNullOrEmpty
+        Should -Invoke Remove-Job -ModuleName adman -Times 1
+    }
+
     It 'returns $null and cleans up the job when Test-WSMan does not complete within the timeout' {
         Mock Start-Job -ModuleName adman {
             return [AdmanTestJob]::new('Running', $null)

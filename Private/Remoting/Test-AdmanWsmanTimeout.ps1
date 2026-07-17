@@ -30,7 +30,12 @@ function Test-AdmanWsmanTimeout {
         $completed = $job | Wait-Job -Timeout $TimeoutSeconds -ErrorAction SilentlyContinue
         if ($completed) {
             $result = Receive-Job -Job $job -ErrorAction SilentlyContinue
-            if ($null -ne $result -and $result -isnot [System.Management.Automation.ErrorRecord]) {
+            # WR-02: arrays containing an ErrorRecord must be treated as failures.
+            $hasError = $result -is [System.Management.Automation.ErrorRecord]
+            if (-not $hasError -and $result -is [array]) {
+                $hasError = $null -ne ($result.Where({ $_ -is [System.Management.Automation.ErrorRecord] }, 'First'))
+            }
+            if ($null -ne $result -and -not $hasError) {
                 $success = $true
                 Remove-Job -Job $job -ErrorAction SilentlyContinue
                 return $result

@@ -33,7 +33,14 @@ function Test-AdmanCimSessionTimeout {
         $completed = $job | Wait-Job -Timeout $TimeoutSeconds -ErrorAction SilentlyContinue
         if ($completed) {
             $output = Receive-Job -Job $job -ErrorAction SilentlyContinue
-            if ($null -eq $output -or $output -isnot [System.Management.Automation.ErrorRecord]) {
+            # WR-02: arrays containing an ErrorRecord must be treated as failures even if
+            # other objects are present. A null/empty output is the normal success shape for
+            # New-CimSession.
+            $hasError = $output -is [System.Management.Automation.ErrorRecord]
+            if (-not $hasError -and $output -is [array]) {
+                $hasError = $null -ne ($output.Where({ $_ -is [System.Management.Automation.ErrorRecord] }, 'First'))
+            }
+            if (-not $hasError) {
                 $success = $true
                 Remove-Job -Job $job -ErrorAction SilentlyContinue
                 return $true

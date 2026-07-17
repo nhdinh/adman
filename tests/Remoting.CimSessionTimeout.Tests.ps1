@@ -104,6 +104,23 @@ public class AdmanTestJob : Job {
         Should -Invoke Remove-Job -ModuleName adman -Times 1
     }
 
+    It 'returns $false when the job output is an array containing an ErrorRecord (WR-02)' {
+        $err = [System.Management.Automation.ErrorRecord]::new(
+            [System.Exception]::new('CIM failure'),
+            'NewCimSessionError',
+            [System.Management.Automation.ErrorCategory]::NotSpecified,
+            $null
+        )
+        Mock Start-Job -ModuleName adman {
+            return [AdmanTestJob]::new('Completed', @([pscustomobject]@{ Dummy = 'data' }, $err))
+        }
+
+        $result = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Wsman' -TimeoutSeconds $to } -cn 'PC01' -to 10
+
+        $result | Should -Be $false
+        Should -Invoke Remove-Job -ModuleName adman -Times 1
+    }
+
     It 'returns $false and cleans up the job when New-CimSession does not complete within the timeout' {
         Mock Start-Job -ModuleName adman {
             return [AdmanTestJob]::new('Running', $null)
