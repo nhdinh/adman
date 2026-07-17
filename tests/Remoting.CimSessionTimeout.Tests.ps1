@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Proves New-CimSession setup is wrapped in a hard-timeout Start-Job so a silently-dropped host
-    cannot hang the menu during CIM/WSMan or CIM/DCOM legs. Mocks the job cmdlets to avoid real
-    background jobs.
+    cannot hang the menu during CIM/WSMan or CIM/DCOM legs. Uses a lightweight C# synthetic Job
+    so no real background jobs are created.
 #>
 
 Describe 'Test-AdmanCimSessionTimeout hard-timeout wrapper (RMT-02, Pitfall 1)' -Tag 'Unit' {
@@ -38,42 +38,46 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
         Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
-        & (Get-Module adman) {
-            $script:Config = [pscustomobject]@{
-                ManagedOUs = @('OU=Managed,DC=mock,DC=local')
-                DC         = 'dc.mock.local'
-                transport  = [pscustomobject]@{
-                    timeouts = [pscustomobject]@{
-                        perHostProbeCap         = 10
-                        totalInventoryRemoteCap = 120
-                    }
-                }
-            }
-            $script:TransportCache = @{}
+        if (-not ('AdmanTestJob' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Management.Automation;
+
+public class AdmanTestJob : Job {
+    public object TestOutput { get; private set; }
+    public override string StatusMessage { get { return ""; } }
+    public override bool HasMoreData { get { return false; } }
+    public override string Location { get { return "localhost"; } }
+
+    public AdmanTestJob(string state, object output) : base("adman-probe", "adman-probe") {
+        TestOutput = output;
+        SetJobState((JobState)Enum.Parse(typeof(JobState), state));
+    }
+
+    public override void StopJob() { }
+}
+'@
         }
     }
 
     BeforeEach {
         Mock Wait-Job -ModuleName adman {
-            param([Parameter(ValueFromPipeline = $true)]$Job)
-            if ($Job -and $Job.State -eq 'Completed') { return $Job }
+            param([Parameter(ValueFromPipeline = $true)][System.Management.Automation.Job[]]$Job, [int]$Timeout)
+            if ($Job -and $Job[0].State -eq [System.Management.Automation.JobState]::Completed) { return $Job[0] }
             return $null
         }
         Mock Receive-Job -ModuleName adman {
-            param($Job)
-            if ($Job) { return $Job.Output }
+            param([System.Management.Automation.Job[]]$Job)
+            if ($Job -and $Job[0] -is [AdmanTestJob]) { return $Job[0].TestOutput }
             return $null
         }
-        Mock Remove-Job -ModuleName adman { }
-        Mock Stop-Job -ModuleName adman { }
+        Mock Remove-Job -ModuleName adman { param([System.Management.Automation.Job[]]$Job) }
+        Mock Stop-Job -ModuleName adman { param([System.Management.Automation.Job[]]$Job) }
     }
 
     It 'returns $true when the probe job completes successfully' {
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Completed'
-                Output = $null
-            }
+            return [AdmanTestJob]::new('Completed', $null)
         }
 
         $result = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Wsman' -TimeoutSeconds $to } -cn 'PC01' -to 10
@@ -91,10 +95,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             $null
         )
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Completed'
-                Output = $err
-            }
+            return [AdmanTestJob]::new('Completed', $err)
         }
 
         $result = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Wsman' -TimeoutSeconds $to } -cn 'PC01' -to 10
@@ -105,10 +106,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     It 'returns $false and cleans up the job when New-CimSession does not complete within the timeout' {
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Running'
-                Output = $null
-            }
+            return [AdmanTestJob]::new('Running', $null)
         }
 
         $result = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Dcom' -TimeoutSeconds $to } -cn 'DEADHOST' -to 10
@@ -120,10 +118,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     It 'returns $false and cleans up the job when the job state is Failed' {
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Failed'
-                Output = $null
-            }
+            return [AdmanTestJob]::new('Failed', $null)
         }
 
         $result = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Wsman' -TimeoutSeconds $to } -cn 'PC01' -to 10
@@ -135,10 +130,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     It 'supports both Wsman and Dcom protocol parameter values' {
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Completed'
-                Output = $null
-            }
+            return [AdmanTestJob]::new('Completed', $null)
         }
 
         $wsman = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Wsman' -TimeoutSeconds $to } -cn 'PC01' -to 10
@@ -150,10 +142,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
 
     It 'leaves no adman probe jobs behind after timeout and failure cases' {
         Mock Start-Job -ModuleName adman {
-            return [pscustomobject]@{
-                State  = 'Running'
-                Output = $null
-            }
+            return [AdmanTestJob]::new('Running', $null)
         }
 
         $null = & (Get-Module adman) { param($cn, $to) Test-AdmanCimSessionTimeout -ComputerName $cn -Protocol 'Dcom' -TimeoutSeconds $to } -cn 'DEADHOST' -to 10
