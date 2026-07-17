@@ -108,6 +108,9 @@ function Test-AdmanConfigValid {
     if (-not ($Config.DenyList -is [array])) {
         throw "Config validation failed: 'DenyList' must be an array of { token, note } objects."
     }
+    if ($Config.DenyList.Count -lt 1) {
+        throw "Config validation failed: 'DenyList' must contain at least one protected identity entry."
+    }
     foreach ($entry in $Config.DenyList) {
         $hasToken = $entry.PSObject.Properties.Name -contains 'token'
         $hasNote = $entry.PSObject.Properties.Name -contains 'note'
