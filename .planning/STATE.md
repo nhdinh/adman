@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 03
 current_phase_name: remote-computer-operations-isolated
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-07-17T04:26:53.105Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-07-17T04:50:40.875Z"
 last_activity: 2026-07-17
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 23
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 03 (remote-computer-operations-isolated) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-17 — Phase 03 execution started
 
-Progress: [█████████░] 91% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [██████████] 96% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Progress: [█████████░] 91% (Phase 1 of 6, 4 of 4 Phase 1 pla
 | Phase 02 P09 | ~11m | 3 tasks | 5 files |
 | Phase 02 P10 | ~12m | 3 tasks | 4 files |
 | Phase 03-remote-computer-operations-isolated P01 | 35min | 3 tasks | 15 files |
+| Phase 03-remote-computer-operations-isolated P02 | 42min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Pester 6 requires BeforeEach inside a Describe block; existing test stubs were restructured to comply.
 - [Phase ?]: C# Add-Type synthetic Job subclass is used in timeout-wrapper tests because System.Management.Automation.Job parameter binding rejects PSCustomObject stand-ins.
 - [Phase ?]: Timeout wrappers stop+remove jobs on any non-success path and remove-only on success, keeping cleanup centralized in a single finally block.
+- [Phase ?]: Invoke-AdmanRemoteQuery intentionally does not call Invoke-AdmanRemoteCimQuery so one transient session serves both allowed CIM classes, avoiding double session-setup cost.
+- [Phase ?]: Per-host cap is enforced by starting a stopwatch before Connect-AdmanTarget and passing the remaining budget into Invoke-AdmanRemoteQuery, which recomputes before New-CimSession and each Get-CimInstance.
+- [Phase ?]: CIM errors and budget exhaustion return Transport='Skipped' so the skipped-host count stays accurate for operators.
 
 ### Pending Todos
 
@@ -171,7 +175,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-17T04:26:53.097Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-07-17T04:50:40.867Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
