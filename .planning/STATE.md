@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 02
-current_phase_name: single-object-lifecycle-writes-begin-bounded-to-one
+current_phase: 03
+current_phase_name: remote-computer-operations-isolated
 status: executing
-stopped_at: Phase 03 context gathered
-last_updated: "2026-07-16T13:02:17.733Z"
-last_activity: 2026-07-16
-last_activity_desc: Phase 02 execution started
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-07-17T04:26:53.105Z"
+last_activity: 2026-07-17
+last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 23
+  completed_plans: 21
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-14)
 
 **Core value:** Any admin on the team can perform common AD/local-user & computer tasks correctly and safely — every destructive action is previewed (`-WhatIf`), confirmed, scoped to a managed OU, blocked from protected accounts, and written to an audit log.
-**Current focus:** Phase 02 — single-object-lifecycle-writes-begin-bounded-to-one
+**Current focus:** Phase 03 — remote-computer-operations-isolated
 
 ## Current Position
 
-Phase: 02 (single-object-lifecycle-writes-begin-bounded-to-one) — EXECUTING
-Plan: 5 of 10
+Phase: 03 (remote-computer-operations-isolated) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-07-16 — Phase 02 execution started
+Last activity: 2026-07-17 — Phase 03 execution started
 
-Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [█████████░] 91% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 02 P08 | ~7m | 2 tasks | 2 files |
 | Phase 02 P09 | ~11m | 3 tasks | 5 files |
 | Phase 02 P10 | ~12m | 3 tasks | 4 files |
+| Phase 03-remote-computer-operations-isolated P01 | 35min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -138,6 +139,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: [Phase 02-10]: Test-AdmanTargetAllowed -Operation ValidateSet spans all 10 gate verbs (copied verbatim from Invoke-AdmanMutation.ps1:47-49); consulted ONLY for the Remove-ADGroupMember skip (D-04 remediation asymmetry); Reset-ADComputerPassword deliberately excluded (not a gate verb)
 - [Phase ?]: [Phase 02-10]: Group-refusal audit restructured to per-member records (member DN in target field, group DN in group field) so forensics can tell which member the add was attempted on (G-02-9)
 - [Phase ?]: [Phase 02-10]: Write-Warning emitted AFTER Write-AdmanAudit on member-refusal and BEFORE throw on group-refusal; audit is authoritative log, warning is operator-visible surface (G-02-6)
+- [Phase ?]: Pester 6 requires BeforeEach inside a Describe block; existing test stubs were restructured to comply.
+- [Phase ?]: C# Add-Type synthetic Job subclass is used in timeout-wrapper tests because System.Management.Automation.Job parameter binding rejects PSCustomObject stand-ins.
+- [Phase ?]: Timeout wrappers stop+remove jobs on any non-success path and remove-only on success, keeping cleanup centralized in a single finally block.
 
 ### Pending Todos
 
@@ -167,7 +171,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-16T13:02:17.725Z
-Stopped at: Phase 03 context gathered
-Resume file: .planning/phases/03-remote-computer-operations-isolated/03-CONTEXT.md
+Last session: 2026-07-17T04:26:53.097Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).

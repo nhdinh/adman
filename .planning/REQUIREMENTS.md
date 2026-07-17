@@ -78,8 +78,8 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Remote Computer Operations (RMT)
 
-- [ ] **RMT-01**: Tool probes each target with a WinRM → CIM/WSMan → CIM/DCOM → skip ladder and caches the working transport per host
-- [ ] **RMT-02**: Unreachable hosts are reported as `Skipped` (a first-class non-error outcome), not failures; the menu never hangs on dead hosts (short timeouts)
+- [x] **RMT-01**: Tool probes each target with a WinRM → CIM/WSMan → CIM/DCOM → skip ladder and caches the working transport per host
+- [x] **RMT-02**: Unreachable hosts are reported as `Skipped` (a first-class non-error outcome), not failures; the menu never hangs on dead hosts (short timeouts)
 - [ ] **RMT-03**: Admin can run read-only remote queries (online/OS/uptime/logged-on user) that enrich inventory
 - [ ] **RMT-04**: Remote operations handle the double-hop by design (avoid second hop preferred; RBCD/JEA over CredSSP; never for "sensitive, cannot be delegated" accounts)
 
@@ -194,8 +194,8 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | RPT-05 | Phase 1 | Complete |
 | RPT-06 | Phase 1 | Complete |
 | RPT-07 | Phase 1 | Complete |
-| RMT-01 | Phase 3 | Pending |
-| RMT-02 | Phase 3 | Pending |
+| RMT-01 | Phase 3 | Complete |
+| RMT-02 | Phase 3 | Complete |
 | RMT-03 | Phase 3 | Pending |
 | RMT-04 | Phase 3 | Pending |
 | FLOW-01 | Phase 4 | Pending |
