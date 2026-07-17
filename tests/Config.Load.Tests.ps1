@@ -109,6 +109,27 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         & (Get-Module adman) { $script:ConfigLoaded | Should -BeTrue }
     }
 
+    It 'throws FAIL-CLOSED when ManagedOUs is present but null (CR-01)' {
+        $store = Join-Path $TestDrive 'null-managedous'
+        $cfg = New-AdmanTestConfig
+        $cfg.ManagedOUs = $null
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        { & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store } |
+            Should -Throw -ExpectedMessage '*FAIL-CLOSED*managed-OU scope*'
+    }
+
+    It 'throws FAIL-CLOSED when ManagedOUs contains only whitespace strings (CR-01)' {
+        $store = Join-Path $TestDrive 'whitespace-managedous'
+        $cfg = New-AdmanTestConfig -ManagedOUs @(' ', '  ')
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        { & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store } |
+            Should -Throw -ExpectedMessage '*FAIL-CLOSED*managed-OU scope*'
+    }
+
     It 'seeds the deny-list once on a truly fresh file and never re-seeds on a second load (D-05)' {
         $store = Join-Path $TestDrive 'seed-once'
         $cfg = New-AdmanTestConfig -NoDenyList   # ManagedOUs present, DenyList absent

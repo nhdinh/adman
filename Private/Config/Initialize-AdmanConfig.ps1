@@ -276,7 +276,9 @@ function Initialize-AdmanConfig {
     Test-AdmanConfigValid -Config $config -ModuleRoot $moduleRoot | Out-Null
 
     if (-not $SetupMode) {
-        $scopeCount = @($config.ManagedOUs).Count
+        # CR-01: null or whitespace-only ManagedOUs must not bypass the fail-closed scope gate.
+        # @($null).Count returns 1 in PowerShell, so we inspect the actual DN strings.
+        $scopeCount = @($config.ManagedOUs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
         if ($scopeCount -lt 1) {
             throw "FAIL-CLOSED: managed-OU scope (ManagedOUs) is empty; refusing to permit any mutating operation until at least one managed-OU root is configured."
         }
