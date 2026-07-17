@@ -57,7 +57,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             bulk                 = @{ maxCount = 50 }
             AuditDir             = '.store/audit'
             ReportDir            = 'reports'
-            transport            = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20 } }
+            transport            = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 10; totalInventoryRemoteCap = 120 } }
             credentialPolicy     = @{ allowRememberMe = $false }
             AdmanProtectedGroup  = ''
             DC                   = ''
@@ -142,5 +142,79 @@ Describe 'Initialize-AdmanConfig load path (CONF-01/03, D-04/D-05)' -Tag 'Unit' 
         ($src | Select-String -Pattern '_comment').Count | Should -BeGreaterOrEqual 1
         # 5.1-safe: Core-only ConvertFrom-Json hashtable switch must NOT appear (Pitfall 8)
         @($src | Select-String -Pattern '\-AsHashtable').Count | Should -Be 0
+        # Phase 3: timeout additive-merge must be sourced from adman.defaults.json (not hard-coded).
+        $src | Should -Match 'adman\.defaults\.json'
+    }
+}
+
+Describe 'Initialize-AdmanConfig Phase 3 timeout config (RMT-01/02, D-02)' -Tag 'Unit' {
+
+    It 'Test-AdmanConfigValid accepts a config with transport.timeouts.perHostProbeCap and totalInventoryRemoteCap' {
+        $cfg = New-AdmanTestConfig
+        $cfg.transport.timeouts.perHostProbeCap = 7
+        $cfg.transport.timeouts.totalInventoryRemoteCap = 90
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $null = & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot
+        $true | Should -BeTrue
+    }
+
+    It 'Test-AdmanConfigValid throws when transport.timeouts.perHostProbeCap is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.transport.timeouts = @{ WinRM = 15; CIM = 20; totalInventoryRemoteCap = 120 }
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } | Should -Throw -ExpectedMessage '*perHostProbeCap*'
+    }
+
+    It 'Test-AdmanConfigValid throws when transport.timeouts.totalInventoryRemoteCap is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.transport.timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 10 }
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } | Should -Throw -ExpectedMessage '*totalInventoryRemoteCap*'
+    }
+
+    It 'config/adman.defaults.json carries perHostProbeCap=10 and totalInventoryRemoteCap=120' {
+        $d = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'config\adman.defaults.json') -Raw | ConvertFrom-Json
+        [int]$d.transport.timeouts.perHostProbeCap | Should -Be 10
+        [int]$d.transport.timeouts.totalInventoryRemoteCap | Should -Be 120
+    }
+
+    It 'Initialize-AdmanConfig merges missing timeout keys from shipped defaults while preserving existing WinRM/CIM values' {
+        $store = Join-Path $TestDrive 'merge-timeouts'
+        $cfg = New-AdmanTestConfig
+        $cfg.transport.timeouts = @{ WinRM = 99; CIM = 88 }   # missing Phase 3 keys
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            [int]$script:Config.transport.timeouts.WinRM | Should -Be 99
+            [int]$script:Config.transport.timeouts.CIM | Should -Be 88
+            [int]$script:Config.transport.timeouts.perHostProbeCap | Should -Be 10
+            [int]$script:Config.transport.timeouts.totalInventoryRemoteCap | Should -Be 120
+        }
+    }
+
+    It 'Initialize-AdmanConfig preserves an existing perHostProbeCap value while adding a missing totalInventoryRemoteCap default' {
+        $store = Join-Path $TestDrive 'preserve-timeout'
+        $cfg = New-AdmanTestConfig
+        $cfg.transport.timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 42 }
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            [int]$script:Config.transport.timeouts.perHostProbeCap | Should -Be 42
+            [int]$script:Config.transport.timeouts.totalInventoryRemoteCap | Should -Be 120
+        }
+    }
+
+    It '$script:TransportCache is initialized as an empty hashtable in adman.psm1' {
+        & (Get-Module adman) {
+            $script:TransportCache | Should -Not -BeNullOrEmpty
+            $script:TransportCache -is [hashtable] | Should -BeTrue
+            $script:TransportCache.Count | Should -Be 0
+        }
     }
 }

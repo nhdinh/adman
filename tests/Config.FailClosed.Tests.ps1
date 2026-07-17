@@ -46,7 +46,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             bulk                = @{ maxCount = 50 }
             AuditDir            = '.store/audit'
             ReportDir           = 'reports'
-            transport           = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20 } }
+            transport           = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 10; totalInventoryRemoteCap = 120 } }
             credentialPolicy    = @{ allowRememberMe = $false }
             AdmanProtectedGroup = ''
             DC                  = ''
