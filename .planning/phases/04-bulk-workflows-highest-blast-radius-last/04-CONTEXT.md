@@ -17,41 +17,41 @@ The Phase 0/1/2/3 safety spine (gate, config, audit, menu, resolver, scope/prote
 
 ### Area 1 — Bulk input source & action scope (BULK-01/02/04)
 
-- **D-01: Phase 4 supports both search-based and CSV bulk input, normalized to one bulk input shape.** Both paths produce the same internal object before validation, cap checking, and gate invocation.
-- **D-02: Search-based bulk accepts any `Find-AdmanUser`/`Find-AdmanComputer`/report output.** Pipeline input is supported so seniors can chain commands; the menu offers a bulk entry point that uses the same Public verb.
-- **D-03: Bulkable actions in v1:** `Disable`, `Enable`, `Move`, and AD group-membership `Add`/`Remove`. **Bulk password reset is out of v1 scope** (high blast radius, hard to make idempotent, not required).
-- **D-04: Public bulk surface is a generic engine:** `Invoke-AdmanBulkAction -Action <verb> -InputObject <targets>` (plus `-Path` for CSV ingestion). Not per-action bulk verbs.
-- **D-05: Bulk Move uses a single destination OU supplied via `-TargetPath`** for the entire job, not per-row destinations.
-- **D-06: Bulk supports AD users and AD computers** where an equivalent single-object verb exists.
-- **D-07: The max-count cap applies after gate filtering.** The operator confirms the count of objects that will actually be touched, not the raw input count.
+- **D-01:** Phase 4 supports both search-based and CSV bulk input, normalized to one bulk input shape. Both paths produce the same internal object before validation, cap checking, and gate invocation.
+- **D-02:** Search-based bulk accepts any `Find-AdmanUser`/`Find-AdmanComputer`/report output. Pipeline input is supported so seniors can chain commands; the menu offers a bulk entry point that uses the same Public verb.
+- **D-03:** Bulkable actions in v1: `Disable`, `Enable`, `Move`, and AD group-membership `Add`/`Remove`. **Bulk password reset is out of v1 scope** (high blast radius, hard to make idempotent, not required).
+- **D-04:** Public bulk surface is a generic engine: `Invoke-AdmanBulkAction -Action <verb> -InputObject <targets>` (plus `-Path` for CSV ingestion). Not per-action bulk verbs.
+- **D-05:** Bulk Move uses a single destination OU supplied via `-TargetPath` for the entire job, not per-row destinations.
+- **D-06:** Bulk supports AD users and AD computers where an equivalent single-object verb exists.
+- **D-07:** The max-count cap applies after gate filtering. The operator confirms the count of objects that will actually be touched, not the raw input count.
 
 ### Area 2 — Onboarding template design (FLOW-01)
 
-- **D-08: The v1 onboarding template is stored as a non-secret config key** (`templates.onboarding`). Portable, diffable, and validated by the existing schema.
-- **D-09: Template fields:** target OU (`ParentOuDn`), baseline AD group list (`BaselineGroups`), and a name-derivation pattern string.
-- **D-10: Menu flow prompts for First Name and Last Name only;** the default template is applied automatically. (v2 may add template choice.)
-- **D-11: Naming pattern produces `sAMAccountName`;** UPN is built as `sAMAccountName@domain`. One pattern string is sufficient.
-- **D-12: sAMAccountName/CN uniqueness pre-flight runs before confirmation,** reusing the same logic as `New-AdmanUser`.
-- **D-13: Mid-workflow failure stops later steps for that target and logs FAIL** (per FLOW-04). If a baseline group add fails, no subsequent group adds run for that user.
-- **D-14: Generated password is surfaced with the same display-once hygiene as `New-AdmanUser`** (Read-Host "Press Enter when recorded" + `[Console]::Clear()` best-effort).
-- **D-15: The operator cannot override the template OU at runtime in v1.** The template OU is the authority.
-- **D-16: Public surface:** `Start-AdmanUserOnboarding -FirstName -LastName`.
-- **D-17: All baseline groups are validated through `Test-AdmanGroupAllowed` before the workflow starts.** Protected groups cannot be baseline groups.
-- **D-18: Onboarding creates the user enabled.** The generated password is single-use because `mustChangeAtNextLogon` is on by default.
+- **D-08:** The v1 onboarding template is stored as a non-secret config key (`templates.onboarding`). Portable, diffable, and validated by the existing schema.
+- **D-09:** Template fields: target OU (`ParentOuDn`), baseline AD group list (`BaselineGroups`), and a name-derivation pattern string.
+- **D-10:** Menu flow prompts for First Name and Last Name only; the default template is applied automatically. (v2 may add template choice.)
+- **D-11:** Naming pattern produces `sAMAccountName`; UPN is built as `sAMAccountName@domain`. One pattern string is sufficient.
+- **D-12:** sAMAccountName/CN uniqueness pre-flight runs before confirmation, reusing the same logic as `New-AdmanUser`.
+- **D-13:** Mid-workflow failure stops later steps for that target and logs FAIL (per FLOW-04). If a baseline group add fails, no subsequent group adds run for that user.
+- **D-14:** Generated password is surfaced with the same display-once hygiene as `New-AdmanUser` (Read-Host "Press Enter when recorded" + `[Console]::Clear()` best-effort).
+- **D-15:** The operator cannot override the template OU at runtime in v1. The template OU is the authority.
+- **D-16:** Public surface: `Start-AdmanUserOnboarding -FirstName -LastName`.
+- **D-17:** All baseline groups are validated through `Test-AdmanGroupAllowed` before the workflow starts. Protected groups cannot be baseline groups.
+- **D-18:** Onboarding creates the user enabled. The generated password is single-use because `mustChangeAtNextLogon` is on by default.
 
 ### Area 3 — Offboarding quarantine & restore (FLOW-02/03)
 
-- **D-19: The quarantine OU is a single DN stored in config** (`templates.offboarding.quarantineOU`).
-- **D-20: Original OU and stripped non-protected groups are recorded in the audit record** as structured fields (`OriginalOU`, `Groups`). The audit log is already fail-closed and authoritative; no separate state file is needed.
-- **D-21: Offboarding strips membership from all non-protected groups.** Protected-group membership is left intact and recorded.
-- **D-22: Restore is a single Public verb:** `Restore-AdmanQuarantinedUser -Identity`. It reads the latest offboarding audit record for that user, re-enables the account, restores the recorded groups, and moves the user back to the original OU.
+- **D-19:** The quarantine OU is a single DN stored in config (`templates.offboarding.quarantineOU`).
+- **D-20:** Original OU and stripped non-protected groups are recorded in the audit record as structured fields (`OriginalOU`, `Groups`). The audit log is already fail-closed and authoritative; no separate state file is needed.
+- **D-21:** Offboarding strips membership from all non-protected groups. Protected-group membership is left intact and recorded.
+- **D-22:** Restore is a single Public verb: `Restore-AdmanQuarantinedUser -Identity`. It reads the latest offboarding audit record for that user, re-enables the account, restores the recorded groups, and moves the user back to the original OU.
 
 ### Area 4 — CSV schema & resume/idempotency (BULK-03/04)
 
-- **D-23: CSV uses a fixed schema:** `ObjectType`, `Identity`, `Action`, plus optional `TargetPath` (Move) and `GroupIdentity` (group ops). Unknown columns are rejected.
-- **D-24: CSV `Action` values are user-friendly:** `Disable`, `Enable`, `Move`, `AddGroup`, `RemoveGroup`. Mapped internally to gate verbs.
-- **D-25: CSV schema validation is strict;** unknown/misspelled columns cause the import to fail before any gate invocation.
-- **D-26: v1 bulk has no persisted job state.** Bulk returns a per-item result array; operators manually re-run after failures. "Idempotent/resume-safe where cheap" means the engine skips no-op cases (e.g., disabling an already-disabled account) and reports them as success/no-change.
+- **D-23:** CSV uses a fixed schema: `ObjectType`, `Identity`, `Action`, plus optional `TargetPath` (Move) and `GroupIdentity` (group ops). Unknown columns are rejected.
+- **D-24:** CSV `Action` values are user-friendly: `Disable`, `Enable`, `Move`, `AddGroup`, `RemoveGroup`. Mapped internally to gate verbs.
+- **D-25:** CSV schema validation is strict; unknown/misspelled columns cause the import to fail before any gate invocation.
+- **D-26:** v1 bulk has no persisted job state. Bulk returns a per-item result array; operators manually re-run after failures. "Idempotent/resume-safe where cheap" means the engine skips no-op cases (e.g., disabling an already-disabled account) and reports them as success/no-change.
 
 ### Claude's Discretion
 
