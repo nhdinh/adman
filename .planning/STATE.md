@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 03
 current_phase_name: remote-computer-operations-isolated
-status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-07-17T04:50:40.875Z"
+status: verifying
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-07-17T05:16:10.966Z"
 last_activity: 2026-07-17
 last_activity_desc: Phase 03 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 
 Phase: 03 (remote-computer-operations-isolated) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-07-17 — Phase 03 execution started
 
-Progress: [██████████] 96% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -82,6 +82,7 @@ Progress: [██████████] 96% (Phase 1 of 6, 4 of 4 Phase 1 pla
 | Phase 02 P10 | ~12m | 3 tasks | 4 files |
 | Phase 03-remote-computer-operations-isolated P01 | 35min | 3 tasks | 15 files |
 | Phase 03-remote-computer-operations-isolated P02 | 42min | 3 tasks | 6 files |
+| Phase 03-remote-computer-operations-isolated P03 | 18min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Invoke-AdmanRemoteQuery intentionally does not call Invoke-AdmanRemoteCimQuery so one transient session serves both allowed CIM classes, avoiding double session-setup cost.
 - [Phase ?]: Per-host cap is enforced by starting a stopwatch before Connect-AdmanTarget and passing the remaining budget into Invoke-AdmanRemoteQuery, which recomputes before New-CimSession and each Get-CimInstance.
 - [Phase ?]: CIM errors and budget exhaustion return Transport='Skipped' so the skipped-host count stays accurate for operators.
+- [Phase ?]: Operator guidance is the canonical reference for why adman Phase 3 is local-on-target only and what to do if second-hop live actions are needed later.
+- [Phase ?]: CredSSP is explicitly excluded from v1; any future second-hop work must go through RBCD/JEA design review.
+- [Phase ?]: Static parser for -ClassName literals is intentionally simple; the real enforcement is the runtime allow-list in Invoke-AdmanRemoteCimQuery.
 
 ### Pending Todos
 
@@ -175,7 +179,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-17T04:50:40.867Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-07-17T05:16:10.959Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).

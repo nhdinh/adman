@@ -115,14 +115,14 @@ Gap-closure plans (from UAT 2026-07-16, 8 passed / 4 issues / 6 open gaps):
   2. Unreachable hosts are reported as `Skipped` (a first-class non-error outcome), short timeouts ensure the menu never hangs on dead hosts (RMT-02).
   3. Admin can run read-only remote queries (online/OS/uptime/logged-on user) that enrich inventory (RMT-03), and double-hop is handled by design (avoid the second hop preferred; RBCD/JEA over CredSSP; never for "sensitive, cannot be delegated" accounts) (RMT-04).
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 3`):
 
 - [x] 03-01-PLAN.md — `Connect-AdmanTarget` probe+cache ladder (WinRM → CIM/WSMan → CIM/DCOM → skip) with per-host cache + short timeouts + `Skipped` as a first-class non-error (RMT-01/02).
 - [x] 03-02-PLAN.md — Read-only remote query verbs (online/OS/uptime/logged-on user) enriching inventory; verbs never branch on transport (RMT-03).
-- [ ] 03-03-PLAN.md — Double-hop strategy (no-second-hop preferred; RBCD/JEA over CredSSP; never for sensitive-cannot-be-delegated accounts) + documented DCOM (135 + RPC dynamic) vs WinRM (5985/5986) firewall notes (RMT-04).
+- [x] 03-03-PLAN.md — Double-hop strategy (no-second-hop preferred; RBCD/JEA over CredSSP; never for sensitive-cannot-be-delegated accounts) + documented DCOM (135 + RPC dynamic) vs WinRM (5985/5986) firewall notes (RMT-04).
 
 ### Phase 4: Bulk & Workflows (highest blast radius, last)
 
@@ -176,7 +176,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 0. Foundation & Safety Harness | 6/6 | Complete    | 2026-07-13 |
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | In Progress|  |
-| 3. Remote Computer Operations (isolated) | 2/3 | In Progress|  |
+| 3. Remote Computer Operations (isolated) | 3/3 | In Progress|  |
 | 4. Bulk & Workflows (highest blast radius, last) | 0/4 | Not started | - |
 | 5. Hardening & Portability | 0/3 | Not started | - |
 
