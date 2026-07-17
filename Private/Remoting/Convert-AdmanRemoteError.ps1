@@ -32,7 +32,7 @@ function Convert-AdmanRemoteError {
     if ($msg -match '0x8009030e|ANONYMOUS LOGON') {
         return 'Double-hop blocked'
     }
-    if ($msg -match 'WinRM cannot complete the operation|2150859046') {
+    if ($msg -match 'WinRM cannot complete the operation|2150859046|0x80338012') {
         return 'WinRM unreachable'
     }
 
