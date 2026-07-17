@@ -1,12 +1,24 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Get-AdmanInventoryReport - computer OS/inventory report (RPT-06).
+    Get-AdmanInventoryReport - computer OS/inventory report with remote enrichment (RPT-06, RMT-03).
 
 .DESCRIPTION
-    Returns computers from the configured ManagedOUs roots with OS version and
-    basic AD attributes. Each result is mapped through ConvertTo-AdmanResult
-    -ObjectType Computer and annotated with a Bucket column set to 'Inventory'.
+    Returns computers from the configured ManagedOUs roots with OS version and basic AD
+    attributes. Each result is mapped through ConvertTo-AdmanResult -ObjectType Computer
+    and annotated with a Bucket column set to 'Inventory'.
+
+    Remote enrichment (Phase 3):
+      * Every row is extended with Transport, RemoteOS, Uptime, and LoggedOnUser.
+      * Transport is 'WinRM', 'CimWsman', 'CimDcom', or 'Skipped'.
+      * RemoteOS is a trimmed string from Win32_OperatingSystem Caption/Version/CSDVersion.
+      * Uptime is a [TimeSpan] from LastBootUpTime when the host is reachable.
+      * LoggedOnUser is the console user from Win32_ComputerSystem.UserName.
+      * AD-side OperatingSystem, OperatingSystemVersion, and OperatingSystemServicePack
+        columns are preserved unchanged.
+      * Hosts that cannot be reached or that exhaust the per-host/total time budget are
+        reported as Transport='Skipped' with empty remote fields. A single Write-Warning
+        summarizes how many hosts were skipped.
 
     Scope & paging invariants (D-02):
       * Loops every $script:Config.ManagedOUs root.
@@ -61,6 +73,52 @@ function Get-AdmanInventoryReport {
             $mapped | Add-Member -MemberType NoteProperty -Name 'Bucket' -Value 'Inventory' -Force
             $results.Add($mapped)
         }
+    }
+
+    # Phase 3 remote enrichment (D-01, D-02, D-03).
+    $perHostCap = [int]($script:Config.transport.timeouts.perHostProbeCap)
+    $totalCap = [int]($script:Config.transport.timeouts.totalInventoryRemoteCap)
+    $totalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $skipped = 0
+
+    foreach ($row in $results) {
+        $transport = 'Skipped'
+
+        if ($totalStopwatch.Elapsed.TotalSeconds -ge $totalCap) {
+            $transport = 'Skipped'
+            $skipped++
+        }
+        else {
+            $hostStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $transport = Connect-AdmanTarget -ComputerName $row.Name
+            if ($transport -eq 'Skipped') {
+                $skipped++
+            }
+
+            $remainingSeconds = [int]($perHostCap - $hostStopwatch.Elapsed.TotalSeconds)
+            if ($remainingSeconds -le 0) {
+                if ($transport -ne 'Skipped') { $skipped++ }
+                $transport = 'Skipped'
+            }
+            else {
+                $remote = Invoke-AdmanRemoteQuery -ComputerName $row.Name -Transport $transport -TimeoutSeconds $remainingSeconds
+                if ($remote.Transport -eq 'Skipped' -and $transport -ne 'Skipped') {
+                    $skipped++
+                    $transport = 'Skipped'
+                }
+                else {
+                    $row | Add-Member -MemberType NoteProperty -Name 'RemoteOS' -Value $remote.RemoteOS -Force
+                    $row | Add-Member -MemberType NoteProperty -Name 'Uptime' -Value $remote.Uptime -Force
+                    $row | Add-Member -MemberType NoteProperty -Name 'LoggedOnUser' -Value $remote.LoggedOnUser -Force
+                }
+            }
+        }
+
+        $row | Add-Member -MemberType NoteProperty -Name 'Transport' -Value $transport -Force
+    }
+
+    if ($skipped -gt 0) {
+        Write-Warning "Remote enrichment skipped for $skipped of $($results.Count) hosts."
     }
 
     return $results.ToArray()

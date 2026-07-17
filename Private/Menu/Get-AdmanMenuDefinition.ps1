@@ -80,7 +80,7 @@ function Get-AdmanMenuDefinition {
     )
 
     $userReportProperties = [string[]]($userProperties + 'Bucket')
-    $computerReportProperties = [string[]]($computerProperties + 'Bucket')
+    $computerReportProperties = [string[]]($computerProperties + 'Bucket' + 'Transport' + 'RemoteOS' + 'Uptime' + 'LoggedOnUser')
 
     $recoveryPostureProperties = [string[]]@(
         'RecycleBinEnabled','ForestFunctionalLevel','TombstoneLifetime','Generated','Freshness'
@@ -137,7 +137,7 @@ function Get-AdmanMenuDefinition {
             FixedParameters = $null
         }
         [pscustomobject]@{
-            Label           = 'Inventory report'
+            Label           = 'Fleet inventory report (with remote enrichment)'
             Verb            = 'Get-AdmanInventoryReport'
             PromptSpec      = @()
             Properties      = $computerReportProperties

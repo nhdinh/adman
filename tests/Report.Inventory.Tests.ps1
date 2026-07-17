@@ -49,13 +49,23 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:MocksModule -Force -ErrorAction Stop
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
-    # Seed $script:Config.
+    # Seed $script:Config with Phase 3 timeout keys.
     & (Get-Module adman) {
         $script:Config = [pscustomobject]@{
             ManagedOUs = @('OU=Managed,DC=mock,DC=local')
             DC         = 'dc.mock.local'
+            transport  = [pscustomobject]@{
+                timeouts = [pscustomobject]@{
+                    perHostProbeCap         = 10
+                    totalInventoryRemoteCap = 120
+                }
+            }
         }
     }
+
+    # Default Phase 3 remoting mocks: every host is reachable via WinRM with canned enrichment.
+    Mock Connect-AdmanTarget -ModuleName adman { 'WinRM' }
+    Mock Invoke-AdmanRemoteQuery -ModuleName adman { [pscustomobject]@{ RemoteOS = 'Windows 11 Pro 10.0 (26200)'; Uptime = [timespan]'7.12:34:56'; LoggedOnUser = 'MOCK\alice'; Transport = 'WinRM' } }
 
     # Helper to invoke the exported Get-AdmanInventoryReport with the mock capture reset.
     function script:Invoke-InventoryReport {
