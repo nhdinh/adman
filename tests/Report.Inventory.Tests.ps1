@@ -244,6 +244,21 @@ Describe 'Get-AdmanInventoryReport: remote enrichment (RMT-03, D-01)' -Tag 'Unit
         Should -Invoke Write-Warning -ModuleName adman -Times 1
     }
 
+    It 'aborts mid-host when the total cap is exhausted during Connect-AdmanTarget' {
+        & (Get-Module adman) {
+            $script:Config.transport.timeouts.totalInventoryRemoteCap = 1
+            $script:Config.transport.timeouts.perHostProbeCap = 10
+        }
+        Mock Connect-AdmanTarget -ModuleName adman { Start-Sleep -Milliseconds 1100; 'WinRM' }
+        Mock Invoke-AdmanRemoteQuery -ModuleName adman { [pscustomobject]@{ RemoteOS = 'Windows 11 Pro'; Uptime = [timespan]'1.00:00:00'; LoggedOnUser = 'MOCK\alice'; Transport = 'WinRM' } }
+
+        $result = Invoke-InventoryReport
+
+        Should -Invoke Invoke-AdmanRemoteQuery -ModuleName adman -Times 0
+        $skippedRows = @($result | Where-Object { $_.Transport -eq 'Skipped' })
+        $skippedRows.Count | Should -BeGreaterOrEqual 1
+    }
+
     It 'comment-based help mentions remote enrichment, new columns, and Skipped hosts' {
         $content = Get-Content $script:InventoryPath -Raw
         $content | Should -BeLike '*remote enrichment*'
