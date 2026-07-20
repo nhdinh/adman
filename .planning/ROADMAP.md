@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: AD Query & Reporting (read-only)** - Launch the TUI, search/view scoped objects, and render correct read-only reports (console/CSV/HTML) that prove AD semantics before writes consume them. (completed 2026-07-15)
 - [x] **Phase 2: Single-Object Lifecycle (writes begin)** - AD/local user, computer, and group-membership lifecycle for one object at a time, every change routed through the gate with truthful preview, scaled confirmation, and audit. (completed 2026-07-16)
 - [x] **Phase 3: Remote Computer Operations (isolated)** - Read-only remote queries behind one transport-ladder connector (WinRM → CIM/WSMan → CIM/DCOM → skip) that never hangs on dead hosts and handles double-hop by design. (completed 2026-07-17)
-- [ ] **Phase 4: Bulk & Workflows (highest blast radius, last)** - Gated bulk (preview → cap → typed confirm → per-item) and reversible onboarding/offboarding workflows that compose proven single-object verbs under one gate.
+- [x] **Phase 4: Bulk & Workflows (highest blast radius, last)** - Gated bulk (preview → cap → typed confirm → per-item) and reversible onboarding/offboarding workflows that compose proven single-object verbs under one gate. (completed 2026-07-20)
 - [ ] **Phase 5: Hardening & Portability** - Documentation, Authenticode signing, honest PS 5.1/7.6 dual-edition support via a real CI matrix, workstation/jump-host portability, credential restore, and audit hardening.
 
 ## Phase Details
@@ -177,7 +177,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 3/3 | Complete    | 2026-07-17 |
-| 4. Bulk & Workflows (highest blast radius, last) | 4/4 | In Progress|  |
+| 4. Bulk & Workflows (highest blast radius, last) | 4/4 | Complete    | 2026-07-20 |
 | 5. Hardening & Portability | 0/3 | Not started | - |
 
 **Total:** 6 phases, 25 plans (suggested), 58/58 v1 requirements mapped.
