@@ -23,6 +23,7 @@ function Import-AdmanBulkCsv {
 
     $allowed = @('ObjectType', 'Identity', 'Action', 'TargetPath', 'GroupIdentity')
     $required = @('Action', 'Identity')
+    $validActions = @('Disable', 'Enable', 'Move', 'AddGroup', 'RemoveGroup')
 
     # Read the header line first so duplicate/unknown/missing checks can throw with
     # adman messages before Import-Csv parses the rows (Import-Csv itself throws on
@@ -66,6 +67,23 @@ function Import-AdmanBulkCsv {
         ($rows[0].PSObject.Properties | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Value) }).Count -eq 0) {
         return @()
     }
+
+    # WR-05: validate row content before returning rows so malformed identities or
+    # invalid actions fail at load time rather than per-item in the bulk engine.
+    $rowIndex = 1
+    foreach ($row in $rows) {
+        if ([string]::IsNullOrWhiteSpace($row.Identity)) {
+            throw "CSV row $rowIndex has an empty Identity."
+        }
+        if ([string]::IsNullOrWhiteSpace($row.Action)) {
+            throw "CSV row $rowIndex has an empty Action."
+        }
+        if ($row.Action -notin $validActions) {
+            throw "CSV row $rowIndex has invalid Action '$($row.Action)'. Allowed values: $($validActions -join ', ')."
+        }
+        $rowIndex++
+    }
+
     # Unary comma preserves arrayness when the caller invokes us via a scriptblock.
     return ,@($rows)
 }
