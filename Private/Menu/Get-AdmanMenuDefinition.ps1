@@ -370,6 +370,54 @@ function Get-AdmanMenuDefinition {
             Properties      = $emptyProperties
             FixedParameters = $null
         }
+
+        # --- Bulk & workflows (Phase 4) -------------------------------------------
+        & $newSeparator '--- Bulk & workflows ---'
+        # v1: CSV-only bulk in the TUI. Search-based bulk is available via direct
+        # PowerShell pipeline to Invoke-AdmanBulkAction (review finding).
+        [pscustomobject]@{
+            Label           = 'Bulk action from CSV'
+            Verb            = 'Invoke-AdmanBulkAction'
+            PromptSpec      = @(
+                @{ Name = 'Action'; Prompt = 'Select bulk action'; Required = $true; Choices = @('Disable', 'Enable', 'Move', 'AddGroup', 'RemoveGroup') }
+                @{ Name = 'Path'; Prompt = 'Enter CSV path'; Required = $true }
+                @{ Name = 'TargetPath'; Prompt = 'Enter destination OU DN (Move only)'; Required = $false }
+                @{ Name = 'GroupIdentity'; Prompt = 'Enter AD group identity (AddGroup/RemoveGroup only)'; Required = $false }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+        }
+        [pscustomobject]@{
+            Label           = 'Onboard new user'
+            Verb            = 'Start-AdmanUserOnboarding'
+            PromptSpec      = @(
+                @{ Name = 'FirstName'; Prompt = 'Enter first name'; Required = $true }
+                @{ Name = 'LastName'; Prompt = 'Enter last name'; Required = $true }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+            SkipOutputPrompt = $true
+        }
+        [pscustomobject]@{
+            Label           = 'Offboard user'
+            Verb            = 'Start-AdmanUserOffboarding'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+            SkipOutputPrompt = $true
+        }
+        [pscustomobject]@{
+            Label           = 'Restore quarantined user'
+            Verb            = 'Restore-AdmanQuarantinedUser'
+            PromptSpec      = @(
+                @{ Name = 'Identity'; Prompt = 'Enter user identity (sAMAccountName/DN)'; Required = $true; Type = 'AdIdentity' }
+            )
+            Properties      = $emptyProperties
+            FixedParameters = $null
+            SkipOutputPrompt = $true
+        }
     )
 
     return $menu
