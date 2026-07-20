@@ -32,6 +32,10 @@ $script:LocalMachineScopeCache = @{}
 # stores 'WinRM' | 'CimWsman' | 'CimDcom' | 'Skipped'. Never holds live session objects.
 $script:TransportCache = @{}
 
+# Audit health flag: set to $true by Write-AdmanAudit when an OUTCOME audit write fails
+# after a mutation. Initialized here so readers work under Set-StrictMode -Version Latest.
+$script:AuditDegraded = $false
+
 # Load Private (helpers/gate) first, then Public (exported verbs).
 foreach ($scope in @('Private', 'Public')) {
     $dir = Join-Path $PSScriptRoot $scope
