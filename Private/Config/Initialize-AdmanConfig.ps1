@@ -218,7 +218,9 @@ function Initialize-AdmanConfig {
     param([switch]$SetupMode)
 
     $script:ConfigLoaded = $false
-    if (-not $script:StorePath) { $script:StorePath = '.store' }
+    if (-not $script:StorePath) {
+        $script:StorePath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) '.store'
+    }
     $path = Join-Path $script:StorePath 'config.json'
 
     # From Private/Config -> repo root (two parents up): home of config/adman.{schema,defaults}.json.
