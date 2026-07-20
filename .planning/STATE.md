@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: bulk-workflows-highest-blast-radius-last
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-07-20T04:12:33.521Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-07-20T07:20:43.944Z"
 last_activity: 2026-07-20
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 27
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # Project State
@@ -32,7 +32,7 @@ Plan: 2 of 4
 Status: Ready to execute
 Last activity: 2026-07-20 — Phase 04 execution started
 
-Progress: [█████████░] 89% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [█████████░] 93% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -85,6 +85,7 @@ Progress: [█████████░] 89% (Phase 1 of 6, 4 of 4 Phase 1 pla
 | Phase 03-remote-computer-operations-isolated P02 | 42min | 3 tasks | 6 files |
 | Phase 03-remote-computer-operations-isolated P03 | 18min | 3 tasks | 2 files |
 | Phase 04-bulk-workflows-highest-blast-radius-last P01 | 45m | 3 tasks | 11 files |
+| Phase 04-bulk-workflows-highest-blast-radius-last P04-02 | 5m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Bulk engine uses DistinguishedName as canonical Identity in bulk records
 - [Phase ?]: Invoke-AdmanBulkAction -Force skips only the outer typed-count confirmation; per-item policy/audit still run via Invoke-AdmanMutation -Force:
 - [Phase ?]: Group destination policy is validated before cap/confirm for AddGroup/RemoveGroup
+- [Phase ?]: Password display-once hygiene remains inside New-AdmanUser; the workflow does not duplicate it
+- [Phase ?]: Workflow passes -Force: to composed verbs so the outer confirmation is the only operator prompt
+- [Phase ?]: Baseline group validation runs before user creation so a protected destination fails the entire job early
 
 ### Pending Todos
 
@@ -184,7 +188,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-20T04:12:33.513Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-07-20T07:20:43.935Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
