@@ -676,9 +676,9 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
 
         $script:ResetSplatKeys | Should -Not -Contain 'ChangePasswordAtLogon' `
             -Because 'Set-ADAccountPassword does not accept -ChangePasswordAtLogon; it must be stripped from the splat (HIGH #4)'
-        $script:CallOrder.ToArray() | Should -Be @('reset', 'setuser') `
-            -Because 'the Set-ADUser -ChangePasswordAtLogon call runs AFTER the reset succeeds'
-        $script:SetUserChangePwd | Should -BeTrue `
-            -Because 'the must-change flag is applied via Set-ADUser after the reset'
+        $script:CallOrder.ToArray() | Should -Be @('reset') `
+            -Because 'the wrapper invokes ONLY Set-ADAccountPassword; ChangePasswordAtLogon is handled by a separate gate invocation (CR-01)'
+        Should -Invoke Set-ADUser -ModuleName adman -Times 0 `
+            -Because 'the wrapper must NOT call Set-ADUser; ChangePasswordAtLogon follow-up is a separate gate invocation (CR-01)'
     }
 }

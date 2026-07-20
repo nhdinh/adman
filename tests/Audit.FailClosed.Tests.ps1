@@ -264,7 +264,7 @@ Describe 'SAFE-04: Write-AdmanAudit fail-closed write-ahead behavior' -Tag 'Unit
         # AUDIT FAIL-CLOSED present and inside the PENDING branch.
         [regex]::Matches($src, 'AUDIT FAIL-CLOSED').Count | Should -BeGreaterOrEqual 1
         $pendingIdx = $src.IndexOf("if (`$Result -eq 'PENDING')")
-        $failClosedIdx = $src.IndexOf('AUDIT FAIL-CLOSED')
+        $failClosedIdx = $src.IndexOf('AUDIT FAIL-CLOSED: cannot write audit record')
         $pendingIdx | Should -BeGreaterOrEqual 0 -Because 'the writer branches on Result -eq PENDING'
         $failClosedIdx | Should -BeGreaterThan $pendingIdx `
             -Because 'the AUDIT FAIL-CLOSED throw is inside the PENDING branch'

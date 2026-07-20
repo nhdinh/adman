@@ -450,11 +450,19 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
         $decision2.Allowed | Should -BeFalse
         $decision2.Reason | Should -Match 'name'
 
-        # Out-of-scope machine -> refused.
+        # Out-of-scope machine -> refused (use a different machine name so the per-machine cache
+        # does not reuse the in-scope result from the first assertion).
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $false; Reason = 'outside managed-OU scope' } }
+        $outOfScope = [pscustomobject]@{
+            Machine     = 'OUTOFSCOPE-PC'
+            Name        = 'newuser'
+            SID         = $null
+            LocalRid    = $null
+            IsSynthetic = $true
+        }
         $decision3 = & (Get-Module adman) {
             param($O) Test-AdmanLocalTargetAllowed -Object $O -Verb 'New-LocalUser'
-        } -O $synthetic
+        } -O $outOfScope
         $decision3.Allowed | Should -BeFalse
     }
 

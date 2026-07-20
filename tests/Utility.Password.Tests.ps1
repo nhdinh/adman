@@ -211,11 +211,16 @@ Describe 'D-05: config schema additions (security block)' -Tag 'Unit' {
             bulk                = @{ maxCount = 50 }
             AuditDir            = '.store/audit'
             ReportDir           = 'reports'
-            transport           = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20 } }
+            transport           = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 10; totalInventoryRemoteCap = 120 } }
             credentialPolicy    = @{ allowRememberMe = $false }
             AdmanProtectedGroup = ''
             DC                  = ''
+            domain              = 'mock.local'
             delegatedAdminGroup = ''
+            templates           = @{
+                onboarding  = @{ ParentOuDn = 'OU=Users,OU=Managed,DC=mock,DC=local'; BaselineGroups = @(); NamePattern = '{0}.{1}' }
+                offboarding = @{ quarantineOU = 'OU=Quarantine,OU=Managed,DC=mock,DC=local' }
+            }
             security            = @{
                 passwordSource     = 'Generate'
                 passwordGeneration = @{ length = 20 }

@@ -21,7 +21,7 @@
       * Behavioral checks invoke the menu body with a mocked Read-Host / Write-Host and
         stubbed Public verbs (in-memory function table; no RSAT, no AD).
       * Get-AdmanMenuDefinition is contract-tested directly for the six Phase-1 entries
-        and the per-entry Properties [string[]] (Cycle 4 finding — D-03 schema source
+        and the per-entry Properties [string[]] (Cycle 4 finding - D-03 schema source
         for Plan 01-04 empty-result renderer output).
 
     Runs entirely offline; no RSAT, no live domain. Pester 6 syntax.
@@ -624,6 +624,7 @@ Describe 'MENU-08: GeneratedPassword Type dispatch (Tests 3, 4)' -Tag 'Unit' {
             return $true
         }
         # Set up a minimal $script:Config so the length probe resolves.
+        $script:DefaultPasswordLength = 20
         $script:Config = [pscustomobject]@{
             security = [pscustomobject]@{
                 passwordGeneration = [pscustomobject]@{ length = 20 }
@@ -818,7 +819,7 @@ Describe 'MENU-10: PromptSpec-parameter-name contract (Test 9, HIGH #1 cycle-2 r
             }
 
             foreach ($key in $splatKeys) {
-                $declaredParams | Should -Contain $key -Because "menu entry '$($entry.Label)' splats '$key' but $($entry.Verb) does not declare it (menu/verb drift — MENU-04 regression)"
+                $declaredParams | Should -Contain $key -Because "menu entry '$($entry.Label)' splats '$key' but $($entry.Verb) does not declare it (menu/verb drift - MENU-04 regression)"
             }
         }
     }
