@@ -1,8 +1,8 @@
 ---
 phase: 04-bulk-workflows-highest-blast-radius-last
-reviewed: 2026-07-20T10:02:13Z
+reviewed: 2026-07-20T00:00:00Z
 depth: standard
-files_reviewed: 25
+files_reviewed: 23
 files_reviewed_list:
   - Private/Audit/Write-AdmanAudit.ps1
   - Private/Bulk/ConvertTo-AdmanBulkInput.ps1
@@ -16,7 +16,6 @@ files_reviewed_list:
   - Public/Start-Adman.ps1
   - Public/Start-AdmanUserOffboarding.ps1
   - Public/Start-AdmanUserOnboarding.ps1
-  - adman.psd1
   - config/adman.defaults.json
   - config/adman.schema.json
   - tests/Bulk.Csv.Tests.ps1
@@ -31,145 +30,120 @@ files_reviewed_list:
   - tests/Workflow.Restore.Tests.ps1
 findings:
   critical: 1
-  warning: 7
-  info: 4
-  total: 12
+  warning: 10
+  info: 2
+  total: 13
 status: issues_found
 ---
 
-# Phase 04: Bulk Workflows Code Review Report
+# Phase 04: Bulk Workflows (Highest Blast Radius Last) — Code Review Report
 
-**Reviewed:** 2026-07-20T10:02:13Z
+**Reviewed:** 2026-07-20
 **Depth:** standard
-**Files Reviewed:** 25
+**Files Reviewed:** 23
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the Phase 4 bulk engine, onboarding/offboarding/restore workflows, audit writer, config loader, menu definition, and their unit tests. The bulk engine correctly gates moves/group destinations before the cap/confirm, propagates `-WhatIf`/`-Force` to inner verbs, and skips no-ops. However, one critical correctness bug breaks the default onboarding path, and several warnings concern incomplete confirmation scope, audit-stream null safety, report-property drift, and CSV header parsing.
+Reviewed the Phase 4 bulk engine, onboarding/offboarding/restore workflows, menu integration, audit writer, config loader, schema/defaults, and their unit tests. The code follows the established safety patterns (outer confirmation, inner `-Force:$true`, fail-closed config, no hard-delete). However, one critical correctness defect in `Restore-AdmanQuarantinedUser` can leave a restored account partially disabled in quarantine, and several warnings affect robustness, audit fidelity, or UI correctness.
 
 ## Critical Issues
 
-### CR-01: Start-AdmanUserOnboarding rejects a valid empty `BaselineGroups` array
+### CR-01: Restore passes the original `Identity` to inner verbs after moving the user
 
-**File:** `Public/Start-AdmanUserOnboarding.ps1:71-76`
-**Issue:** The template validation loop treats every required key as a string and uses `[string]::IsNullOrWhiteSpace([string]$template.$key)`. For `BaselineGroups`, an empty array `@()` casts to an empty string, so the default config (`"BaselineGroups": []`) fails validation with "Onboarding template is missing required key 'BaselineGroups'." This blocks new-user onboarding out of the box.
-**Fix:** Type-aware validation. Treat `BaselineGroups` as an array presence check, not a whitespace check:
+**File:** `Public/Restore-AdmanQuarantinedUser.ps1:106-113`
+**Issue:** `Restore-AdmanQuarantinedUser` resolves the user at line 66, validates quarantine, reads offboarding state, then calls `Add-AdmanGroupMember`, `Move-AdmanUser`, and `Enable-AdmanUser` all with `-Identity $Identity` (the original caller input). After `Move-AdmanUser` changes the DN, any subsequent re-resolution by DN in `Enable-AdmanUser` fails because the quarantine DN no longer exists. If the operator invoked restore with the original pre-offboarding DN, resolution at line 66 already fails. If they invoked it with the quarantine DN, the final enable step fails. Only `sAMAccountName` works reliably. This violates the documented invariant that a partial restore leaves the account disabled — the account is left disabled in quarantine with groups re-added and original OU restored.
+**Fix:** Resolve once and use a stable identifier for the composed verbs. Prefer the resolved user's `SamAccountName`; fall back to the original `Identity` only when `SamAccountName` is unavailable (keeps mock tests working without a SamAccountName property).
 
 ```powershell
-foreach ($key in @('ParentOuDn', 'BaselineGroups', 'NamePattern')) {
-    if (-not $template.PSObject.Properties[$key]) {
-        throw "Onboarding template is missing required key '$key'."
-    }
-    if ($key -eq 'BaselineGroups') {
-        if ($null -eq $template.$key) {
-            throw "Onboarding template is missing required key '$key'."
-        }
-    } elseif ([string]::IsNullOrWhiteSpace([string]$template.$key)) {
-        throw "Onboarding template is missing required key '$key'."
-    }
+$stableIdentity = if ($user.PSObject.Properties['SamAccountName'] -and $user.SamAccountName) {
+    $user.SamAccountName
+} else {
+    $Identity
 }
+
+foreach ($g in @($state.Groups | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+    $null = Add-AdmanGroupMember -Identity $stableIdentity -GroupIdentity $g `
+        -Force:$true -WhatIf:$WhatIfPreference
+}
+$null = Move-AdmanUser -Identity $stableIdentity -TargetPath $state.OriginalOU `
+    -Force:$true -WhatIf:$WhatIfPreference
+$null = Enable-AdmanUser -Identity $stableIdentity -Force:$true -WhatIf:$WhatIfPreference
 ```
 
 ## Warnings
 
-### WR-01: Write-AdmanAudit does not null-check the audit file stream
+### WR-01: `Write-AdmanAudit` declares `[switch]$WhatIf` but reads `$WhatIfPreference`
 
-**File:** `Private/Audit/Write-AdmanAudit.ps1:169-176`
-**Issue:** `Open-AdmanAuditStream` returns a stream via the IO seam, but the code immediately calls `$fs.Write(...)` and `$fs.Flush($true)` without verifying `$fs` is not `$null`. A seam returning `$null` would produce a secondary `NullReferenceException` that masks the real audit-open failure.
-**Fix:** Guard the stream before writing:
+**File:** `Private/Audit/Write-AdmanAudit.ps1:51, 145`
+**Issue:** The function accepts an explicit `-WhatIf` switch but never references it. The `whatIf` field is populated from the automatic `$WhatIfPreference` variable. In practice the caller always passes `-WhatIf:$WhatIfPreference` from a `SupportsShouldProcess` function, so preference-variable inheritance masks the issue, but the parameter is effectively unused and the behavior is fragile if called differently.
+**Fix:** Use the bound parameter directly: `whatIf = [bool]$WhatIf`.
 
-```powershell
-$fs = Open-AdmanAuditStream -Path $path
-if ($null -eq $fs) {
-    throw "AUDIT FAIL-CLOSED: cannot open audit stream for '$path'."
-}
-try { ... }
-finally { $fs.Dispose() }
-```
+### WR-02: `Write-AdmanAudit` does not require `-Verb`
 
-### WR-02: Computer inventory report properties are built from user properties
+**File:** `Private/Audit/Write-AdmanAudit.ps1:41`
+**Issue:** Only `-Result` is marked `[Parameter(Mandatory)]`. `-Verb` is optional, so a malformed caller could write an audit record whose `what` field is null, making the record useless for forensics.
+**Fix:** Mark `[Parameter(Mandatory)]` on `-Verb` as well.
 
-**File:** `Private/Menu/Get-AdmanMenuDefinition.ps1:82-83`
-**Issue:** `$computerReportProperties` is constructed from `$userProperties` rather than `$computerProperties`. As a result, the fleet inventory report header set omits computer-specific columns such as `OperatingSystem`, `OperatingSystemVersion`, `IPv4Address`, and `DNSHostName`, while including user-only columns such as `PasswordExpired` and `UserPrincipalName`.
-**Fix:** Use the computer base array:
+### WR-03: Bulk AddGroup/RemoveGroup no-op detection accesses `memberOf` without a property-existence guard
+
+**File:** `Public/Invoke-AdmanBulkAction.ps1:258, 264`
+**Issue:** Under `Set-StrictMode -Version Latest`, `$rec.ResolvedTarget.memberOf` throws `PropertyNotFoundException` if the resolved object lacks a `memberOf` property. Production AD objects normally have it, but mocks, deserialized objects, or non-user/computer targets can crash the per-item loop.
+**Fix:** Guard the property read:
 
 ```powershell
-$computerReportProperties = [string[]]($computerProperties + 'Bucket' + 'Transport' + 'RemoteOS' + 'Uptime' + 'LoggedOnUser')
+$memberOf = if ($rec.ResolvedTarget.PSObject.Properties['memberOf']) { @($rec.ResolvedTarget.memberOf) } else { @() }
+if ($memberOf -contains $groupDn) { ... }
 ```
 
-### WR-03: Bulk group-operation confirmation only shows the first group
+### WR-04: `Get-AdmanOffboardingState` sorts `tsUtc` as strings
 
-**File:** `Public/Invoke-AdmanBulkAction.ps1:221-223`
-**Issue:** When a CSV or pipeline contains records targeting multiple different groups, the typed-count confirmation renders only `$allowed[0].ResolvedGroup.DistinguishedName`. The operator may confirm a scope that does not match all groups actually being modified, although the inner gate still validates each item.
-**Fix:** Build a distinct group list for the prompt, or fall back to a generic "N group destination(s)" message when more than one group is present:
+**File:** `Private/Workflow/Get-AdmanOffboardingState.ps1:79`
+**Issue:** `Sort-Object -Property tsUtc -Descending` sorts ISO-8601 strings lexicographically. For the current uniform `.ToString('o')` format this happens to match chronological order, but the code relies on an implicit contract and will break if timestamp precision or timezone representation varies.
+**Fix:** Sort on parsed DateTime:
 
 ```powershell
-$groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)
-if ($groupDns.Count -eq 1) { $confirmArgs['Group'] = $groupDns[0] }
-else { $confirmArgs['Group'] = "$($groupDns.Count) distinct groups" }
+$latest = $candidates | Sort-Object -Property { [datetime]$_.tsUtc } -Descending | Select-Object -First 1
 ```
 
-### WR-04: Offboarding protected-group fallback compares DN against a list that may contain SIDs
+### WR-05: `Import-AdmanBulkCsv` validates headers but not row content
 
-**File:** `Public/Start-AdmanUserOffboarding.ps1:121-123`
-**Issue:** In the catch fallback, `$g` is a `memberOf` DN string, but it is compared with `$script:ProtectedGroupDns`, which the codebase also uses to store SID strings (see `Workflow.Offboarding.Tests.ps1:234`). A DN will never equal a SID, so the fallback does not protect unresolved groups identified only by SID.
-**Fix:** Normalize the comparison: resolve the DN to a SID where possible, and compare both DN and SID forms against the protected sets. Alternatively, keep `ProtectedGroupDns` strictly as DNs and use a separate `ProtectedGroupSids` list for SID-based protection.
+**File:** `Private/Bulk/Import-AdmanBulkCsv.ps1:59-70`
+**Issue:** The loader rejects unknown/duplicate/missing columns but does not check that `Identity` or `Action` rows are non-empty or that `Action` values are in the allowed set. Empty identities propagate to the bulk engine and are recorded as per-item failures rather than rejected at load time.
+**Fix:** Add row-level validation after `Import-Csv` and throw a terminating error before returning rows with empty `Identity` or invalid `Action`.
 
-### WR-05: `AuditDegraded` flag is not set if event-log escalation itself throws
+### WR-06: Outer confirmation is shown even when zero items passed the filter
 
-**File:** `Private/Audit/Write-AdmanAudit.ps1:203-206`
-**Issue:** In the OUTCOME-write failure path, `Write-AdmanEventLog` is invoked before `$script:AuditDegraded = $true`. If `Write-AdmanEventLog` throws, the flag is never set and the original audit-failure context is replaced by the event-log exception.
-**Fix:** Set the degraded flag before the best-effort escalation:
+**File:** `Public/Invoke-AdmanBulkAction.ps1:214-232`
+**Issue:** If every input is denied or filtered out, `$allowed.Count` is 0 but `Confirm-AdmanAction` is still invoked (with `Group` set to `"0 distinct groups"` for group operations). The operator is prompted to confirm zero objects.
+**Fix:** Skip confirmation when `$allowed.Count -eq 0`; return the summary immediately.
+
+### WR-07: `Initialize-AdmanConfig` accepts an empty `domain` value
+
+**File:** `Private/Config/Initialize-AdmanConfig.ps1:85-88, 156-158`
+**Issue:** `Test-AdmanConfigValid` checks that `domain` exists but not that it is non-empty. An empty `domain` passes validation and produces malformed UPNs (`user@`) during onboarding.
+**Fix:** Reject empty/whitespace `domain` in `Test-AdmanConfigValid`.
+
+### WR-08: Typing `B` at the CSV/HTML path prompt does not return to the menu
+
+**File:** `Public/Start-Adman.ps1:224, 249`
+**Issue:** The path-prompt `B` branch sets `$pathResolved = $true` and `$formatResolved = $true`, then `continue`s the inner path loop. Because `$pathResolved` becomes `$true`, the subsequent `if (-not $pathResolved) { continue }` does not fire, so execution falls through to `& $renderer -InputObject $reportData @rendererParams` with an empty `Path`. The renderer is invoked unexpectedly instead of returning to the menu.
+**Fix:** Do not set `$pathResolved = $true` on `B`; break the path loop and let the existing `continue` skip the renderer:
 
 ```powershell
-$script:AuditDegraded = $true
-Write-AdmanEventLog -EventId 9001 -EntryType Error -Message "..."
-Write-Warning "AUDIT OUTCOME WRITE FAILED ..."
+if ($outPath -match '^[Bb]$') { $formatResolved = $true; break }
 ```
 
-### WR-06: Default config store path is relative to the process working directory
+### WR-09: `Start-AdmanUserOffboarding` calls `Get-ADGroup` directly in a fallback path
 
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:221`
-**Issue:** When `$script:StorePath` is unset, it defaults to `'.store'`. `Join-Path` then resolves this against the current directory at invocation time, which can change depending on how adman is launched (e.g., `runas /netonly` from `C:\Windows\System32`).
-**Fix:** Default to a path resolved against the module root:
+**File:** `Public/Start-AdmanUserOffboarding.ps1:128-144`
+**Issue:** The protected-group fallback invokes the raw `Get-ADGroup` cmdlet rather than the project's `Resolve-AdmanGroup` seam, and swallows all errors with an empty `catch { }`. This duplicates resolution logic, bypasses mocks in tests, and can silently misclassify a group if the server is unreachable.
+**Fix:** Route the fallback through `Resolve-AdmanGroup` and log a warning when resolution fails instead of silently ignoring it.
 
-```powershell
-if (-not $script:StorePath) {
-    $script:StorePath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) '.store'
-}
-```
-
-### WR-07: CSV header parser does not honor quoted commas
-
-**File:** `Private/Bulk/Import-AdmanBulkCsv.ps1:30-34`
-**Issue:** The manual header check splits on literal commas (`$headerLine.Split(',')`). If a header field is quoted and contains a comma, the split produces more fields than `Import-Csv` will, causing a false positive for duplicate/unknown columns. The row parser (`Import-Csv`) handles RFC-4180 quoting correctly, so the two parsers disagree.
-**Fix:** Parse the header with the same semantics as `Import-Csv`. The simplest robust approach is to let `Import-Csv` parse the header and then inspect `$rows[0].PSObject.Properties.Name`, or use a regex CSV splitter that respects quotes.
-
-## Info
-
-### IN-01: Shared empty `[string[]]` reference across all write-menu entries
-
-**File:** `Private/Menu/Get-AdmanMenuDefinition.ps1:89, 99-101`
-**Issue:** `$emptyProperties = [string[]]@()` is a single array instance assigned to every write/report separator entry. If any downstream code mutates `$entry.Properties`, the change would affect all entries that share the reference.
-**Fix:** Return a new array for each entry (`Properties = [string[]]@()`) or make `$emptyProperties` read-only in practice by never mutating it.
-
-### IN-02: Initialize-AdmanConfig reads `adman.defaults.json` multiple times
-
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:230-231, 250-253, 272-274, 289-290`
-**Issue:** The defaults file is read up to four times during a single load. This is redundant and increases the chance of inconsistent state if the file changes mid-load.
-**Fix:** Read the defaults once at the top of the function and reuse the cleaned object for seeding, additive merges, and deny-list seeding.
-
-### IN-03: Initialization check is duplicated in every public mutating function
-
-**Files:** `Public/Invoke-AdmanBulkAction.ps1:55-59`, `Public/Start-AdmanUserOffboarding.ps1:49-53`, `Public/Start-AdmanUserOnboarding.ps1:55-59`, `Public/Restore-AdmanQuarantinedUser.ps1:45-49`
-**Issue:** The same `ManagedOUs` existence check is copy-pasted into each public function. A private helper (`Assert-AdmanInitialized`) would reduce drift and make the gate easier to update.
-**Fix:** Extract `Assert-AdmanInitialized` in `Private/Safety` and call it from each public entry point.
-
-### IN-04: Audit file name uses local time while the record timestamp uses UTC
+### WR-10: Audit file rotation uses local time while the record timestamp uses UTC
 
 **File:** `Private/Audit/Write-AdmanAudit.ps1:77, 137`
-**Issue:** The daily rotation file is named with `(Get-Date)` (local time), but the JSON record uses `ToUniversalTime()`. On a timezone boundary, an audit record written shortly after local midnight can land in a file whose date does not match the record's UTC date.
+**Issue:** The daily rotation file is named with `(Get-Date)` (local time), but the JSON record uses `ToUniversalTime()`. On a timezone boundary, an audit record written shortly after local midnight can land in a file whose date does not match the record's UTC date, complicating log searches and retention.
 **Fix:** Name the file from the same UTC timestamp used for the record:
 
 ```powershell
@@ -179,8 +153,22 @@ $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f $nowUtc
 tsUtc = $nowUtc.ToString('o')
 ```
 
+## Info
+
+### IN-01: `Write-AdmanAudit` contains a redundant audit-stream throw
+
+**File:** `Private/Audit/Write-AdmanAudit.ps1:169-172, 180-204`
+**Issue:** The function throws "AUDIT FAIL-CLOSED: cannot open audit stream..." when `Open-AdmanAuditStream` returns `$null`, but that throw is inside the same `try` block whose `catch` already decides behavior based on `$Result`. For `PENDING` the catch rethrows anyway; for non-`PENDING` it degrades. The explicit throw is dead code with a misleading message.
+**Fix:** Remove the redundant throw and rely on the catch block, or move the stream-open logic outside the main `try` so a genuine open failure can propagate as intended.
+
+### IN-02: Shared empty `[string[]]` reference across write-menu entries
+
+**File:** `Private/Menu/Get-AdmanMenuDefinition.ps1:89, 99-101`
+**Issue:** `$emptyProperties = [string[]]@()` is a single array instance assigned to every write/report separator entry. If any downstream code mutates `$entry.Properties`, the change would affect all entries that share the reference.
+**Fix:** Return a new array for each entry (`Properties = [string[]]@()`) or make `$emptyProperties` read-only in practice by never mutating it.
+
 ---
 
-_Reviewed: 2026-07-20T10:02:13Z_
+_Reviewed: 2026-07-20_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
