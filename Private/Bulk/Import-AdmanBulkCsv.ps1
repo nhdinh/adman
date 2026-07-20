@@ -52,6 +52,12 @@ function Import-AdmanBulkCsv {
     if ($null -eq $rows) {
         return @()
     }
+    # A header-only file returns one row whose properties are all empty strings.
+    # Treat that as no data so the bulk engine does not act on a phantom identity.
+    if ($rows.Count -eq 1 -and
+        ($rows[0].PSObject.Properties | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Value) }).Count -eq 0) {
+        return @()
+    }
     # Unary comma preserves arrayness when the caller invokes us via a scriptblock.
     return ,@($rows)
 }
