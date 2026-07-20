@@ -48,21 +48,27 @@ function Get-AdmanOffboardingState {
                 if ([string]::IsNullOrWhiteSpace($line)) { continue }
                 try {
                     $rec = $line | ConvertFrom-Json -ErrorAction Stop
-                } catch {
-                    continue
-                }
-                if ($rec.what -ne 'Start-AdmanUserOffboarding' -or
-                    $rec.result -ne 'Success' -or
-                    $rec.whatIf -eq $true) {
-                    continue
-                }
-                foreach ($t in @($rec.targets)) {
-                    $dnMatch = $t.dn -and $t.dn -eq $userDn
-                    $sidMatch = $t.sid -and $t.sid -eq $userSid
-                    if ($dnMatch -or $sidMatch) {
-                        $candidates.Add($rec)
-                        break
+                    if ($rec.what -ne 'Start-AdmanUserOffboarding' -or
+                        $rec.result -ne 'Success' -or
+                        $rec.whatIf -eq $true) {
+                        continue
                     }
+                    if (-not $rec.tsUtc) {
+                        Write-Warning "Skipping offboarding audit record without tsUtc in '$($file.FullName)'."
+                        continue
+                    }
+                    foreach ($t in @($rec.targets)) {
+                        if ($null -eq $t) { continue }
+                        $dnMatch = $t.PSObject.Properties['dn'] -and $t.dn -and $t.dn -eq $userDn
+                        $sidMatch = $t.PSObject.Properties['sid'] -and $t.sid -and $t.sid -eq $userSid
+                        if ($dnMatch -or $sidMatch) {
+                            $candidates.Add($rec)
+                            break
+                        }
+                    }
+                } catch {
+                    Write-Warning "Skipping corrupt offboarding audit line in '$($file.FullName)': $_"
+                    continue
                 }
             }
         }
