@@ -167,6 +167,9 @@ function Write-AdmanAudit {
 
         # Open via the seam (Append / Write / Read-share); write UTF8 bytes; flush durably.
         $fs = Open-AdmanAuditStream -Path $path
+        if ($null -eq $fs) {
+            throw "AUDIT FAIL-CLOSED: cannot open audit stream for '$path'."
+        }
         try {
             $bytes = [System.Text.Encoding]::UTF8.GetBytes($rec + "`n")
             $fs.Write($bytes, 0, $bytes.Length)
