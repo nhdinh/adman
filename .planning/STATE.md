@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: bulk-workflows-highest-blast-radius-last
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-07-20T07:46:21.294Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-07-20T08:17:52.888Z"
 last_activity: 2026-07-20
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 27
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 04 (bulk-workflows-highest-blast-radius-last) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-07-20 — Phase 04 execution started
 
-Progress: [██████████] 96% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -87,6 +87,7 @@ Progress: [██████████] 96% (Phase 1 of 6, 4 of 4 Phase 1 pla
 | Phase 04-bulk-workflows-highest-blast-radius-last P01 | 45m | 3 tasks | 11 files |
 | Phase 04-bulk-workflows-highest-blast-radius-last P04-02 | 5m | 2 tasks | 3 files |
 | Phase 04 P03 | 45min | 3 tasks | 6 files |
+| Phase 04 P04 | 35min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -163,6 +164,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Restore state is sourced from the authoritative audit log, keeping one source of truth and reusing the fail-closed write path.
 - [Phase ?]: Protected-group classification resolves memberOf entries to SIDs and checks ProtectedSIDs, DenyRids, and ProtectedGroupDns (including unresolved SID strings).
 - [Phase ?]: Restore ordering invariant: groups -> move -> enable last, so a partial failure leaves the account disabled.
+- [Phase ?]: Bulk action in the TUI is CSV-only in v1; search-based bulk remains a direct PowerShell pipeline workflow.
+- [Phase ?]: SkipOutputPrompt is explicit only on workflow entries; absent/null is tolerated on pre-Phase 4 entries.
+- [Phase ?]: Hard-delete source scan is repo-wide over Public/ and Private/, not scoped to new Phase 4 files.
 
 ### Pending Todos
 
@@ -192,7 +196,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-20T07:46:21.286Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-07-20T08:17:52.881Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
