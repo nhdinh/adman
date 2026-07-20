@@ -120,6 +120,29 @@ function Start-AdmanUserOffboarding {
             }
         } catch {
             if ($script:ProtectedGroupDns -contains $g) { $isProtected = $true }
+            if (-not $isProtected -and $g -like 'S-1-*') {
+                if ($script:ProtectedSIDs -contains $g) { $isProtected = $true }
+                $rid = ($g -split '-')[-1]
+                if ($script:DenyRids -contains $rid) { $isProtected = $true }
+            }
+            if (-not $isProtected -and $g -match '^CN=.+') {
+                try {
+                    $dc = if ($script:Config.PSObject.Properties['DC']) { $script:Config.DC } else { $null }
+                    $fallbackGroup = if ($dc) {
+                        Get-ADGroup -Identity $g -Server $dc -ErrorAction Stop
+                    } else {
+                        Get-ADGroup -Identity $g -ErrorAction Stop
+                    }
+                    $fallbackSid = if ($fallbackGroup.objectSid -is [System.Security.Principal.SecurityIdentifier]) {
+                        $fallbackGroup.objectSid.Value
+                    } else {
+                        [string]$fallbackGroup.objectSid
+                    }
+                    if ($script:ProtectedSIDs -contains $fallbackSid) { $isProtected = $true }
+                    $fallbackRid = ($fallbackSid -split '-')[-1]
+                    if ($script:DenyRids -contains $fallbackRid) { $isProtected = $true }
+                } catch { }
+            }
         }
 
         if (-not $isProtected) { $groupsToRemove.Add($g) }
