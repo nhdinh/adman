@@ -127,12 +127,7 @@ function Start-AdmanUserOffboarding {
             }
             if (-not $isProtected -and $g -match '^CN=.+') {
                 try {
-                    $dc = if ($script:Config.PSObject.Properties['DC']) { $script:Config.DC } else { $null }
-                    $fallbackGroup = if ($dc) {
-                        Get-ADGroup -Identity $g -Server $dc -ErrorAction Stop
-                    } else {
-                        Get-ADGroup -Identity $g -ErrorAction Stop
-                    }
+                    $fallbackGroup = Resolve-AdmanGroup -Identity $g
                     $fallbackSid = if ($fallbackGroup.objectSid -is [System.Security.Principal.SecurityIdentifier]) {
                         $fallbackGroup.objectSid.Value
                     } else {
@@ -141,7 +136,9 @@ function Start-AdmanUserOffboarding {
                     if ($script:ProtectedSIDs -contains $fallbackSid) { $isProtected = $true }
                     $fallbackRid = ($fallbackSid -split '-')[-1]
                     if ($script:DenyRids -contains $fallbackRid) { $isProtected = $true }
-                } catch { }
+                } catch {
+                    Write-Warning "Could not resolve group '$g' for protected-group classification: $_"
+                }
             }
         }
 
