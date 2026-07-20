@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 04
 current_phase_name: bulk-workflows-highest-blast-radius-last
 status: executing
-stopped_at: Phase 04 context gathered
-last_updated: "2026-07-20T03:41:16.220Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-07-20T04:12:33.521Z"
 last_activity: 2026-07-20
 last_activity_desc: Phase 04 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 27
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 Phase: 04 (bulk-workflows-highest-blast-radius-last) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 04
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-07-20 — Phase 04 execution started
 
-Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+Progress: [█████████░] 89% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 03-remote-computer-operations-isolated P01 | 35min | 3 tasks | 15 files |
 | Phase 03-remote-computer-operations-isolated P02 | 42min | 3 tasks | 6 files |
 | Phase 03-remote-computer-operations-isolated P03 | 18min | 3 tasks | 2 files |
+| Phase 04-bulk-workflows-highest-blast-radius-last P01 | 45m | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Operator guidance is the canonical reference for why adman Phase 3 is local-on-target only and what to do if second-hop live actions are needed later.
 - [Phase ?]: CredSSP is explicitly excluded from v1; any future second-hop work must go through RBCD/JEA design review.
 - [Phase ?]: Static parser for -ClassName literals is intentionally simple; the real enforcement is the runtime allow-list in Invoke-AdmanRemoteCimQuery.
+- [Phase ?]: Bulk engine uses DistinguishedName as canonical Identity in bulk records
+- [Phase ?]: Invoke-AdmanBulkAction -Force skips only the outer typed-count confirmation; per-item policy/audit still run via Invoke-AdmanMutation -Force:
+- [Phase ?]: Group destination policy is validated before cap/confirm for AddGroup/RemoveGroup
 
 ### Pending Todos
 
@@ -180,7 +184,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-17T09:32:20.141Z
-Stopped at: Phase 04 context gathered
-Resume file: .planning/phases/04-bulk-workflows-highest-blast-radius-last/04-CONTEXT.md
+Last session: 2026-07-20T04:12:33.513Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).

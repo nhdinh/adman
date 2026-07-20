@@ -136,12 +136,12 @@ Plans (finalized during `/gsd-plan-phase 3`):
   3. Offboarding disables, strips non-protected groups (recorded for restore), moves to quarantine OU, and surfaces related cleanup (mailbox/home-dir/GPO) as a checklist only (FLOW-02), and is reversible via restore-from-quarantine with recorded groups/original location (FLOW-03).
   4. Workflows compose existing single-object verbs through the same gate (no new AD primitives) and a mid-workflow failure stops later steps for that target and logs FAIL (FLOW-04); bulk `-WhatIf` shows a truthful count, the cap trips as configured, and `Remove-ADObject` appears nowhere.
 
-**Plans**: 4/4 plans planned
+**Plans**: 1/4 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 4`):
 
-- [ ] 04-01-PLAN.md — Config template keys + gated bulk engine: normalize pipeline/CSV input, resolve + filter, enforce cap after filtering, typed-count confirmation, per-item continue-on-failure + result summary; CSV strict-schema validation (BULK-01/02/03/04).
+- [x] 04-01-PLAN.md — Config template keys + gated bulk engine: normalize pipeline/CSV input, resolve + filter, enforce cap after filtering, typed-count confirmation, per-item continue-on-failure + result summary; CSV strict-schema validation (BULK-01/02/03/04).
 - [ ] 04-02-PLAN.md — Onboarding workflow: apply config template, validate baseline groups, create user via New-AdmanUser, add baseline groups via Add-AdmanGroupMember; mid-step failure stops and logs FAIL (FLOW-01/04).
 - [ ] 04-03-PLAN.md — Offboarding + restore: extend audit writer with OriginalOU/Groups, disable/strip non-protected groups/move to quarantine, read latest offboarding audit to restore; validate quarantine OU before restore (FLOW-02/03/04).
 - [ ] 04-04-PLAN.md — Menu integration + manifest exports + phase exit gate: wire bulk/onboarding/offboarding/restore into Get-AdmanMenuDefinition, update adman.psd1 FunctionsToExport, run recursive PSScriptAnalyzer and full unit suite (FLOW-01..04, BULK-01..04).
@@ -177,7 +177,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 1. AD Query & Reporting (read-only) | 4/4 | Complete    | 2026-07-15 |
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 3/3 | Complete    | 2026-07-17 |
-| 4. Bulk & Workflows (highest blast radius, last) | 0/4 | Not started | - |
+| 4. Bulk & Workflows (highest blast radius, last) | 1/4 | In Progress|  |
 | 5. Hardening & Portability | 0/3 | Not started | - |
 
 **Total:** 6 phases, 25 plans (suggested), 58/58 v1 requirements mapped.

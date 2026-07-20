@@ -92,10 +92,10 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Bulk Operations (BULK)
 
-- [ ] **BULK-01**: Admin can run a gated bulk action: build target set from search → preview → max-count cap check → typed count confirmation → per-item execution
-- [ ] **BULK-02**: Bulk enforces a configurable max-count cap and a typed confirmation of the count before executing
-- [ ] **BULK-03**: Bulk continues on single-item failure, captures per-item results, and is idempotent/resume-safe where cheap
-- [ ] **BULK-04**: No raw `Import-Csv | Set-ADUser` path exists — CSV ingestion flows only through the gated bulk path with schema validation + preview + cap
+- [x] **BULK-01**: Admin can run a gated bulk action: build target set from search → preview → max-count cap check → typed count confirmation → per-item execution
+- [x] **BULK-02**: Bulk enforces a configurable max-count cap and a typed confirmation of the count before executing
+- [x] **BULK-03**: Bulk continues on single-item failure, captures per-item results, and is idempotent/resume-safe where cheap
+- [x] **BULK-04**: No raw `Import-Csv | Set-ADUser` path exists — CSV ingestion flows only through the gated bulk path with schema validation + preview + cap
 
 ### Documentation (DOC)
 
@@ -202,10 +202,10 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | FLOW-02 | Phase 4 | Pending |
 | FLOW-03 | Phase 4 | Pending |
 | FLOW-04 | Phase 4 | Pending |
-| BULK-01 | Phase 4 | Pending |
-| BULK-02 | Phase 4 | Pending |
-| BULK-03 | Phase 4 | Pending |
-| BULK-04 | Phase 4 | Pending |
+| BULK-01 | Phase 4 | Complete |
+| BULK-02 | Phase 4 | Complete |
+| BULK-03 | Phase 4 | Complete |
+| BULK-04 | Phase 4 | Complete |
 | DOC-01 | Phase 5 | Pending |
 | DOC-02 | Phase 5 | Pending |
 | DOC-03 | Phase 5 | Pending |
