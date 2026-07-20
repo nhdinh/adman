@@ -75,7 +75,8 @@ function Write-AdmanAudit {
         throw "AUDIT FAIL-CLOSED: timed out acquiring audit mutex after 30s; refusing $Verb."
     }
     try {
-        $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f (Get-Date))
+        $nowUtc = (Get-Date).ToUniversalTime()
+        $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f $nowUtc)
         if (-not (Test-Path -LiteralPath $script:Config.AuditDir)) {
             $null = New-Item -ItemType Directory -Path $script:Config.AuditDir -Force -ErrorAction Stop
         }
@@ -135,7 +136,7 @@ function Write-AdmanAudit {
         }
 
         $rec = [ordered]@{
-            tsUtc         = (Get-Date).ToUniversalTime().ToString('o')
+            tsUtc         = $nowUtc.ToString('o')
             who           = "$env:USERDOMAIN\$env:USERNAME"
             userSid       = ([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
             what          = $Verb
