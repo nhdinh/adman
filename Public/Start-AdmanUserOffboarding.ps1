@@ -112,9 +112,6 @@ function Start-AdmanUserOffboarding {
                     $rid = ($sidString -split '-')[-1]
                     if ($script:DenyRids -contains $rid) { $isProtected = $true }
                 }
-                if (-not $isProtected -and $script:ProtectedGroupDns -contains $sidString) {
-                    $isProtected = $true
-                }
             }
             if (-not $isProtected -and
                 $group.PSObject.Properties['DistinguishedName'] -and
