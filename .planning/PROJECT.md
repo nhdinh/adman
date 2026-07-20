@@ -18,19 +18,19 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 
 - Interactive menu (TUI) entry point — flat `while`-loop shell, numbered menu, validated prompts, routes every selection to the same Public verbs seniors call directly (MENU-01..04). Validated in Phase 01 (ad-query-reporting-read-only).
 - Reporting & inventory (read-only) — console/CSV/self-contained-HTML renderers (RPT-01/02/03), OS/inventory report (RPT-06), scoped user/computer search (USER-01, COMP-01), stale/account-state/recovery-posture reports with correct AD semantics (RPT-04/05/07). Validated in Phase 01.
+- AD / Local user lifecycle — create, disable, enable, move OU, reset password, unlock, manage group membership. Validated in Phase 02 (single-object-lifecycle-writes-begin-bounded-to-one).
+- AD computer lifecycle — disable, enable, move OU. Validated in Phase 02.
+- Remote computer operations — query/live-action on remote machines with auto-detect fallback (WinRM → CIM/WMI → skip). Validated in Phase 03 (remote-computer-operations-isolated).
+- Provisioning & onboarding workflow — standardized new-user setup (FLOW-01/02). Validated in Phase 04 (bulk-workflows-highest-blast-radius-last).
+- Offboarding workflow — disable + move to quarantine OU, strip groups, restore from audit state (FLOW-03/04). Validated in Phase 04.
+- Safety guardrails (v1 must-have) — `-WhatIf`/dry-run on every destructive action, confirmation prompts, structured audit log, startup-loaded deny-list, protection of admin-group members & service accounts, managed-OU scoping, bulk preview + typed confirmation + max-count cap (BULK-01..04). Validated across Phases 00–04.
 
 ### Active
 
 <!-- Current scope. Building toward these. Hypotheses until shipped. -->
 
-- [ ] AD/ Local user lifecycle — create, disable, enable, move OU, reset password, unlock, manage group membership
-- [ ] AD computer lifecycle — disable, enable, move OU (stale/OS-version reporting validated in Phase 01)
-- [ ] Remote computer operations — query/live-action on remote machines with auto-detect fallback (WinRM → CIM/WMI → skip)
-- [ ] Provisioning & onboarding workflow — standardized new-user / new-computer setup
-- [ ] Offboarding workflow — disable + move to quarantine OU, strip groups, surface related cleanup
-- [ ] Safety guardrails (v1 must-have) — `-WhatIf`/dry-run on every destructive action, confirmation prompts, structured audit log (who/what/when), startup-loaded deny-list, protection of admin-group members & service accounts, managed-OU scoping, bulk operations gated by preview + typed confirmation + max-count cap
 - [ ] Portability — runs on an admin workstation with RSAT or on a management server, asking for domain admin credentials only if the logged-in user lacks sufficient rights.
-- [ ] Save & load configuration — logged in admin credentials,managed OU, deny-list, audit log path, report path, etc. stored in a single config file for easy backup and restore. Configuration MUST BE encrypted.
+- [ ] Save & load configuration — logged in admin credentials, managed OU, deny-list, audit log path, report path, etc. stored in a single config file for easy backup and restore. Configuration MUST BE encrypted.
 - [ ] Documentation — README, usage guide, and inline help for every command/parameter
 
 ### Out of Scope
@@ -66,11 +66,11 @@ A menu-driven (interactive TUI) PowerShell toolkit that lets a small, mixed-skil
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Interactive menu (TUI) as the primary interface | Mixed-skill team; discoverability and guided input reduce mistakes | — Pending |
-| Full guardrails in v1 (dry-run, confirm, audit log) | AD writes are high-blast-radius and the team is mixed-skill | — Pending |
-| Remote ops auto-detect WinRM → CIM → skip | WinRM not guaranteed on every host; portability matters | — Pending |
-| "Delete" = disable + move to quarantine OU | Reversible, safe default; no accidental hard-deletes | — Pending |
-| Managed-OU scoping + deny-list + admin/service-account protection | Bounds blast radius; protects high-value/break-glass accounts | — Pending |
-| Bulk via preview + typed confirmation + max-count cap | Allows efficiency without unbounded mass-change risk | — Pending |
+| Full guardrails in v1 (dry-run, confirm, audit log) | AD writes are high-blast-radius and the team is mixed-skill | ✓ Decided |
+| Remote ops auto-detect WinRM → CIM → skip | WinRM not guaranteed on every host; portability matters | ✓ Decided |
+| "Delete" = disable + move to quarantine OU | Reversible, safe default; no accidental hard-deletes | ✓ Decided |
+| Managed-OU scoping + deny-list + admin/service-account protection | Bounds blast radius; protects high-value/break-glass accounts | ✓ Decided |
+| Bulk via preview + typed confirmation + max-count cap | Allows efficiency without unbounded mass-change risk | ✓ Decided |
 | Pass-through by default; prompt for domain-admin creds only when rights insufficient | Least-privilege with a recoverable fallback for junior admins | — Pending |
 | Config/credential split: portable plain-JSON **non-secret** config + separate opt-in DPAPI-encrypted **credential** file, both in gitignored `.store/` | DPAPI is machine+user-bound, so fully-encrypted config cannot be portable; split keeps secrets encrypted AND config backup/restore/diff-friendly; re-prompt on restore | ✓ Decided |
 | Local (per-machine) user management in addition to AD users | Remote-computer-ops pillar needs local-account lifecycle on member machines | — Pending |
