@@ -2,7 +2,7 @@
 phase: 04
 reviewers:
   - codex
-reviewed_at: 2026-07-20T02:01:53Z
+reviewed_at: 2026-07-20T09:15:00Z
 plans_reviewed:
   - 04-01-PLAN.md
   - 04-02-PLAN.md
@@ -16,142 +16,128 @@ plans_reviewed:
 
 ## Summary
 
-Phase 4 is directionally strong: it correctly treats bulk/workflows as composition over existing single-object verbs and keeps the mutation gate private. The main risks are around confirmation semantics, audit-derived restore state, and assumptions that do not match the current code. Most issues are fixable in the plans before implementation, but I would not execute these plans as-is for a high-blast-radius AD phase.
+The Phase 4 plans are mostly well-structured and correctly lean on the existing safety spine: public verbs are thin wrappers over `Invoke-AdmanMutation`, the gate already owns resolve → policy → confirmation → audit → AD write, and the plans generally compose those pieces instead of inventing parallel mutation paths. The biggest gaps are around migration and workflow confirmation: 04-01 makes new config keys required without updating the loader's additive-default migration, and 04-03 offboarding forces inner destructive verbs without adding an outer confirmation, which breaks the phase's "one preview+confirm+audit" safety promise.
 
-## Plan 04-01: Config Template Keys + Gated Bulk Engine
-
-### Strengths
-
-- Reuses existing safety primitives instead of adding new AD write paths. The current gate centralizes resolution, policy checks, confirmation, write-ahead audit, and wrapper dispatch in `Private/Safety/Invoke-AdmanMutation.ps1:59`, `Private/Safety/Invoke-AdmanMutation.ps1:160`, `Private/Safety/Invoke-AdmanMutation.ps1:191`, `Private/Safety/Invoke-AdmanMutation.ps1:209`, and `Private/Safety/Invoke-AdmanMutation.ps1:222`.
-- Cap enforcement can reuse the existing forward-compatible switch: `Assert-AdmanBulkPolicy -EnforceCap` already throws when count exceeds cap at `Private/Safety/Assert-AdmanBulkPolicy.ps1:29`.
-- CSV schema restriction is the right control for `BULK-04`; the plan calls out unknown-header rejection before gate invocation at `.planning/phases/04-bulk-workflows-highest-blast-radius-last/04-01-PLAN.md:126`.
-
-### Concerns
-
-- **HIGH:** The plan says typed-count confirmation runs once for every filtered bulk set via `Confirm-AdmanAction` (`04-01-PLAN.md:25`, `04-01-PLAN.md:174`), but current `Confirm-AdmanAction` only uses typed count when count is at or above `safety.bulkConfirmThreshold`, or when the verb is in `typedCountVerbs` (`Private/Safety/Confirm-AdmanAction.ps1:45`, `Private/Safety/Confirm-AdmanAction.ps1:58`, `Private/Safety/Confirm-AdmanAction.ps1:82`). A two-user bulk disable below threshold would get normal ShouldProcess confirmation, not typed-count confirmation.
-- **HIGH:** The plan introduces an outer confirm and then calls `Invoke-AdmanMutation` per item (`04-01-PLAN.md:174`, `04-01-PLAN.md:175`). The gate itself confirms every call (`Private/Safety/Invoke-AdmanMutation.ps1:194`, `Private/Safety/Invoke-AdmanMutation.ps1:200`). Unless the plan explicitly forces inner gate confirmation after the outer typed-count confirmation, operators may see N additional prompts or tests may pass only by suppressing confirmation globally.
-- **MEDIUM:** Group bulk actions are filtered only with `Test-AdmanTargetAllowed` in the planned engine (`04-01-PLAN.md:171`), but group-side policy is enforced separately by `Resolve-AdmanGroup` and `Test-AdmanGroupAllowed` inside the gate (`Private/Safety/Invoke-AdmanMutation.ps1:131`, `Private/Safety/Invoke-AdmanMutation.ps1:134`). This means a protected destination group can survive the preview/cap/confirm stage and then fail per item after confirmation.
-- **MEDIUM:** The plan says CSV headers are “exactly” the five allowed fields but also says order-independent and unknown headers throw (`04-01-PLAN.md:126`). It should explicitly reject missing required headers too, otherwise a CSV missing `Action` or `Identity` can normalize late or fail inconsistently.
-
-### Suggestions
-
-- Add a bulk-only typed-count path, or extend `Confirm-AdmanAction` with an explicit `-RequireTypedCount` switch.
-- After outer bulk confirmation, call inner `Invoke-AdmanMutation` with `-Force:$true` while still allowing inner gate policy/audit to run.
-- Resolve and validate `GroupIdentity` once before cap/confirm for `AddGroup` and `RemoveGroup`.
-- Make CSV validation reject unknown, duplicate, and missing headers before returning rows.
-
-### Risk Assessment
-
-**HIGH.** The bulk engine is the phase’s highest-blast-radius component, and the current plan’s confirmation behavior does not actually satisfy typed-count-on-bulk for small batches.
-
-## Plan 04-02: Onboarding Workflow
+## 04-01 — Config Template Keys + Gated Bulk Engine
 
 ### Strengths
 
-- Good dependency choice: it composes `New-AdmanUser` and `Add-AdmanGroupMember`, both already thin wrappers over the mutation gate (`Public/New-AdmanUser.ps1:179`, `Public/Add-AdmanGroupMember.ps1:61`).
-- Baseline group pre-validation is well-placed before user creation (`04-02-PLAN.md:87`), and `Test-AdmanGroupAllowed` checks protected SIDs, deny RIDs, and service-account object classes (`Private/Safety/Test-AdmanGroupAllowed.ps1:42`, `Private/Safety/Test-AdmanGroupAllowed.ps1:55`).
+- The bulk engine design fits the existing gate contract. `Invoke-AdmanMutation` already resolves targets, filters denied/protected/out-of-scope objects, confirms, writes PENDING audit, invokes the wrapper, and writes outcome audit in one funnel: `Private/Safety/Invoke-AdmanMutation.ps1:157`, `Private/Safety/Invoke-AdmanMutation.ps1:191`, `Private/Safety/Invoke-AdmanMutation.ps1:194`, `Private/Safety/Invoke-AdmanMutation.ps1:209`.
+- Cap-after-filter is supported by the existing `Assert-AdmanBulkPolicy -EnforceCap` switch, which currently only throws when explicitly requested: `Private/Safety/Assert-AdmanBulkPolicy.ps1:29`.
+- Group pre-validation is consistent with the existing group-side policy helper, including protected-SID refusal on add and deny-RID checks: `Private/Safety/Test-AdmanGroupAllowed.ps1:42`, `Private/Safety/Test-AdmanGroupAllowed.ps1:55`.
 
 ### Concerns
 
-- **HIGH:** The plan builds UPN from `$script:Config.Domain` (`04-02-PLAN.md:86`), but `Domain` is not in the schema/defaults (`config/adman.schema.json:7`, `config/adman.schema.json:21`, `config/adman.defaults.json:45`) and `Initialize-Adman` does not add it (`Public/Initialize-Adman.ps1:47`, `Public/Initialize-Adman.ps1:61`). `Start-Adman` treats Domain as optional display-only (`Public/Start-Adman.ps1:52`).
-- **MEDIUM:** The phase says onboarding is “one gated, audited flow,” but the plan calls multiple public verbs, each of which gates and audits independently (`04-02-PLAN.md:88`; `Public/New-AdmanUser.ps1:179`; `Public/Add-AdmanGroupMember.ps1:61`). That may be acceptable composition, but it is not one preview+confirm+audit unless the plan adds an outer workflow gate and forces inner confirmations.
-- **LOW:** The plan assumes empty `FirstName`/`LastName` are rejected by mandatory parameters (`04-02-PLAN.md:26`). In PowerShell, mandatory does not reject empty strings for direct callers; existing public verbs use `[ValidateNotNullOrEmpty()]` for this reason (`Public/New-AdmanUser.ps1:64`).
+- **HIGH**: The plan says existing configs continue to validate, but it adds top-level `domain` to schema `required` without planning a loader migration. Current validation checks every schema-required top-level key before load completes: `Private/Config/Initialize-AdmanConfig.ps1:89`, `Private/Config/Initialize-AdmanConfig.ps1:281`. The loader only seeds missing transport timeout keys and `DenyList`, not arbitrary new defaults: `Private/Config/Initialize-AdmanConfig.ps1:247`, `Private/Config/Initialize-AdmanConfig.ps1:270`. Existing configs would fail once `domain` becomes required.
+- **MEDIUM**: Bulk pre-filtering plus per-item `Invoke-AdmanMutation` means targets are resolved and policy-checked twice. The gate currently guarantees one resolver per gate invocation: `Private/Safety/Invoke-AdmanMutation.ps1:59`. The plan's outer resolve/filter/confirm followed by inner per-item gate calls could make the confirmed blast radius stale if an object moves or changes protected status between the outer confirmation and inner execution.
+- **LOW**: `-Force` can bypass typed-count confirmation. Existing `Confirm-AdmanAction` skips all prompts when `-Force` is set: `Private/Safety/Confirm-AdmanAction.ps1:80`. That may be acceptable for senior direct callers, but it weakens the BULK-02 wording unless explicitly documented.
 
 ### Suggestions
 
-- Add a non-secret config key for UPN suffix, or derive it from `Get-ADDomain -Server $script:Config.DC` during initialization.
-- Add `[ValidateNotNullOrEmpty()]` to `FirstName` and `LastName`.
-- Decide explicitly whether onboarding has one outer confirmation or several composed single-verb confirmations; tests should pin that behavior.
+- Add a Phase 4 migration block in `Initialize-AdmanConfig` to seed missing `domain` and `templates` from defaults before `Test-AdmanConfigValid`.
+- In bulk tests, assert behavior when a target changes between outer filter and inner mutation. At minimum, document that the inner gate is authoritative and the summary may reflect per-item revalidation.
+- Decide whether `Invoke-AdmanBulkAction -Force` is allowed to bypass typed-count confirmation. If yes, call it out as an intentional senior escape hatch.
 
 ### Risk Assessment
 
-**MEDIUM.** The workflow is mostly sound, but the missing domain/UPN source is a concrete implementation blocker.
+**MEDIUM**. The bulk architecture is sound, but config migration is a release blocker for installed configs.
 
-## Plan 04-03: Offboarding + Restore
+## 04-02 — Onboarding Workflow
 
 ### Strengths
 
-- Correctly validates quarantine OU before writes (`04-03-PLAN.md:125`), matching the existing managed-OU destination pattern in `Move-AdmanUser` (`Public/Move-AdmanUser.ps1:57`, `Public/Move-AdmanUser.ps1:66`).
-- Extending audit state conditionally is compatible with the current writer’s optional-key pattern for `group` (`Private/Audit/Write-AdmanAudit.ps1:151`).
-- Restore re-checks current quarantine location and original OU scope before reversing (`04-03-PLAN.md:174`, `04-03-PLAN.md:176`), which is the right safety posture.
+- The workflow correctly composes existing public verbs. `New-AdmanUser` already handles generated passwords and display-once hygiene after a successful gate result: `Public/New-AdmanUser.ps1:179`, `Public/New-AdmanUser.ps1:189`.
+- Baseline group validation before creation is the right order. The group policy helper already refuses protected add destinations by SID: `Private/Safety/Test-AdmanGroupAllowed.ps1:55`.
+- Passing `-Force:$true` to inner verbs after one outer confirmation matches the existing gate behavior, where `-Force` only skips confirmation and does not bypass policy: `Private/Safety/Invoke-AdmanMutation.ps1:33`, `Private/Safety/Confirm-AdmanAction.ps1:80`.
 
 ### Concerns
 
-- **HIGH:** Restore state lookup filters audit records with `target contains the identity string` (`04-03-PLAN.md:169`). Audit `target` is a pipe-joined string built from DNs (`Private/Audit/Write-AdmanAudit.ps1:139`), so substring matching can select the wrong user or a stale similarly named target.
-- **HIGH:** Restore state lookup does not exclude `whatIf=true` records (`04-03-PLAN.md:169`). The audit writer records `whatIf` on every record (`Private/Audit/Write-AdmanAudit.ps1:143`), and the workflow plan writes offboarding Success with `-WhatIf:$WhatIfPreference` (`04-03-PLAN.md:133`). A dry-run offboarding could become restore state.
-- **MEDIUM:** The plan limits audit search to the last 30 days (`04-03-PLAN.md:168`), but the requirement says restore via latest offboarding audit record. A user quarantined longer than 30 days becomes unrestorable by design without that being a stated product decision.
-- **MEDIUM:** Group removal uses `$user.memberOf | Where-Object { $_ -notin @($script:ProtectedGroupDns) }` (`04-03-PLAN.md:128`). `ProtectedGroupDns` can contain unresolved SID strings when `Get-ADGroup` fails (`Private/Safety/Get-AdmanProtectedIdentity.ps1:52`, `Private/Safety/Get-AdmanProtectedIdentity.ps1:60`, `Private/Safety/Get-AdmanProtectedIdentity.ps1:69`), so DN-only comparison is not a complete protected-group test.
+- **MEDIUM**: The plan relies on `NamePattern` but does not specify validation for malformed or overlong generated `sAMAccountName`. `New-AdmanUser` catches length over 20 and wildcards later: `Public/New-AdmanUser.ps1:99`, `Private/Safety/Invoke-AdmanMutation.ps1:83`, but the operator experience would be better if onboarding preflighted this before confirmation.
+- **LOW**: Onboarding writes an extra workflow Failure audit only on catch, while inner verbs also write their own Failure audit through the gate: `Private/Safety/Invoke-AdmanMutation.ps1:225`. That is defensible, but tests should assert the correlation/wording is clear enough for operators to distinguish workflow failure from step failure.
 
 ### Suggestions
 
-- Resolve the user first, then match audit `targets[].dn` or `targets[].sid` exactly.
-- Filter restore state to `result='Success'` and `whatIf=false`.
-- Remove the 30-day limit or make retention/config behavior explicit.
-- Resolve each `memberOf` group and classify protected groups by SID against `$script:ProtectedSIDs`, not only DN string membership.
+- Add explicit pre-confirm validation for generated `sAMAccountName`: non-empty after formatting, length <= 20, and no wildcard characters.
+- Include a test where first group add succeeds and second fails, verifying the workflow failure audit plus no later group calls.
 
 ### Risk Assessment
 
-**HIGH.** Restore correctness depends on audit record selection. Substring matching plus accepting dry-run records is too risky for reversible offboarding.
+**LOW to MEDIUM**. The plan is aligned with existing primitives; main risk is edge-case identity generation.
 
-## Plan 04-04: Menu Integration + Manifest Exports + Phase Exit Gate
+## 04-03 — Offboarding + Restore
 
 ### Strengths
 
-- Export plan matches the explicit manifest boundary. The manifest currently uses an explicit `FunctionsToExport` list and excludes `Invoke-AdmanMutation` (`adman.psd1:54`), while the module runtime exports public files only (`adman.psm1:31`, `adman.psm1:43`).
-- PromptSpec/parameter drift is already tested generically (`tests/Menu.Tests.ps1:799`), so adding Phase 4 verbs to that contract is a good fit.
-- Keeping `Invoke-AdmanMutation` private aligns with the existing gate boundary (`Private/Safety/Invoke-AdmanMutation.ps1:43`; `tests/Module.Manifest.Tests.ps1:51`).
+- Restore state can be safely matched by exact DN/SID because audit records already include `targets[].dn` and `targets[].sid`: `Private/Audit/Write-AdmanAudit.ps1:110`, `Private/Audit/Write-AdmanAudit.ps1:141`.
+- The plan respects the current audit schema invariant by adding optional fields only when supplied. Current tests assert exact keys for ordinary records: `tests/Audit.Schema.Tests.ps1:116`, `tests/Audit.Schema.Tests.ps1:128`.
+- Protected identity source is already SID/RID-based, which supports the plan's group classification direction: `Private/Safety/Get-AdmanProtectedIdentity.ps1:69`, `Private/Safety/Get-AdmanProtectedIdentity.ps1:70`, `Private/Safety/Get-AdmanProtectedIdentity.ps1:82`.
 
 ### Concerns
 
-- **MEDIUM:** `Start-Adman` always sends returned data into the output-format prompt after any verb (`Public/Start-Adman.ps1:172`, `Public/Start-Adman.ps1:177`). For offboarding/restore workflows that print checklist/status text, this may create awkward or misleading report-render prompts unless the plan defines useful returned objects or a menu-level skip.
-- **LOW:** The exit-gate read list references `pester.config.json` (`04-04-PLAN.md:151`), but the repo has `tests/PesterConfiguration.psd1` instead. The plan has a fallback, but the concrete command should match the repo.
-- **LOW:** The no-hard-delete check is scoped to “new Phase 4 source file” (`04-04-PLAN.md:157`). The phase success criteria says `Remove-ADObject` appears nowhere; existing tests only prove no wrapper exists for hard delete (`tests/Safety.NoHardDelete.Tests.ps1:100`), not a full source-tree ban.
+- **HIGH**: Offboarding has no outer confirmation. The plan calls `Disable-AdmanUser`, `Remove-AdmanGroupMember`, and `Move-AdmanUser` with `-Force:$true`: `.planning/phases/04-bulk-workflows-highest-blast-radius-last/04-03-PLAN.md:141`. Existing `-Force` suppresses the gate confirmation: `Private/Safety/Confirm-AdmanAction.ps1:80`, and `Invoke-AdmanMutation` forwards that force to confirmation: `Private/Safety/Invoke-AdmanMutation.ps1:197`. This means offboarding can execute destructive steps with no confirmation at all unless the caller manually omits nothing, violating the phase goal.
+- **MEDIUM**: Restore re-enables the user before restoring groups and moving back: `.planning/phases/04-bulk-workflows-highest-blast-radius-last/04-03-PLAN.md:196`. `Enable-AdmanUser` immediately routes to the mutation gate: `Public/Enable-AdmanUser.ps1:42`. If group restore or move fails afterward, the account is enabled while still partially restored.
+- **MEDIUM**: The plan extends `Write-AdmanAudit` with `OriginalOU` and `Groups`, but existing source-hygiene tests scan the writer source for sensitive-name tokens: `tests/Audit.Schema.Tests.ps1:196`, `tests/Audit.Schema.Tests.ps1:211`. The plan mentions avoiding banned tokens, but the new tests must also update exact-key expectations only for offboarding-specific records.
 
 ### Suggestions
 
-- Add a menu contract for write/workflow verbs: either return structured summary objects that render cleanly, or allow entries to skip the output-format prompt.
-- Use `Invoke-Pester -Configuration tests/PesterConfiguration.psd1` if that remains the repo’s test config.
-- Add a repo-wide source AST/text guard for `Remove-ADObject` in `Public/` and `Private/`, excluding planning/docs/tests as appropriate.
+- Add `Confirm-AdmanAction -Verb 'Start-AdmanUserOffboarding' -Targets @($user)` before any destructive step, then keep inner calls forced.
+- Restore in the safer order: add groups, move to original OU, then enable last. If enable fails, the account remains disabled but otherwise restored.
+- Add tests proving offboarding confirmation occurs exactly once and that inner verbs are forced only after that confirmation.
 
 ### Risk Assessment
 
-**MEDIUM.** Export/menu wiring is straightforward, but UX and phase-exit verification need tightening.
+**HIGH** until the offboarding confirmation gap is fixed. This is the highest-blast-radius workflow.
+
+## 04-04 — Menu Integration + Manifest Exports
+
+### Strengths
+
+- Exporting the four public verbs fits the explicit manifest boundary. Current manifest uses a fixed `FunctionsToExport` list and keeps `Invoke-AdmanMutation` private: `adman.psd1:50`, `adman.psd1:53`.
+- The loader dot-sources public/private files recursively, so new `Private/Bulk` and `Private/Workflow` directories will be loaded without extra module-loader work: `adman.psm1:35`, `adman.psm1:39`.
+- Extending the hard-delete guard is appropriate. Existing tests already assert no `Remove-ADObject` wrapper exists: `tests/Safety.NoHardDelete.Tests.ps1:100`.
+
+### Concerns
+
+- **MEDIUM**: The menu plan exposes bulk mainly as a CSV path flow, not a search → bulk workflow. `Start-Adman` dispatches exactly one public verb with prompted params: `Public/Start-Adman.ps1:130`, `Public/Start-Adman.ps1:172`. `Read-AdmanActionParams` only builds a hashtable from prompts: `Private/Menu/Read-AdmanActionParams.ps1:77`, `Private/Menu/Read-AdmanActionParams.ps1:296`. A menu entry with required `Path` does not let a junior admin run "search → preview → bulk action" from the TUI.
+- **LOW**: Existing menu entries do not have `SkipOutputPrompt`, so tests should tolerate absent/null on older entries. Current menu object shape has fixed fields only: `Private/Menu/Get-AdmanMenuDefinition.ps1:96`.
+
+### Suggestions
+
+- Either scope the TUI bulk entry explicitly to CSV in v1, or add a guided menu flow that first prompts for target type/search criteria, calls `Find-AdmanUser` or `Find-AdmanComputer`, then pipes the result into `Invoke-AdmanBulkAction`.
+- Update menu contract tests to allow optional `SkipOutputPrompt` on old entries and require it only for workflow entries.
+- Add a behavioral test proving workflow entries return to the menu without rendering prompts after execution.
+
+### Risk Assessment
+
+**MEDIUM**. Manifest/export wiring is straightforward, but the TUI does not yet satisfy the search-based bulk workflow promised in the phase goal.
 
 ## Overall Risk
 
-**HIGH until plan fixes land.** The architecture is good, but Phase 4 touches bulk mutation and restore. The main blockers are confirmation semantics in 04-01 and audit-state correctness in 04-03. Fix those before implementation; the rest are manageable refinements.
+**MEDIUM-HIGH**. The implementation direction is strong and mostly composes proven primitives, but Phase 4 is the highest blast-radius phase. Fix the offboarding confirmation gap and config migration before execution; clarify the menu's bulk story before calling the phase complete.
 
 ---
 
 ## Consensus Summary
 
-Only Codex was invoked for this review cycle. The review is source-grounded and cites concrete file:line evidence.
+Only Codex was invoked for this review cycle. The following is a synthesis of its findings.
 
 ### Agreed Strengths
 
-- Phase 4 correctly composes existing single-object verbs through the existing mutation gate rather than inventing new AD write paths.
-- Config/template keys, CSV schema restriction, quarantine OU validation, and manifest export boundary are well-aligned with existing patterns.
+- Phase 4 correctly composes existing single-object verbs through the existing `Invoke-AdmanMutation` gate rather than inventing parallel AD write paths.
+- Cap-after-filter, group pre-validation, and audit-backed restore state align with the established safety spine.
+- Manifest exports and recursive hard-delete guard extension are appropriate for the phase exit gate.
 
 ### Agreed Concerns
 
-- **HIGH — 04-01 bulk confirmation semantics:** The current `Confirm-AdmanAction` does not guarantee typed-count confirmation for small filtered sets; the plan must either add a bulk-only typed-count path or extend the confirmation helper.
-- **HIGH — 04-01 double-confirmation risk:** Without forcing the inner `Invoke-AdmanMutation` calls after outer confirmation, operators may receive per-item prompts.
-- **HIGH — 04-02 onboarding UPN source:** `$script:Config.Domain` does not exist in the config schema/defaults; a UPN-suffix source must be added or derived.
-- **HIGH — 04-03 restore audit lookup:** Substring matching against the pipe-joined `target` field can select the wrong record, and `whatIf=true` records are not excluded from restore state.
-- **MEDIUM — 04-01 group destination policy:** `GroupIdentity` should be resolved/validated before cap/confirm to avoid failing after confirmation.
-- **MEDIUM — 04-01 CSV header validation:** Missing required headers (`Action`, `Identity`) should be rejected explicitly, not just unknown headers.
-- **MEDIUM — 04-02 single vs. composed confirmations:** The plan should explicitly decide whether onboarding presents one outer confirmation or several, and tests should pin that behavior.
-- **MEDIUM — 04-03 audit lookback window:** The 30-day limit should be justified or removed, otherwise long-quarantined accounts become unrestorable.
-- **MEDIUM — 04-03 protected-group classification:** DN-only comparison against `ProtectedGroupDns` is incomplete when unresolved SIDs are present; classify by SID.
-- **MEDIUM — 04-04 menu output rendering:** Workflow/checklist text output may conflict with the generic output-format prompt in `Start-Adman`; define return objects or a menu skip.
-- **LOW — 04-02 empty string validation:** Add `[ValidateNotNullOrEmpty()]` to `FirstName`/`LastName`.
-- **LOW — 04-04 test config reference:** Use `tests/PesterConfiguration.psd1` instead of `pester.config.json`.
-- **LOW — 04-04 hard-delete guard scope:** Extend the `Remove-ADObject` check repo-wide (source AST/text), not only to new Phase 4 files.
+- **HIGH**: Offboarding workflow lacks an outer confirmation before forced inner destructive verbs. This breaks the phase's preview+confirm+audit promise.
+- **HIGH**: Adding `domain` to schema `required` without a loader migration will break existing installed configs.
+- **MEDIUM**: The TUI bulk entry is CSV-only and does not expose the promised search → bulk workflow for junior admins.
+- **MEDIUM**: Restore enables the account before re-adding groups and moving back to the original OU, risking a partially-restored enabled account.
 
 ### Divergent Views
 
-None — only one reviewer executed successfully.
+None — only one reviewer was available.
 
-## Next Step
+---
 
-Incorporate the findings above into the Phase 4 plans via `/gsd-plan-phase 04 --reviews` before beginning implementation.
+*Review generated by Codex CLI for Phase 04 — bulk-workflows-highest-blast-radius-last*
