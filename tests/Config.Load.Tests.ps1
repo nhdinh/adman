@@ -67,6 +67,17 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
                 passwordGeneration     = @{ length = 20 }
                 mustChangeAtNextLogon  = $true
             }
+            domain               = 'mock.local'
+            templates            = @{
+                onboarding  = @{
+                    ParentOuDn     = 'OU=Users,OU=Managed,DC=mock,DC=local'
+                    BaselineGroups = @()
+                    NamePattern    = '{0}.{1}'
+                }
+                offboarding = @{
+                    quarantineOU = 'OU=Quarantine,OU=Managed,DC=mock,DC=local'
+                }
+            }
         }
         if (-not $NoDenyList) { $o['DenyList'] = $DenyList }
         return [pscustomobject]$o
@@ -261,6 +272,109 @@ Describe 'Initialize-AdmanConfig Phase 3 timeout config (RMT-01/02, D-02)' -Tag 
             $script:TransportCache | Should -Not -Be $null
             ($script:TransportCache -is [hashtable]) | Should -BeTrue
             $script:TransportCache.Count | Should -Be 0
+        }
+    }
+}
+
+Describe 'Initialize-AdmanConfig Phase 4 template config (BULK/WORKFLOW, D-08/D-11/D-19)' -Tag 'Unit' {
+
+    It 'config/adman.defaults.json carries domain and templates defaults' {
+        $d = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'config\adman.defaults.json') -Raw | ConvertFrom-Json
+        $d.domain | Should -Be 'contoso.local'
+        $d.templates.onboarding.ParentOuDn | Should -Be 'OU=Users,OU=Managed,DC=contoso,DC=local'
+        @($d.templates.onboarding.BaselineGroups).Count | Should -Be 0
+        $d.templates.onboarding.NamePattern | Should -Be '{0}.{1}'
+        $d.templates.offboarding.quarantineOU | Should -Be 'OU=Quarantine,OU=Managed,DC=contoso,DC=local'
+    }
+
+    It 'Test-AdmanConfigValid accepts a config with domain and templates' {
+        $cfg = New-AdmanTestConfig
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        $null = & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot
+        $true | Should -BeTrue
+    }
+
+    It 'Test-AdmanConfigValid throws when domain is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('domain')
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } | Should -Throw -ExpectedMessage "*required key 'domain'*"
+    }
+
+    It 'Test-AdmanConfigValid throws when templates is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('templates')
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } | Should -Throw -ExpectedMessage "*required key 'templates'*"
+    }
+
+    It 'Initialize-AdmanConfig seeds missing domain and templates from shipped defaults' {
+        $store = Join-Path $TestDrive 'seed-domain-templates'
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('domain')
+        $cfg.PSObject.Properties.Remove('templates')
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            $script:Config.domain | Should -Be 'contoso.local'
+            $script:Config.templates.onboarding.NamePattern | Should -Be '{0}.{1}'
+            $script:Config.templates.offboarding.quarantineOU | Should -Be 'OU=Quarantine,OU=Managed,DC=contoso,DC=local'
+        }
+        $disk = Get-Content -LiteralPath (Join-Path $store 'config.json') -Raw | ConvertFrom-Json
+        $disk.domain | Should -Be 'contoso.local'
+        $disk.templates.onboarding.NamePattern | Should -Be '{0}.{1}'
+    }
+
+    It 'Initialize-AdmanConfig preserves existing non-default domain and templates values' {
+        $store = Join-Path $TestDrive 'preserve-domain-templates'
+        $cfg = New-AdmanTestConfig
+        $cfg.domain = 'keep.local'
+        $cfg.templates.onboarding.NamePattern = '{1}.{0}'
+        $cfg.templates.offboarding.quarantineOU = 'OU=Keep,DC=keep,DC=local'
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            $script:Config.domain | Should -Be 'keep.local'
+            $script:Config.templates.onboarding.NamePattern | Should -Be '{1}.{0}'
+            $script:Config.templates.offboarding.quarantineOU | Should -Be 'OU=Keep,DC=keep,DC=local'
+        }
+    }
+
+    It 'Initialize-AdmanConfig seeds only missing domain when templates already exists' {
+        $store = Join-Path $TestDrive 'seed-domain-only'
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('domain')
+        $cfg.templates.offboarding.quarantineOU = 'OU=Existing,DC=mock,DC=local'
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            $script:Config.domain | Should -Be 'contoso.local'
+            $script:Config.templates.offboarding.quarantineOU | Should -Be 'OU=Existing,DC=mock,DC=local'
+        }
+    }
+
+    It 'Initialize-AdmanConfig seeds only missing templates when domain already exists' {
+        $store = Join-Path $TestDrive 'seed-templates-only'
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('templates')
+        $cfg.domain = 'existing.local'
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            $script:Config.domain | Should -Be 'existing.local'
+            $script:Config.templates.onboarding.NamePattern | Should -Be '{0}.{1}'
         }
     }
 }

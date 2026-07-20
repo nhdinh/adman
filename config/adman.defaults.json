@@ -44,5 +44,16 @@
   },
   "AdmanProtectedGroup": "",
   "DC": "",
-  "delegatedAdminGroup": ""
+  "delegatedAdminGroup": "",
+  "domain": "contoso.local",
+  "templates": {
+    "onboarding": {
+      "ParentOuDn": "OU=Users,OU=Managed,DC=contoso,DC=local",
+      "BaselineGroups": [],
+      "NamePattern": "{0}.{1}"
+    },
+    "offboarding": {
+      "quarantineOU": "OU=Quarantine,OU=Managed,DC=contoso,DC=local"
+    }
+  }
 }

@@ -267,6 +267,24 @@ function Initialize-AdmanConfig {
         }
     }
 
+    # Phase 4 additive domain/templates defaults (D-08/D-11/D-19): seed missing keys from
+    # shipped defaults without overwriting user values, preserving existing configs.
+    if (Test-Path -LiteralPath $defaultsPath) {
+        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
+        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
+        foreach ($topKey in @('domain', 'templates')) {
+            if ($null -ne $defaults.$topKey) {
+                $existing = $config.PSObject.Properties.Name
+                if (-not ($existing -contains $topKey) -or $null -eq $config.$topKey) {
+                    $config | Add-Member -MemberType NoteProperty -Name $topKey -Value $defaults.$topKey -Force
+                }
+            }
+        }
+        # Persist the additive migration so the on-disk config remains valid under the
+        # updated schema (schema now requires domain and templates).
+        Save-AdmanConfig -Config $config -Path $path -Confirm:$false
+    }
+
     # Seed the deny-list once when absent or explicitly null (D-05, CR-02); the file is the
     # source of truth thereafter. Membership-tested (not property-accessed) so Set-StrictMode
     # does not throw on a NoDenyList file.

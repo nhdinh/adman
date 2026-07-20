@@ -16,7 +16,9 @@
     "AdmanProtectedGroup",
     "DC",
     "delegatedAdminGroup",
-    "security"
+    "security",
+    "domain",
+    "templates"
   ],
   "properties": {
     "ManagedOUs": {
@@ -171,6 +173,47 @@
       "type": "string",
       "description": "SID of the team delegated-admin group used by the startup rights banner (MENU-05); environment-specific, supplied by the team (CONTEXT L77). Placeholder empty.",
       "default": ""
+    },
+    "domain": {
+      "type": "string",
+      "description": "Active Directory domain DNS name. Used by onboarding to build the UPN suffix (D-11). Non-secret topology value.",
+      "default": "contoso.local"
+    },
+    "templates": {
+      "type": "object",
+      "description": "Onboarding/offboarding template topology values (D-08/D-19). Non-secret; stored in the portable plain-JSON config.",
+      "required": ["onboarding", "offboarding"],
+      "properties": {
+        "onboarding": {
+          "type": "object",
+          "required": ["ParentOuDn", "BaselineGroups", "NamePattern"],
+          "properties": {
+            "ParentOuDn": {
+              "type": "string",
+              "description": "Target OU DN for new-user creation (D-09)."
+            },
+            "BaselineGroups": {
+              "type": "array",
+              "description": "AD group identities (names or DNs) added to every onboarded user (D-09). Empty array permitted.",
+              "items": { "type": "string" }
+            },
+            "NamePattern": {
+              "type": "string",
+              "description": "String.Format pattern producing sAMAccountName from first/last name (D-11). Default {0}.{1}."
+            }
+          }
+        },
+        "offboarding": {
+          "type": "object",
+          "required": ["quarantineOU"],
+          "properties": {
+            "quarantineOU": {
+              "type": "string",
+              "description": "DN of the quarantine OU used by offboarding (D-19). Must be within a managed-OU root."
+            }
+          }
+        }
+      }
     }
   }
 }
