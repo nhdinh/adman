@@ -241,7 +241,7 @@ function Invoke-AdmanBulkAction {
                         }
                     }
                     'Move' {
-                        $currentParent = ([string]$rec.ResolvedTarget.DistinguishedName) -replace '^[^,]+,'
+                        $currentParent = ConvertTo-AdmanParentDn -Dn $rec.ResolvedTarget.DistinguishedName
                         if ((ConvertTo-AdmanNormalizedDn -Dn $currentParent) -eq (ConvertTo-AdmanNormalizedDn -Dn $TargetPath)) {
                             $skipReason = 'already in place'
                         }

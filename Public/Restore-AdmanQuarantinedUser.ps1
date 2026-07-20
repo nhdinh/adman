@@ -69,7 +69,7 @@ function Restore-AdmanQuarantinedUser {
     }
 
     # The account must currently be in the configured quarantine OU.
-    $currentParent = [string]$user.DistinguishedName -replace '^[^,]+,'
+    $currentParent = ConvertTo-AdmanParentDn -Dn $user.DistinguishedName
     $currentNorm = ConvertTo-AdmanNormalizedDn -Dn $currentParent
     $quarantineNorm = ConvertTo-AdmanNormalizedDn -Dn $quarantineOu
     if ($currentNorm -ne $quarantineNorm) {

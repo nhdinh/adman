@@ -86,7 +86,7 @@ function Start-AdmanUserOffboarding {
         throw "Identity '$Identity' could not be resolved to a single user."
     }
 
-    $originalOu = [string]$user.DistinguishedName -replace '^[^,]+,'
+    $originalOu = ConvertTo-AdmanParentDn -Dn $user.DistinguishedName
 
     # Classify memberOf groups. Resolve each group and test SID/RID/DN against the
     # protected sets. If resolution fails, fall back to DN-string membership in
