@@ -219,7 +219,9 @@ function Invoke-AdmanBulkAction {
                 Force             = $Force
             }
             if ($Action -in @('AddGroup', 'RemoveGroup') -and $allowed.Count -gt 0) {
-                $confirmArgs['Group'] = $allowed[0].ResolvedGroup.DistinguishedName
+                $groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)
+                if ($groupDns.Count -eq 1) { $confirmArgs['Group'] = $groupDns[0] }
+                else { $confirmArgs['Group'] = "$($groupDns.Count) distinct groups" }
             }
             $confirm = Confirm-AdmanAction @confirmArgs
             if ($confirm.Outcome -eq 'Declined') {
