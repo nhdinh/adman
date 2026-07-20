@@ -173,6 +173,130 @@ Describe 'Phase 4 workflow entries skip the generic output-format prompt' -Tag '
     }
 }
 
+Describe 'Phase 4 workflow entries skip the generic output-format prompt' -Tag 'Unit' {
+
+    BeforeAll {
+        . $script:MenuDefPath
+        $script:menuDef = Get-AdmanMenuDefinition
+
+        # Compute display numbers for the selectable Phase 4 entries.
+        $script:selectable = New-Object System.Collections.ArrayList
+        for ($i = 0; $i -lt @($script:menuDef).Count; $i++) {
+            if ($null -ne $script:menuDef[$i].Verb) {
+                [void]$script:selectable.Add($i)
+            }
+        }
+        $script:findDisplayNumber = {
+            param([string]$Verb)
+            for ($i = 0; $i -lt $script:selectable.Count; $i++) {
+                if ($script:menuDef[$script:selectable[$i]].Verb -eq $Verb) {
+                    return $i + 1
+                }
+            }
+            throw "Verb $Verb not found in menu"
+        }
+    }
+
+    It 'Start-AdmanUserOnboarding returns to the menu without rendering the output-format prompt' {
+        $num = & $script:findDisplayNumber 'Start-AdmanUserOnboarding'
+        $global:answers = @([string]$num, 'Test', 'User', 'Q')
+        $global:answerIdx = 0
+        $global:formatPromptSeen = $false
+
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host {
+            param($Object, $ForegroundColor)
+            if ($Object -match 'Output format:') { $global:formatPromptSeen = $true }
+        }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Start-AdmanUserOnboarding { }
+
+        { Start-Adman } | Should -Not -Throw
+        $global:formatPromptSeen | Should -BeFalse -Because 'SkipOutputPrompt must bypass the generic output-format prompt'
+        Should -Invoke Start-AdmanUserOnboarding -ModuleName adman -Times 1
+    }
+
+    It 'Start-AdmanUserOffboarding returns to the menu without rendering the output-format prompt' {
+        $num = & $script:findDisplayNumber 'Start-AdmanUserOffboarding'
+        $global:answers = @([string]$num, 'jdoe', 'Q')
+        $global:answerIdx = 0
+        $global:formatPromptSeen = $false
+
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host {
+            param($Object, $ForegroundColor)
+            if ($Object -match 'Output format:') { $global:formatPromptSeen = $true }
+        }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Resolve-AdmanIdentity {
+            [pscustomobject]@{ DistinguishedName = 'CN=jdoe,OU=Managed,DC=mock,DC=local' }
+        }
+        Mock -ModuleName adman Start-AdmanUserOffboarding { }
+
+        { Start-Adman } | Should -Not -Throw
+        $global:formatPromptSeen | Should -BeFalse -Because 'SkipOutputPrompt must bypass the generic output-format prompt'
+        Should -Invoke Start-AdmanUserOffboarding -ModuleName adman -Times 1
+    }
+
+    It 'Restore-AdmanQuarantinedUser returns to the menu without rendering the output-format prompt' {
+        $num = & $script:findDisplayNumber 'Restore-AdmanQuarantinedUser'
+        $global:answers = @([string]$num, 'jdoe', 'Q')
+        $global:answerIdx = 0
+        $global:formatPromptSeen = $false
+
+        Mock -ModuleName adman Read-Host { $global:answers[$global:answerIdx++] }
+        Mock -ModuleName adman Write-Host {
+            param($Object, $ForegroundColor)
+            if ($Object -match 'Output format:') { $global:formatPromptSeen = $true }
+        }
+        Mock -ModuleName adman Initialize-Adman {
+            & (Get-Module adman) {
+                $script:Capability = [pscustomobject]@{
+                    RsatPresent       = $true
+                    DomainReachable   = $true
+                    AuditWritable     = $true
+                    RecycleBinEnabled = $true
+                    RightsSufficient  = $true
+                    WinRM             = $true
+                    CimDcom           = $false
+                }
+            }
+        }
+        Mock -ModuleName adman Resolve-AdmanIdentity {
+            [pscustomobject]@{ DistinguishedName = 'CN=jdoe,OU=Quarantine,DC=mock,DC=local' }
+        }
+        Mock -ModuleName adman Restore-AdmanQuarantinedUser { }
+
+        { Start-Adman } | Should -Not -Throw
+        $global:formatPromptSeen | Should -BeFalse -Because 'SkipOutputPrompt must bypass the generic output-format prompt'
+        Should -Invoke Restore-AdmanQuarantinedUser -ModuleName adman -Times 1
+    }
+}
+
 Describe 'Phase 4 menu entry parameters resolve to declared verb parameters' -Tag 'Unit' {
 
     BeforeAll {

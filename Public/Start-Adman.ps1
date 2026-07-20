@@ -171,6 +171,15 @@ function Start-Adman {
         }
         $reportData = & $Verb @params
 
+        # WORKFLOW OUTPUT SKIP (Phase 4): onboarding/offboarding/restore produce their
+        # own status/checklist text and should not be forced through the generic output
+        # renderer. If the menu entry declares SkipOutputPrompt=$true, return to the
+        # top-level menu immediately after the verb returns.
+        if ($entry.PSObject.Properties.Name -contains 'SkipOutputPrompt' -and
+            $entry.SkipOutputPrompt -eq $true) {
+            continue
+        }
+
         # --- Output-format prompt (D-04) -------------------------------------
         # Present inline output-format choices after the verb returns. B returns
         # to the top-level menu; Q exits Start-Adman.

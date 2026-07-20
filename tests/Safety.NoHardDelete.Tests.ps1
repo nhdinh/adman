@@ -106,6 +106,17 @@ Describe 'SAFE-09: Adman.AD.Write wrappers are the sole, gate-only callers of re
             -Because 'the hard-delete verb has no wrapper (delete = reversible disable+quarantine)'
     }
 
+    It 'has no literal Remove-ADObject in any Public or Private source file (repo-wide SAFE-09)' {
+        $sourceFiles = Get-ChildItem -Path (Join-Path $script:RepoRoot 'Public'), (Join-Path $script:RepoRoot 'Private') -Recurse -Filter '*.ps1' -ErrorAction SilentlyContinue
+        $matches = foreach ($file in $sourceFiles) {
+            $content = Get-Content -LiteralPath $file.FullName -Raw
+            if ($content -match 'Remove-ADObject') {
+                $file.FullName
+            }
+        }
+        @($matches).Count | Should -Be 0 -Because "hard-delete cmdlet literal must not appear in source files; found in: $($matches -join ', ')"
+    }
+
     It 'every wrapper declares SupportsShouldProcess ConfirmImpact=High, pins -Server, forwards -Confirm:$false' {
         Test-Path -LiteralPath $script:WritePath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:WritePath -Raw
