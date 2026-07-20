@@ -92,6 +92,12 @@ function Test-AdmanConfigValid {
         if (-not $present) { throw "Config validation failed: required key '$key' is missing." }
     }
 
+    # WR-07: an empty or whitespace-only domain passes the presence check above but
+    # produces malformed UPNs during onboarding, so reject it explicitly.
+    if ([string]::IsNullOrWhiteSpace([string]$Config.domain)) {
+        throw "Config validation failed: 'domain' must be a non-empty string."
+    }
+
     # ManagedOUs: array of strings (emptiness is the CONF-02 scope gate, handled by the caller).
     if ($null -ne $Config.ManagedOUs -and -not ($Config.ManagedOUs -is [array])) {
         throw "Config validation failed: 'ManagedOUs' must be an array of DN strings."
