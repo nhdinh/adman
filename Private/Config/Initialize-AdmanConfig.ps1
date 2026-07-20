@@ -280,9 +280,6 @@ function Initialize-AdmanConfig {
                 }
             }
         }
-        # Persist the additive migration so the on-disk config remains valid under the
-        # updated schema (schema now requires domain and templates).
-        Save-AdmanConfig -Config $config -Path $path -Confirm:$false
     }
 
     # Seed the deny-list once when absent or explicitly null (D-05, CR-02); the file is the
@@ -293,11 +290,13 @@ function Initialize-AdmanConfig {
         $seed = (Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json).DenyList
         $seed = ConvertTo-AdmanCleanConfig -Node $seed
         $config | Add-Member -MemberType NoteProperty -Name DenyList -Value $seed -Force
-        Save-AdmanConfig -Config $config -Path $path -Confirm:$false
     }
 
-    # Validate (throws on failure = load failure), then the CONF-02 scope gate.
+    # Validate (throws on failure = load failure), then persist the fully-migrated config.
     Test-AdmanConfigValid -Config $config -ModuleRoot $moduleRoot | Out-Null
+
+    # Save only after validation succeeds so an invalid migrated config is never persisted.
+    Save-AdmanConfig -Config $config -Path $path -Confirm:$false
 
     if (-not $SetupMode) {
         # CR-01: null or whitespace-only ManagedOUs must not bypass the fail-closed scope gate.
