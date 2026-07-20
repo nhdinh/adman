@@ -125,4 +125,19 @@ Describe 'adman module boundary (SAFE-08 / T-00-01)' {
         $raw = Get-Content $script:ManifestPath -Raw -ErrorAction Stop
         $raw | Should -Not -Match "FunctionsToExport\s*=\s*['`"]\*['`"]"
     }
+
+    It 'FunctionsToExport contains all four Phase 4 bulk/workflow verbs explicitly' {
+        $mf = Test-ModuleManifest $script:ManifestPath -ErrorAction Stop
+        $exported = @($mf.ExportedFunctions.Keys)
+
+        $phase4Verbs = @(
+            'Invoke-AdmanBulkAction'
+            'Start-AdmanUserOnboarding'
+            'Start-AdmanUserOffboarding'
+            'Restore-AdmanQuarantinedUser'
+        )
+        foreach ($v in $phase4Verbs) {
+            $exported | Should -Contain $v -Because "Phase 4 plans must export $v"
+        }
+    }
 }
