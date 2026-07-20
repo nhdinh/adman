@@ -232,4 +232,36 @@ Describe 'SAFE-02: Confirm-AdmanAction scaled confirmation + -WhatIf carve-out (
         @($src | Select-String -Pattern 'Cancelled').Count | Should -Be 0 `
             -Because 'no abort/cancel-style record (confirm-first -> a declined action never starts)'
     }
+
+    It '-RequireTypedCount below threshold forces typed-count prompt' {
+        $targets = New-AdmanTargets -Count 2
+        Mock Read-Host -ModuleName adman { '2' }
+        $r = & (Get-Module adman) { param($t) Confirm-AdmanAction -Verb 'Disable-ADAccount' -Targets $t -RequireTypedCount } -t $targets
+        $r.Outcome | Should -Be 'Proceed'
+        Should -Invoke Read-Host -ModuleName adman -Times 1
+    }
+
+    It '-RequireTypedCount below threshold refuses wrong count' {
+        $targets = New-AdmanTargets -Count 2
+        Mock Read-Host -ModuleName adman { '3' }
+        { & (Get-Module adman) { param($t) Confirm-AdmanAction -Verb 'Disable-ADAccount' -Targets $t -RequireTypedCount } -t $targets } |
+            Should -Throw -ExpectedMessage '*Confirmation failed*'
+    }
+
+    It '-RequireTypedCount under -WhatIf returns DryRun without prompting' {
+        $targets = New-AdmanTargets -Count 2
+        Mock Read-Host -ModuleName adman { throw 'Read-Host must NOT be called under -WhatIf' }
+        $r = & (Get-Module adman) { param($t) Confirm-AdmanAction -Verb 'Disable-ADAccount' -Targets $t -RequireTypedCount -WhatIf } -t $targets
+        $r.Outcome | Should -Be 'DryRun'
+        $r.WhatIf | Should -BeTrue
+        Should -Invoke Read-Host -ModuleName adman -Times 0
+    }
+
+    It '-RequireTypedCount under -Force returns Proceed without prompting' {
+        $targets = New-AdmanTargets -Count 2
+        Mock Read-Host -ModuleName adman { throw 'Read-Host must NOT be called under -Force' }
+        $r = & (Get-Module adman) { param($t) Confirm-AdmanAction -Verb 'Disable-ADAccount' -Targets $t -RequireTypedCount -Force } -t $targets
+        $r.Outcome | Should -Be 'Proceed'
+        Should -Invoke Read-Host -ModuleName adman -Times 0
+    }
 }

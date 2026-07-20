@@ -39,6 +39,7 @@ function Confirm-AdmanAction {
         [Parameter(Mandatory)]
         $Targets,
         [string]$Group,
+        [switch]$RequireTypedCount,
         [switch]$Force
     )
 
@@ -79,7 +80,7 @@ function Confirm-AdmanAction {
 
     # (2) Prompt unless -Force / -Confirm:$false (ConfirmPreference='None'). Skips ONLY the prompt.
     if (-not $Force -and ($ConfirmPreference -ne 'None')) {
-        if ($count -ge $threshold) {
+        if ($RequireTypedCount -or ($count -ge $threshold)) {
             $token = Read-Host "Type the exact count ($count) to $Verb these $targetDesc"
             if ($token -cne "$count") {
                 throw "Confirmation failed: expected $count. Refused."
