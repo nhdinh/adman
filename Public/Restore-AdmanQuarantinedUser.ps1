@@ -68,6 +68,15 @@ function Restore-AdmanQuarantinedUser {
         throw "Identity '$Identity' could not be resolved to a single user."
     }
 
+    # CR-01: after Move-AdmanUser changes the DN, re-resolution by DN fails. Use the
+    # stable sAMAccountName for all composed verbs; fall back to the original input
+    # for mocks/deserialized objects that lack SamAccountName.
+    $stableIdentity = if ($user.PSObject.Properties['SamAccountName'] -and $user.SamAccountName) {
+        $user.SamAccountName
+    } else {
+        $Identity
+    }
+
     # The account must currently be in the configured quarantine OU.
     $currentParent = ConvertTo-AdmanParentDn -Dn $user.DistinguishedName
     $currentNorm = ConvertTo-AdmanNormalizedDn -Dn $currentParent
@@ -103,14 +112,14 @@ function Restore-AdmanQuarantinedUser {
         # Re-add groups first, then move, then enable last so a partial failure leaves
         # the account disabled.
         foreach ($g in @($state.Groups | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-            $null = Add-AdmanGroupMember -Identity $Identity -GroupIdentity $g `
+            $null = Add-AdmanGroupMember -Identity $stableIdentity -GroupIdentity $g `
                 -Force:$true -WhatIf:$WhatIfPreference
         }
 
-        $null = Move-AdmanUser -Identity $Identity -TargetPath $state.OriginalOU `
+        $null = Move-AdmanUser -Identity $stableIdentity -TargetPath $state.OriginalOU `
             -Force:$true -WhatIf:$WhatIfPreference
 
-        $null = Enable-AdmanUser -Identity $Identity -Force:$true -WhatIf:$WhatIfPreference
+        $null = Enable-AdmanUser -Identity $stableIdentity -Force:$true -WhatIf:$WhatIfPreference
 
         $null = Write-AdmanAudit -Verb 'Restore-AdmanQuarantinedUser' -Target $user `
             -Result 'Success' -WhatIf:$WhatIfPreference
