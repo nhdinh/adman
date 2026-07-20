@@ -142,7 +142,7 @@ function Write-AdmanAudit {
             target        = ($targetStrings -join '|')
             targets       = $targetDetail
             count         = $targetObjs.Count
-            whatIf        = [bool]$WhatIfPreference
+            whatIf        = [bool]$WhatIf
             result        = $Result
             reason        = $Reason
             correlationId = $CorrelationId
