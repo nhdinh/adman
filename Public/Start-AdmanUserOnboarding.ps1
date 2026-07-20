@@ -69,8 +69,14 @@ function Start-AdmanUserOnboarding {
     $template = $script:Config.templates.onboarding
 
     foreach ($key in @('ParentOuDn', 'BaselineGroups', 'NamePattern')) {
-        if (-not $template.PSObject.Properties[$key] -or
-            [string]::IsNullOrWhiteSpace([string]$template.$key)) {
+        if (-not $template.PSObject.Properties[$key]) {
+            throw "Onboarding template is missing required key '$key'."
+        }
+        if ($key -eq 'BaselineGroups') {
+            if ($null -eq $template.$key) {
+                throw "Onboarding template is missing required key '$key'."
+            }
+        } elseif ([string]::IsNullOrWhiteSpace([string]$template.$key)) {
             throw "Onboarding template is missing required key '$key'."
         }
     }
