@@ -92,7 +92,7 @@ function Start-AdmanUserOffboarding {
     # protected sets. If resolution fails, fall back to DN-string membership in
     # $script:ProtectedGroupDns (covers unresolved-SID entries stored there).
     $groupsToRemove = [System.Collections.Generic.List[string]]::new()
-    foreach ($g in @($user.memberOf)) {
+    foreach ($g in @($user.memberOf | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
         $isProtected = $false
         try {
             $group = Resolve-AdmanGroup -Identity $g
