@@ -27,7 +27,8 @@ function ConvertTo-AdmanParentDn {
     # Split on the first comma that is NOT escaped by a single backslash.
     # A comma preceded by an even number of backslashes (including zero) is a
     # component separator; a comma preceded by an odd number is escaped.
-    $parts = [regex]::Split($Dn, '(?<!\\)(?:\\\\)*,', 2)
+    $re = [regex]::new('(?<!\\)(?:\\\\)*,')
+    $parts = $re.Split($Dn, 2)
     if ($parts.Length -lt 2) { return '' }
     return $parts[1].Trim()
 }
