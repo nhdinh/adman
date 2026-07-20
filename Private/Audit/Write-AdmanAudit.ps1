@@ -38,6 +38,7 @@ function Write-AdmanAudit {
     [CmdletBinding()]
     param(
         [string]$CorrelationId,
+        [Parameter(Mandatory)]
         [string]$Verb,
         $Targets,
         $Target,
