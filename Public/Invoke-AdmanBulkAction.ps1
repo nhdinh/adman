@@ -211,24 +211,28 @@ function Invoke-AdmanBulkAction {
 
         # One typed-count confirmation for the exact filtered set.
         # -Force skips this outer confirmation but preserves per-item policy/audit.
-        if (-not $Force) {
-            $confirmArgs = @{
-                Verb              = $gateVerb
-                Targets           = $allowed.ToArray()
-                RequireTypedCount = $true
-                Force             = $Force
+        # WR-06: skip confirmation entirely when nothing passed filtering so the operator
+        # is not prompted to confirm zero objects.
+        if ($allowed.Count -gt 0) {
+            if (-not $Force) {
+                $confirmArgs = @{
+                    Verb              = $gateVerb
+                    Targets           = $allowed.ToArray()
+                    RequireTypedCount = $true
+                    Force             = $Force
+                }
+                if ($Action -in @('AddGroup', 'RemoveGroup') -and $allowed.Count -gt 0) {
+                    $groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)
+                    if ($groupDns.Count -eq 1) { $confirmArgs['Group'] = $groupDns[0] }
+                    else { $confirmArgs['Group'] = "$($groupDns.Count) distinct groups" }
+                }
+                $confirm = Confirm-AdmanAction @confirmArgs
+                if ($confirm.Outcome -eq 'Declined') {
+                    throw 'Operator declined.'
+                }
+            } else {
+                $confirm = [pscustomobject]@{ Outcome = 'Proceed'; WhatIf = [bool]$WhatIfPreference }
             }
-            if ($Action -in @('AddGroup', 'RemoveGroup') -and $allowed.Count -gt 0) {
-                $groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)
-                if ($groupDns.Count -eq 1) { $confirmArgs['Group'] = $groupDns[0] }
-                else { $confirmArgs['Group'] = "$($groupDns.Count) distinct groups" }
-            }
-            $confirm = Confirm-AdmanAction @confirmArgs
-            if ($confirm.Outcome -eq 'Declined') {
-                throw 'Operator declined.'
-            }
-        } else {
-            $confirm = [pscustomobject]@{ Outcome = 'Proceed'; WhatIf = [bool]$WhatIfPreference }
         }
 
         # Per-item execution: continue on single-item failure.
