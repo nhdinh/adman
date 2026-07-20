@@ -73,6 +73,6 @@ function Get-AdmanOffboardingState {
     $latest = $candidates | Sort-Object -Property tsUtc -Descending | Select-Object -First 1
     return [pscustomobject]@{
         OriginalOU = $latest.originalOU
-        Groups     = @($latest.groups)
+        Groups     = if ($null -ne $latest.groups) { @($latest.groups) } else { @() }
     }
 }

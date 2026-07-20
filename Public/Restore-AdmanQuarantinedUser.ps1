@@ -102,7 +102,7 @@ function Restore-AdmanQuarantinedUser {
     try {
         # Re-add groups first, then move, then enable last so a partial failure leaves
         # the account disabled.
-        foreach ($g in @($state.Groups)) {
+        foreach ($g in @($state.Groups | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
             $null = Add-AdmanGroupMember -Identity $Identity -GroupIdentity $g `
                 -Force:$true -WhatIf:$WhatIfPreference
         }
