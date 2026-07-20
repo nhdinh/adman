@@ -31,7 +31,15 @@ function Import-AdmanBulkCsv {
     if ([string]::IsNullOrWhiteSpace($headerLine)) {
         return @()
     }
-    $actual = @($headerLine.Split(',') | ForEach-Object { $_.Trim() })
+    # WR-07: split the header using RFC-4180 quoting rules so a quoted comma is not treated as
+    # a field separator (keeps the manual checks in sync with Import-Csv).
+    $actual = @([regex]::Matches($headerLine, '(?:^|,)(?:"((?:[^"]|"")*)"|([^,]*))') | ForEach-Object {
+        if ($_.Groups[1].Success) {
+            ($_.Groups[1].Value -replace '""', '"').Trim()
+        } else {
+            $_.Groups[2].Value.Trim()
+        }
+    })
 
     $duplicates = @($actual | Group-Object | Where-Object { $_.Count -gt 1 } | ForEach-Object { $_.Name })
     if ($duplicates.Count -gt 0) {
