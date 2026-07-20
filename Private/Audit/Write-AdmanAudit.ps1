@@ -46,6 +46,8 @@ function Write-AdmanAudit {
         [string]$Result,
         [string]$Reason,
         [string]$Group,
+        [string]$OriginalOU,
+        [string[]]$Groups,
         [switch]$WhatIf
     )
 
@@ -152,6 +154,14 @@ function Write-AdmanAudit {
         # Test 1 invariant for non-group records).
         if (-not [string]::IsNullOrEmpty($Group)) {
             $rec['group'] = $Group
+        }
+        # Offboarding restore state: only emit when supplied so non-offboarding records keep the
+        # exact D-03 key set (FLOW-02/FLOW-03).
+        if (-not [string]::IsNullOrEmpty($OriginalOU)) {
+            $rec['originalOU'] = $OriginalOU
+        }
+        if ($null -ne $Groups -and $Groups.Count -gt 0) {
+            $rec['groups'] = $Groups
         }
         $rec = $rec | ConvertTo-Json -Compress -Depth 5
 

@@ -143,6 +143,47 @@ Describe 'SAFE-03: Write-AdmanAudit record schema + no-secret guarantee' -Tag 'U
         ($rec.targets[0].objectClass -join ',') | Should -Match 'user'
     }
 
+    It 'Test 1b: a record written with -OriginalOU and -Groups includes those keys and retains the D-03 base set' {
+        $t1 = New-AdmanAuditTarget -Dn 'CN=Carol,OU=Managed,DC=mock,DC=local'
+        $originalOu = 'OU=Users,OU=Managed,DC=mock,DC=local'
+        $groups = @('CN=G1,OU=Groups,DC=mock,DC=local', 'CN=G2,OU=Groups,DC=mock,DC=local')
+
+        & (Get-Module adman) {
+            param($T, $OU, $G)
+            Write-AdmanAudit -CorrelationId ([guid]::NewGuid().ToString()) -Verb 'Start-AdmanUserOffboarding' `
+                -Targets @($T) -Result 'Success' -Reason '' -WhatIf:$false `
+                -OriginalOU $OU -Groups $G
+        } -T $t1 -OU $originalOu -G $groups
+
+        $rec = Read-AdmanAuditRecord -AuditDir $script:AuditDir
+        $keys = @($rec.PSObject.Properties.Name)
+        $keys | Should -Contain 'originalOU'
+        $keys | Should -Contain 'groups'
+        $rec.originalOU | Should -Be $originalOu
+        @($rec.groups).Count | Should -Be 2
+        $rec.groups[0] | Should -Be $groups[0]
+        $rec.groups[1] | Should -Be $groups[1]
+
+        # Base D-03 keys are still present.
+        foreach ($k in $script:D03Keys) {
+            $keys | Should -Contain $k
+        }
+    }
+
+    It 'Test 1c: a record written without -OriginalOU/-Groups does not contain those keys' {
+        $t1 = New-AdmanAuditTarget -Dn 'CN=Dave,OU=Managed,DC=mock,DC=local'
+
+        & (Get-Module adman) {
+            param($T)
+            Write-AdmanAudit -CorrelationId ([guid]::NewGuid().ToString()) -Verb 'Disable-ADAccount' -Targets @($T) -Result 'Success' -Reason '' -WhatIf:$false
+        } -T $t1
+
+        $rec = Read-AdmanAuditRecord -AuditDir $script:AuditDir
+        $keys = @($rec.PSObject.Properties.Name)
+        $keys | Should -Not -Contain 'originalOU'
+        $keys | Should -Not -Contain 'groups'
+    }
+
     It 'Test 2a (CLEAN): a written record has ZERO secret-named keys and no value equal to a supplied sensitive value' {
         $t1 = New-AdmanAuditTarget -Dn 'CN=Bob,OU=Managed,DC=mock,DC=local'
         $sensitive = 'P@ssw0rd!-supplied-secret-value'
