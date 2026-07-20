@@ -125,20 +125,24 @@ function Invoke-AdmanBulkAction {
             }
         }
 
-        # Move jobs require a destination for the entire job.
+        # Move jobs require a destination for the entire job or a per-row TargetPath.
+        # The outer -TargetPath acts as the default when a CSV row omits the column.
         if ($Action -eq 'Move') {
-            if ([string]::IsNullOrWhiteSpace($TargetPath)) {
-                throw "Move action requires -TargetPath."
-            }
-            $tp = ConvertTo-AdmanNormalizedDn -Dn $TargetPath
-            $tpInScope = $false
-            foreach ($root in @($script:Config.ManagedOUs)) {
-                $r = ConvertTo-AdmanNormalizedDn -Dn ([string]$root)
-                if ([string]::IsNullOrEmpty($r)) { continue }
-                if ($tp -eq $r -or $tp.EndsWith(',' + $r)) { $tpInScope = $true; break }
-            }
-            if (-not $tpInScope) {
-                throw "TargetPath '$TargetPath' is outside managed OU scope."
+            foreach ($rec in $records) {
+                $effectiveTargetPath = if ($rec.TargetPath) { $rec.TargetPath } else { $TargetPath }
+                if ([string]::IsNullOrWhiteSpace($effectiveTargetPath)) {
+                    throw "Move action requires -TargetPath or a TargetPath value on every CSV row."
+                }
+                $tp = ConvertTo-AdmanNormalizedDn -Dn $effectiveTargetPath
+                $tpInScope = $false
+                foreach ($root in @($script:Config.ManagedOUs)) {
+                    $r = ConvertTo-AdmanNormalizedDn -Dn ([string]$root)
+                    if ([string]::IsNullOrEmpty($r)) { continue }
+                    if ($tp -eq $r -or $tp.EndsWith(',' + $r)) { $tpInScope = $true; break }
+                }
+                if (-not $tpInScope) {
+                    throw "TargetPath '$effectiveTargetPath' is outside managed OU scope."
+                }
             }
         }
 
@@ -241,8 +245,9 @@ function Invoke-AdmanBulkAction {
                         }
                     }
                     'Move' {
+                        $itemTargetPath = if ($rec.TargetPath) { $rec.TargetPath } else { $TargetPath }
                         $currentParent = ConvertTo-AdmanParentDn -Dn $rec.ResolvedTarget.DistinguishedName
-                        if ((ConvertTo-AdmanNormalizedDn -Dn $currentParent) -eq (ConvertTo-AdmanNormalizedDn -Dn $TargetPath)) {
+                        if ((ConvertTo-AdmanNormalizedDn -Dn $currentParent) -eq (ConvertTo-AdmanNormalizedDn -Dn $itemTargetPath)) {
                             $skipReason = 'already in place'
                         }
                     }
@@ -273,7 +278,7 @@ function Invoke-AdmanBulkAction {
                 }
 
                 $params = @{}
-                if ($Action -eq 'Move') { $params['TargetPath'] = $TargetPath }
+                if ($Action -eq 'Move') { $params['TargetPath'] = if ($rec.TargetPath) { $rec.TargetPath } else { $TargetPath } }
                 if ($Action -in @('AddGroup', 'RemoveGroup')) { $params['GroupIdentity'] = $rec.ResolvedGroup.DistinguishedName }
 
                 Invoke-AdmanMutation -Verb $rec.GateVerb -Targets @($rec.Identity) -Parameters $params `
