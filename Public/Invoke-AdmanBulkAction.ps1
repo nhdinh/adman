@@ -255,13 +255,15 @@ function Invoke-AdmanBulkAction {
                     }
                     'AddGroup' {
                         $groupDn = $rec.ResolvedGroup.DistinguishedName
-                        if (@($rec.ResolvedTarget.memberOf) -contains $groupDn) {
+                        $memberOf = if ($rec.ResolvedTarget.PSObject.Properties['memberOf']) { @($rec.ResolvedTarget.memberOf) } else { @() }
+                        if ($memberOf -contains $groupDn) {
                             $skipReason = 'already member'
                         }
                     }
                     'RemoveGroup' {
                         $groupDn = $rec.ResolvedGroup.DistinguishedName
-                        if (-not (@($rec.ResolvedTarget.memberOf) -contains $groupDn)) {
+                        $memberOf = if ($rec.ResolvedTarget.PSObject.Properties['memberOf']) { @($rec.ResolvedTarget.memberOf) } else { @() }
+                        if (-not ($memberOf -contains $groupDn)) {
                             $skipReason = 'not a member'
                         }
                     }
