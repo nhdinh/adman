@@ -86,8 +86,8 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 ### Onboarding / Offboarding Workflows (FLOW)
 
 - [x] **FLOW-01**: Onboarding workflow guides new-user setup (name format → role/OU template → create → password → baseline groups → audit) as one gated, audited flow
-- [ ] **FLOW-02**: Offboarding workflow disables the user, strips non-protected groups (recorded for restore), moves to quarantine OU, and surfaces related cleanup (mailbox/home-dir/GPO) as a **checklist only**
-- [ ] **FLOW-03**: Offboarding is reversible — admin can restore a quarantined user with recorded groups/original location
+- [x] **FLOW-02**: Offboarding workflow disables the user, strips non-protected groups (recorded for restore), moves to quarantine OU, and surfaces related cleanup (mailbox/home-dir/GPO) as a **checklist only**
+- [x] **FLOW-03**: Offboarding is reversible — admin can restore a quarantined user with recorded groups/original location
 - [x] **FLOW-04**: Workflows compose existing single-object verbs through the same gate (no new AD primitives); a mid-workflow failure stops later steps for that target and logs FAIL
 
 ### Bulk Operations (BULK)
@@ -199,8 +199,8 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | RMT-03 | Phase 3 | Complete |
 | RMT-04 | Phase 3 | Complete |
 | FLOW-01 | Phase 4 | Complete |
-| FLOW-02 | Phase 4 | Pending |
-| FLOW-03 | Phase 4 | Pending |
+| FLOW-02 | Phase 4 | Complete |
+| FLOW-03 | Phase 4 | Complete |
 | FLOW-04 | Phase 4 | Complete |
 | BULK-01 | Phase 4 | Complete |
 | BULK-02 | Phase 4 | Complete |
