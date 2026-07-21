@@ -1,8 +1,8 @@
 ---
 phase: 5
-cycle: 2
+cycle: 3
 reviewers: [codex]
-reviewed_at: 2026-07-21T11:10:00Z
+reviewed_at: 2026-07-21T11:22:00Z
 plans_reviewed:
   - 05-01a1-PLAN.md
   - 05-01a2-PLAN.md
@@ -182,9 +182,43 @@ Phase 5 plans are materially stronger than Cycle 1. The main Cycle 1 findings ar
 
 ---
 
+## Codex Review (Cycle 3)
+
+### Summary
+
+Phase 5 Cycle 3 is materially improved over Cycle 2. The four Cycle 2 concerns are explicitly addressed in the current plans: PSFramework/AllSigned handling in 05-02, help-block placement in 05-01a*, PowerShell-side `audit.retentionDays` validation in 05-03, and mutex-scoped hash-chain writes in 05-03. The remaining risk is narrower: 05-02 has a signing-script path-resolution ambiguity that could leave dot-sourced `.ps1` files unsigned, and 05-03’s integrity verifier does not clearly require checking each record’s own `hash`, which weakens tamper detection for the last audit record.
+
+### Strengths
+
+- 05-01a1/a2/a3 now explicitly fix the help placement issue. The plans require help blocks inside the function or immediately before `function`, not above `Set-StrictMode` (`05-01a1-PLAN.md:129`, `05-01a2-PLAN.md:86`, `05-01a3-PLAN.md:87`). This matches the current problem shape: existing files place help before `Set-StrictMode`, e.g. `Public/Disable-AdmanUser.ps1:2`, `:23`, `:25`.
+- 05-02 now addresses the Cycle 2 PSFramework blocker. The manifest requires `PSFramework` 1.14.457 (`adman.psd1:43-47`), and the plan installs it plus either signs it or uses a signed CI stub before the AllSigned import (`05-02-PLAN.md:113-115`, `:130-131`).
+- 05-02 correctly separates the AllSigned smoke from Pester execution, avoiding unsigned test-file failures (`05-02-PLAN.md:115`, `:135`). This fits the existing Pester config that runs `.ps1` files under `tests/` (`tests/PesterConfiguration.psd1:10-17`).
+- 05-03 now explicitly adds a PowerShell validator for `audit.retentionDays`, not just schema metadata (`05-03-PLAN.md:111`, `:125`). That matches the current validator style, which manually enforces minimums such as `transport.timeouts.perHostProbeCap >= 1` (`Private/Config/Initialize-AdmanConfig.ps1:147-157`).
+- 05-03 now explicitly puts previous-hash lookup, hash computation, append, and flush inside the existing `Global\adman-audit` mutex (`05-03-PLAN.md:27`, `:144`, `:178`). The current writer already acquires the mutex before record construction/write and releases it in `finally` (`Private/Audit/Write-AdmanAudit.ps1:55-79`, `:170-219`).
+- 05-01b’s docs coverage is stronger than Cycle 1: it requires every exported function to have a fenced PowerShell example and every menu entry to include `PromptSpec` details (`05-01b-PLAN.md:98`, `:102`, `:116-117`). This is anchored to real sources of truth: `FunctionsToExport` is explicit (`adman.psd1:53`) and the menu definition is centralized (`Private/Menu/Get-AdmanMenuDefinition.ps1:65`).
+
+### Concerns
+
+- **HIGH — 05-02: signing script may resolve the manifest file as the “module root” and fail to sign dot-sourced files.** The plan says `-ModulePath` defaults to `$PSScriptRoot\..\adman.psd1`, then “Resolve the module root from (Resolve-Path $ModulePath).Path” and recursively sign files “under the module root” (`05-02-PLAN.md:85`). If implemented literally, the root is the manifest file path, not its parent directory. That risks signing only `adman.psd1` or otherwise missing `adman.psm1` and `Public/Private/**/*.ps1`. This matters because the root module dot-sources every `.ps1` file (`adman.psm1:39-45`), so AllSigned import can still fail if those files are unsigned.
+- **MEDIUM — 05-03: integrity verification does not clearly verify each record’s own `hash`, so last-record tampering can escape detection.** The plan defines `Get-AdmanAuditIntegrity` as checking that `$record.prevHash` equals the SHA-256 of the previous record’s canonical JSON (`05-03-PLAN.md:109`) and the test mutates the middle line expecting line 3 to fail (`05-03-PLAN.md:150`). That detects tampering only when a later record points at the changed record. If the last record is altered and there is no next record, the plan does not explicitly require recomputing the last record’s own hash and comparing it to `$record.hash`.
+- **LOW — 05-03: canonical hash input is inconsistent across plan text.** Task 1 says integrity computation excludes both `prevHash` and `hash` (`05-03-PLAN.md:109`), while Task 2 and acceptance criteria say canonical JSON excludes only `hash` (`05-03-PLAN.md:144`, `:179`). Because the writer plans to compute the hash before adding `prevHash`, those can be equivalent at write time, but not when verifying a full parsed record. This should be made unambiguous.
+
+### Suggestions
+
+- In 05-02, define `$moduleRoot = Split-Path -Parent (Resolve-Path $ModulePath).Path` when `ModulePath` points to `adman.psd1`, then sign files under `$moduleRoot`. Add an acceptance check that `Get-AuthenticodeSignature` is `Valid` for `adman.psd1`, `adman.psm1`, and at least one representative `Public/*.ps1` and `Private/*.ps1`.
+- In 05-03, require `Get-AdmanAuditIntegrity` to verify both: current record `hash == Hash(canonical current record excluding hash/prevHash)` and current record `prevHash == previous record.hash` or the zero sentinel on line 1.
+- Add an integrity test that mutates the final line of a three-line audit file and expects invalid at line 3.
+- Add a single private helper for canonical audit hash computation and use it from both `Write-AdmanAudit` and `Get-AdmanAuditIntegrity`; that avoids drift between write and verify logic.
+
+### Risk Assessment
+
+**Overall risk: MEDIUM.** Cycle 2’s highest-risk items are now addressed at the plan level, and the phase scope is sound. The remaining risks are implementation traps, but they affect core success criteria: AllSigned import and audit tamper-evidence. Fixing the module-root signing ambiguity and tightening hash verification would bring the plan set close to LOW risk.
+
+---
+
 ## Consensus Summary
 
-Both cycles used Codex as the sole reviewer. Cycle 2 confirms that the Cycle 1 findings were largely incorporated into the revised plans. The remaining concerns are implementation-level rather than scope-level.
+All three cycles used Codex as the sole reviewer. Cycle 3 confirms that the Cycle 2 findings are now addressed in plan intent. The remaining concerns are implementation-level traps that could break the AllSigned proof or weaken audit tamper-evidence.
 
 ### Agreed Strengths
 
@@ -193,13 +227,20 @@ Both cycles used Codex as the sole reviewer. Cycle 2 confirms that the Cycle 1 f
 - The decision to delay `CompatiblePSEditions = @('Desktop','Core')` until CI proves it is sound.
 - README refresh is badly needed and correctly scoped.
 - Cycle 1 issues were addressed: parameter-name equality in help tests (05-01a1), archived audit search in restore (05-03), AllSigned smoke separated from unsigned Pester run (05-02), audit schema test updated for hash/prevHash (05-03), additive config migration for audit.retentionDays (05-03).
+- Cycle 2 issues were addressed: PSFramework install/signing or signed CI stub for AllSigned (05-02), explicit help placement inside/adjacent to function (05-01a*), PowerShell-side audit.retentionDays validation (05-03), and mutex-scoped hash-chain writes (05-03).
 
 ### Agreed Concerns
 
-- **05-02 HIGH (new in Cycle 2): AllSigned smoke may fail because PSFramework is not installed/signed/trusted.** The manifest requires PSFramework 1.14.457 (`adman.psd1:43`), but 05-02 does not install it in CI. Existing tests use a PSFramework stub (`tests/Preflight.Tests.ps1:26`). The AllSigned smoke must either install/sign PSFramework or use a signed CI stub.
-- **05-01a MEDIUM (new in Cycle 2): help placement must be explicit.** Current files place header comments above `Set-StrictMode`, which `Get-Help` does not associate with the function. The plan must require help blocks inside the function or immediately adjacent to `function`.
-- **05-03 MEDIUM (new in Cycle 2): `audit.retentionDays` minimum must be enforced in the PowerShell validator, not just JSON schema.** The validator mostly uses manual checks (`Private/Config/Initialize-AdmanConfig.ps1:135`); adding `"minimum": 1` to JSON schema alone will not reject `0`.
-- **05-03 MEDIUM (new in Cycle 2): hash-chain correctness depends on previous-hash lookup inside the existing mutex.** If `Get-AdmanAuditPreviousHash` reads before acquiring the mutex, concurrent writers can fork the chain. The plan should state that lookup, hash computation, and append all occur inside the same critical section.
+- **HIGH — 05-02: signing script module-root resolution may miss `adman.psm1` and dot-sourced `.ps1` files.** The plan resolves the module root from the manifest path and signs files “under the module root” (`05-02-PLAN.md:85`). If implemented literally, the root becomes the manifest file rather than its parent, leaving unsigned `.psm1`/`.ps1` files that AllSigned import will reject. The plan should define `$moduleRoot = Split-Path -Parent (Resolve-Path $ModulePath).Path` and verify signatures on representative files.
+- **MEDIUM — 05-03: integrity verification must check each record’s own `hash`, especially the final record.** The plan describes verifying `prevHash` chains (`05-03-PLAN.md:109`) but does not explicitly require recomputing and comparing the current record’s own `hash`. A tampered last record would go undetected unless its own hash is verified.
+- **LOW — 05-03: canonical hash input is inconsistent across plan text.** Task 1 says exclude both `hash` and `prevHash` from canonical JSON (`05-03-PLAN.md:109`), while Task 2 says exclude only `hash` (`05-03-PLAN.md:144`, `:179`). The plan should settle on one rule and use a single helper shared by writer and verifier.
+
+### Resolved from Cycle 2
+
+- **05-02 HIGH resolved:** PSFramework 1.14.457 is installed in CI and either signed or replaced with a signed CI-only stub before the AllSigned smoke imports `adman.psd1`.
+- **05-01a* MEDIUM resolved:** Help blocks must be placed inside the function or immediately adjacent to `function`, not above `Set-StrictMode`.
+- **05-03 MEDIUM resolved:** `audit.retentionDays` minimum is enforced in the PowerShell validator, not only in the JSON schema.
+- **05-03 MEDIUM resolved:** Previous-hash lookup, hash computation, append, and flush all occur inside the `Global\adman-audit` mutex critical section.
 
 ### Resolved from Cycle 1
 
@@ -211,4 +252,4 @@ Both cycles used Codex as the sole reviewer. Cycle 2 confirms that the Cycle 1 f
 
 ### Divergent Views
 
-None — only Codex provided a review in both cycles.
+None — only Codex provided a review in all three cycles.
