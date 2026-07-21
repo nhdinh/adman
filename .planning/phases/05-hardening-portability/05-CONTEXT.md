@@ -42,10 +42,11 @@ All functional code (gate, reads, writes, remoting, bulk/workflows) is locked fr
   - Integration tests remain lab-only (gated by `-Tag Integration` + `$env:ADMAN_TEST_OU`); they do not run in CI.
   - Only after the matrix passes is `CompatiblePSEditions` in `adman.psd1` updated from `@('Desktop')` to `@('Desktop','Core')`.
 
-- **D-04: Sign the module so it runs under `AllSigned`.**
+- **D-04: Sign the module so it runs under `AllSigned` using a self-signed certificate distributed as the trust anchor.**
   - Add `build/Sign-AdmanModule.ps1` that accepts a `-CertificateThumbprint` or `-CertificateFilePath` and signs all `.psd1`, `.psm1`, and `.ps1` files in the module.
   - CI generates a self-signed code-signing cert in a setup step, signs the module, then runs the test leg under `Set-ExecutionPolicy AllSigned -Scope Process` so the "runs under AllSigned" claim is mechanically proven.
-  - README documents the production path: replace the self-signed cert with an enterprise code-signing cert (PKI/Windows Defender Application Control) and distribute the cert/trust anchor to admin workstations.
+  - README documents the self-signed-cert path for a single-company deployment: generate a code-signing cert, export the public key, and deploy it to admin workstations via Group Policy (`Computer Configuration -> Policies -> Windows Settings -> Security Settings -> Public Key Policies -> Trusted Publishers`). No paid certificate is required because the company controls all endpoints.
+  - Renewal and trust-anchor rotation are documented in the runbook; keep the private key offline/export-restricted where practical.
 
 ### Area 4 — Operational hardening (success criterion 3)
 
@@ -151,7 +152,7 @@ All functional code (gate, reads, writes, remoting, bulk/workflows) is locked fr
 - `docs/USAGE.md` should read like a runbook for a mixed-skill team: menu number, what it does, what the operator types, and what the senior's direct PowerShell equivalent is (one code path, two speeds).
 - Help-coverage test should fail the build if a new public function is added without help — this closes the loop on DOC-03.
 - Honest dual-edition claim is the core hardening goal: do not flip `CompatiblePSEditions` to `Core` until CI proves it.
-- AllSigned signing in CI with a self-signed cert is a test of the execution-policy path, not a security boundary; production requires enterprise PKI trust.
+- AllSigned signing with a self-signed cert in CI proves the execution-policy path; in production a company-controlled self-signed cert distributed via GPO Trusted Publishers is the trust boundary, not an enterprise PKI.
 - Audit hash chain is tamper-evidence, not tamper-proof; the goal is to detect alteration, not prevent an admin with filesystem access from deleting files.
 - `.store/` commit guard should be a pre-commit hook plus CI defense in depth; a single `.gitignore` line is not enough for a safety-critical project.
 </specifics>
