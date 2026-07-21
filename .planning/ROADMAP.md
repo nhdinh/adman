@@ -157,12 +157,15 @@ Plans (finalized during `/gsd-plan-phase 4`):
   2. Runs under `AllSigned` (Authenticode-signed `.psd1/.psm1/.ps1`) and passes the CI matrix on both Windows PowerShell 5.1 and PowerShell 7.6 LTS — only then is `CompatiblePSEditions=@('Desktop','Core')` honestly claimed (no unguarded 7-only syntax).
   3. Portable across workstation and jump-host with no code changes; `.store/` is never committed; encrypted credential-file restore to a new machine re-prompts for the credential while keeping the non-secret config; audit tamper-evidence/forwarding + rotation and an out-of-tool Recycle-Bin recovery runbook are in place.
 
-**Plans**: 3/3 plans planned
+**Plans**: 6/6 plans planned
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 5`):
 
-- [ ] 05-01-PLAN.md — Documentation: refresh README.md, create docs/USAGE.md and docs/RECOVERY-RUNBOOK.md, add comment-based help to all exported public functions, and enforce it with tests/Help.Coverage.Tests.ps1 (DOC-01/02/03).
+- [ ] 05-01a1-PLAN.md — Help-coverage test scaffold + comment-based help for config/startup/read/report functions (DOC-03).
+- [ ] 05-01a2-PLAN.md — Comment-based help for AD user/computer lifecycle functions (DOC-03).
+- [ ] 05-01a3-PLAN.md — Comment-based help for local account, group, bulk, and workflow functions (DOC-03).
+- [ ] 05-01b-PLAN.md — Standalone documentation: refresh README.md, create docs/USAGE.md and docs/RECOVERY-RUNBOOK.md, and enforce coverage with tests/Docs.Coverage.Tests.ps1 (DOC-01/02).
 - [ ] 05-02-PLAN.md — Dual-edition + signing: create build/Sign-AdmanModule.ps1, add .github/workflows/ci.yml matrix on Windows PowerShell 5.1 and PowerShell 7.6 LTS with AllSigned proof, and update adman.psd1 CompatiblePSEditions to @('Desktop','Core').
 - [ ] 05-03-PLAN.md — Audit hardening + commit guard: add audit.retentionDays config, SHA-256 hash chain and rotation in Private/Audit/Rotation.ps1, integrate prevHash into Write-AdmanAudit, add tests/Audit.Integrity.Tests.ps1 and tests/Audit.EventLog.Tests.ps1, and create .githooks/pre-commit.
 
@@ -178,9 +181,9 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 3/3 | Complete    | 2026-07-17 |
 | 4. Bulk & Workflows (highest blast radius, last) | 4/4 | Complete    | 2026-07-20 |
-| 5. Hardening & Portability | 3/3 | Planned | - |
+| 5. Hardening & Portability | 6/6 | Planned | - |
 
-**Total:** 6 phases, 28 plans, 58/58 v1 requirements mapped.
+**Total:** 6 phases, 31 plans, 58/58 v1 requirements mapped.
 
 ## Coverage Validation
 
