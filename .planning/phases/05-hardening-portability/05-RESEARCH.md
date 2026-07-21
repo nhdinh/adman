@@ -632,28 +632,28 @@ $rec['hash'] = $hash
 | A2 | GitHub Actions `windows-latest` can run `shell: powershell` (5.1) and `shell: pwsh` (7.6) in the same matrix | Architecture Patterns | If false, two separate jobs or runner types are needed |
 | A3 | Self-signed code-signing certs distributed via GPO Trusted Publishers satisfy `AllSigned` for a single-company deployment | Standard Stack | If the environment requires a public CA, the deployment path changes significantly |
 | A4 | Audit hash-chain verification is acceptable as tamper-evidence (not tamper-proof) | Architecture Patterns | If the requirement is stronger, HMAC/digital signatures per record are needed |
-| A5 | All 38 public functions currently lack `.DESCRIPTION` and `.EXAMPLE` | Phase Requirements | If wrong, the help-coverage workload estimate changes |
+| A5 | All 37 public functions currently lack `.DESCRIPTION` and `.EXAMPLE` | Phase Requirements | If wrong, the help-coverage workload estimate changes |
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact PowerShell 7.6 LTS patch to pin in CI**
+1. **Exact PowerShell 7.6 LTS patch to pin in CI** *(RESOLVED by 05-02 Plan)*
    - What we know: Microsoft Learn lists 7.6.4 as current LTS; CLAUDE.md references 7.6.3.
    - What's unclear: Whether the project wants to pin a specific patch or use `lts`/`7.6.x`.
    - Recommendation: Pin the current patch (7.6.4) for reproducibility and update it intentionally; document the update cadence.
 
-2. **Production signing cert source**
+2. **Production signing cert source** *(RESOLVED by 05-02 Plan)*
    - What we know: CONTEXT.md D-04 explicitly chooses self-signed + GPO Trusted Publishers.
    - What's unclear: Whether the company already has an internal CA or wants to keep self-signed.
    - Recommendation: Follow CONTEXT.md; document both paths in the runbook and default to self-signed.
 
-3. **Audit retentionDays default**
+3. **Audit retentionDays default** *(RESOLVED by 05-03 Plan)*
    - What we know: CONTEXT.md D-05 proposes default 90 days.
    - What's unclear: Whether organizational policy requires a different retention.
    - Recommendation: Implement 90 as the schema default and make it configurable; adjust at install time.
 
-4. **Help-coverage test scope for parameter-less functions**
+4. **Help-coverage test scope for parameter-less functions** *(RESOLVED by 05-01 Plan)*
    - What we know: Functions like `Start-Adman` and `Test-AdmanCapability` have no parameters.
    - What's unclear: Whether the test should require `.PARAMETER` when no parameters exist.
    - Recommendation: Skip the parameter-count assertion when the AST param block is absent; still require `.SYNOPSIS`, `.DESCRIPTION`, and `.EXAMPLE`.
