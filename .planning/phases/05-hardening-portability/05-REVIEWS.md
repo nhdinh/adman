@@ -1,7 +1,8 @@
 ---
 phase: 5
+cycle: 2
 reviewers: [codex]
-reviewed_at: 2026-07-21T03:57:12Z
+reviewed_at: 2026-07-21T11:10:00Z
 plans_reviewed:
   - 05-01a1-PLAN.md
   - 05-01a2-PLAN.md
@@ -13,7 +14,7 @@ plans_reviewed:
 
 # Cross-AI Plan Review — Phase 5
 
-## Codex Review
+## Codex Review (Cycle 1)
 
 ### Overall Assessment
 
@@ -27,10 +28,10 @@ Good slice boundary and correctly derives the public surface from `adman.psd1:53
 **Strengths**
 - Uses manifest `FunctionsToExport` as source of truth, matching the static export boundary in `adman.psd1:50-53`.
 - Covers zero-parameter functions, which exist at `Public/Start-Adman.ps1:42`, `Public/Get-AdmanStaleReport.ps1:36`, and `Public/Test-AdmanCapability.ps1:32`.
-- Targets real current gaps: `Public\Config\*.ps1`, `Start-Adman`, `Initialize-Adman`, and several reports lack `.EXAMPLE`.
+- Targets real current gaps: `Public/Config/*.ps1`, `Start-Adman`, `Initialize-Adman`, and several reports lack `.EXAMPLE`.
 
 **Concerns**
-- **MEDIUM:** The proposed help test compares only parameter counts, not parameter-name equality. A function could document the wrong parameter names and still pass if counts match. Exported functions have concrete parameter contracts, e.g. `Public\Config\Set-AdmanConfig.ps1:45`.
+- **MEDIUM:** The proposed help test compares only parameter counts, not parameter-name equality. A function could document the wrong parameter names and still pass if counts match. Exported functions have concrete parameter contracts, e.g. `Public/Config/Set-AdmanConfig.ps1:45`.
 - **LOW:** The plan says Task 2a makes the whole help test pass. That is only true because many a2/a3 functions already have examples in the current repo; as a reusable plan shape, it is fragile.
 
 **Suggestions**
@@ -144,9 +145,46 @@ This is the highest-risk plan. It addresses real operational gaps, but it change
 
 ---
 
+## Codex Review (Cycle 2)
+
+### Summary
+
+Phase 5 plans are materially stronger than Cycle 1. The main Cycle 1 findings are addressed in plan intent: audit schema update, archived audit search, AllSigned smoke separated from unsigned Pester, stronger help/docs coverage, and additive config migration. Remaining risk is mostly in execution details: help placement, CI dependency setup under AllSigned, hash-chain concurrency/canonicalization, and config validation gaps.
+
+### Strengths
+
+- 05-01a1/a2/a3 correctly derive public help coverage from the module export boundary. The manifest has an explicit `FunctionsToExport` list, not wildcard exports, at `adman.psd1:53`, and runtime exports are already tested against the manifest at `tests/Module.Manifest.Tests.ps1:51`.
+- The parameter-name equality approach fixes the prior weak "count only" help-test issue. Current exported functions have generated/common parameters such as `WhatIf`/`Confirm` from `SupportsShouldProcess`, for example `Public/Disable-AdmanUser.ps1:25`, so excluding common parameters is the right mechanism.
+- 05-01b's menu-doc coverage is anchored to the real menu definition, which is a single source of truth. Non-selectable separators are represented by `Verb = $null` at `Private/Menu/Get-AdmanMenuDefinition.ps1:94`, and real menu entries carry `Label`, `Verb`, and `PromptSpec`, e.g. `Private/Menu/Get-AdmanMenuDefinition.ps1:107`.
+- 05-03 addresses the Cycle 1 restore/archive issue directly. The current restore reader only searches top-level `audit-*.jsonl` files at `Private/Workflow/Get-AdmanOffboardingState.ps1:45`, so adding recursive archive search is necessary and well-scoped.
+- 05-03's additive migration direction matches existing config-loader patterns. The loader already seeds missing timeout keys from defaults before validation at `Private/Config/Initialize-AdmanConfig.ps1:255` and persists only after validation at `Private/Config/Initialize-AdmanConfig.ps1:303`.
+
+### Concerns
+
+- **HIGH — 05-02: AllSigned smoke may fail because PSFramework is not installed/signed/trusted.** The manifest has an exact `RequiredModules` dependency on `PSFramework` 1.14.457 at `adman.psd1:43`. Existing tests solve this by creating a throwaway PSFramework stub before import, e.g. `tests/Preflight.Tests.ps1:26`. The 05-02 CI summary installs Pester and PSScriptAnalyzer, but not PSFramework. Importing `adman.psd1` in the AllSigned smoke will fail unless CI installs PSFramework or creates/signs an equivalent stub.
+- **MEDIUM — 05-01a*: help placement must be explicit or coverage will fail.** Current files place comment-based help above `Set-StrictMode`, not immediately inside/before the function. Example: help block at `Public/Disable-AdmanUser.ps1:2`, `Set-StrictMode` at `Public/Disable-AdmanUser.ps1:23`, function starts at `Public/Disable-AdmanUser.ps1:25`. `Get-Help Disable-AdmanUser -Full` currently shows an empty Description despite the header block. The plan should require help blocks inside the function or immediately adjacent to `function`.
+- **MEDIUM — 05-03: `audit.retentionDays` minimum must be enforced in the PowerShell validator, not just JSON schema.** `Test-AdmanConfigValid` reads schema `required` keys at `Private/Config/Initialize-AdmanConfig.ps1:87`, but most type/minimum validation is manual, e.g. `Private/Config/Initialize-AdmanConfig.ps1:135`. Adding `"minimum": 1` to `config/adman.schema.json` alone will not reject `retentionDays = 0`; the validator needs an explicit check.
+- **MEDIUM — 05-03: hash-chain correctness depends on doing previous-hash lookup inside the existing mutex.** `Write-AdmanAudit` serializes writes through a mutex and appends after record construction at `Private/Audit/Write-AdmanAudit.ps1:168`. If `Get-AdmanAuditPreviousHash` reads before acquiring that mutex, concurrent writers can compute the same `prevHash` and fork the chain. The plan should state that previous-hash lookup, hash computation, and append all occur inside the same critical section.
+- **LOW — 05-03: hash computation needs a canonical input definition.** Current records are `[ordered]` and serialized with `ConvertTo-Json -Compress -Depth 5` at `Private/Audit/Write-AdmanAudit.ps1:140` and `Private/Audit/Write-AdmanAudit.ps1:168`. Once `hash` is added, tests should define whether the hash covers the JSON excluding `hash`, and whether property order is fixed.
+- **LOW — 05-02: `.store` CI guard should use tracked/staged paths, not just `Test-Path .store/`.** `.gitignore` already excludes `.store/` at `.gitignore:1`, and `git ls-files .store` returned empty in this checkout, but a local untracked `.store` does exist. A raw `Test-Path .store/` can fail developer-like CI jobs that preserve workspace state. Prefer `git ls-files .store` or `git diff --cached --name-only -- .store`.
+
+### Suggestions
+
+- In 05-02, install `PSFramework -RequiredVersion 1.14.457` in both CI legs, then either sign it for the AllSigned smoke or create a signed CI-only stub before importing `adman.psd1`.
+- In 05-01a1, make the help test fail on script-level header comments by validating `Get-Help <command> -Full`, then instruct implementers to place help inside each function block.
+- In 05-03, add explicit `Test-AdmanConfigValid` checks for `audit.retentionDays`: audit object exists after migration, value is integer-compatible, value is `>= 1`.
+- In 05-03, add a concurrency test for two sequential or simulated concurrent writes proving the second record's `prevHash` equals the first record's `hash`.
+- In 05-01b, call private menu discovery through module scope in the docs test, e.g. `& (Get-Module adman) { Get-AdmanMenuDefinition }`, since the function is private.
+
+### Risk Assessment
+
+**Overall risk: MEDIUM.** The phase plan is directionally sound and Cycle 1 issues are mostly resolved at the plan level. The remaining risks are not scope problems; they are implementation traps that can make CI fail or make the audit hash chain weaker than advertised. Fixing the PSFramework/AllSigned setup, help placement rule, validator enforcement, and hash critical-section detail would bring this close to LOW.
+
+---
+
 ## Consensus Summary
 
-Only one reviewer (Codex) was invoked for this cycle. Its findings are treated as the current review state and should be folded into the next planning iteration via `--reviews`.
+Both cycles used Codex as the sole reviewer. Cycle 2 confirms that the Cycle 1 findings were largely incorporated into the revised plans. The remaining concerns are implementation-level rather than scope-level.
 
 ### Agreed Strengths
 
@@ -154,13 +192,23 @@ Only one reviewer (Codex) was invoked for this cycle. Its findings are treated a
 - Plans correctly use existing sources of truth: `adman.psd1 FunctionsToExport`, `Get-AdmanMenuDefinition`, and the existing audit sink.
 - The decision to delay `CompatiblePSEditions = @('Desktop','Core')` until CI proves it is sound.
 - README refresh is badly needed and correctly scoped.
+- Cycle 1 issues were addressed: parameter-name equality in help tests (05-01a1), archived audit search in restore (05-03), AllSigned smoke separated from unsigned Pester run (05-02), audit schema test updated for hash/prevHash (05-03), additive config migration for audit.retentionDays (05-03).
 
 ### Agreed Concerns
 
-- **05-03 has the highest regression risk.** Adding `hash`/`prevHash` to audit records will break the exact schema test in `tests/Audit.Schema.Tests.ps1`; rotation can break `Restore-AdmanQuarantinedUser` because the restore reader only looks at top-level `audit-*.jsonl` files.
-- **05-02 AllSigned proof is brittle.** Running Pester under `AllSigned` when test scripts are unsigned may fail; the plan should either sign tests or separate the AllSigned smoke test from the Pester run.
-- **Help and docs coverage tests are weaker than the requirements imply.** Parameter coverage should compare names, not just counts; docs coverage should verify examples exist, not just name mentions.
+- **05-02 HIGH (new in Cycle 2): AllSigned smoke may fail because PSFramework is not installed/signed/trusted.** The manifest requires PSFramework 1.14.457 (`adman.psd1:43`), but 05-02 does not install it in CI. Existing tests use a PSFramework stub (`tests/Preflight.Tests.ps1:26`). The AllSigned smoke must either install/sign PSFramework or use a signed CI stub.
+- **05-01a MEDIUM (new in Cycle 2): help placement must be explicit.** Current files place header comments above `Set-StrictMode`, which `Get-Help` does not associate with the function. The plan must require help blocks inside the function or immediately adjacent to `function`.
+- **05-03 MEDIUM (new in Cycle 2): `audit.retentionDays` minimum must be enforced in the PowerShell validator, not just JSON schema.** The validator mostly uses manual checks (`Private/Config/Initialize-AdmanConfig.ps1:135`); adding `"minimum": 1` to JSON schema alone will not reject `0`.
+- **05-03 MEDIUM (new in Cycle 2): hash-chain correctness depends on previous-hash lookup inside the existing mutex.** If `Get-AdmanAuditPreviousHash` reads before acquiring the mutex, concurrent writers can fork the chain. The plan should state that lookup, hash computation, and append all occur inside the same critical section.
+
+### Resolved from Cycle 1
+
+- **05-03 HIGH resolved:** `tests/Audit.Schema.Tests.ps1` expected key set will include `hash` and `prevHash`.
+- **05-03 HIGH resolved:** `Get-AdmanOffboardingState` will search archived audit folders recursively.
+- **05-02 MEDIUM-HIGH resolved:** AllSigned smoke is separated from the unsigned Pester run.
+- **05-01a/05-01b MEDIUM resolved:** Help/docs coverage tests now compare parameter names and verify fenced examples.
+- **05-03 MEDIUM resolved:** Additive config migration for `audit.retentionDays` is included.
 
 ### Divergent Views
 
-None — only Codex provided a review in this cycle.
+None — only Codex provided a review in both cycles.
