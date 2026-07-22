@@ -7,12 +7,12 @@ current_phase_name: Hardening & Portability
 current_plan: 05-02
 status: complete
 stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-07-22T12:55:00Z"
+last_updated: "2026-07-22T05:58:18.124Z"
 last_activity: 2026-07-22
 last_activity_desc: Completed 05-02 dual-edition signing and CI matrix
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 33
   completed_plans: 33
 ---
@@ -188,6 +188,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Examples were updated to use obviously fake identities (jdoe-fake, luser-fake) and contoso.local DNs so no example resembles a deployable live path.
 - [Phase ?]: Moved AD lifecycle comment-based help blocks inside function bodies to ensure Get-Help discovery.
 - [Phase ?]: Scoped SupportsShouldProcess description assertion in Help.Coverage.Tests.ps1 to the hard-coded 05-01a2 function list.
+- [Phase ?]: Use a signed CI-only PSFramework stub instead of signing the gallery-installed PSFramework module, keeping the CI self-contained and avoiding private-key exposure of a third-party dependency.
+- [Phase ?]: Trust the self-signed CI cert in both Cert:\LocalMachine\Root and Cert:\LocalMachine\TrustedPublisher so the AllSigned smoke import can validate the full chain on both desktop and core legs.
+- [Phase ?]: Revert the process execution policy to RemoteSigned after the AllSigned smoke step so the unsigned Pester test files can run.
+- [Phase ?]: Exclude tests/, .github/, and .githooks/ from signing via a single FullName regex so only shipped module scripts carry signatures.
 
 ### Pending Todos
 
