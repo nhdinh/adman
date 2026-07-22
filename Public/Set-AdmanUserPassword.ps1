@@ -114,7 +114,12 @@ function Set-AdmanUserPassword {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # D-05 per-call password source resolution (warning fix + HIGH #1 cycle-2 review fix):
     # explicit password wins over explicit source marker; otherwise infer from
@@ -186,7 +191,7 @@ function Set-AdmanUserPassword {
     # WR-02: fail before mutating if a generated password would have to be displayed while a
     # transcript is recording. This prevents stranding an account with an unknown password.
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
-        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+        if ((Get-AdmanTranscriptCount) -gt 0) {
             throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
         }
     }
@@ -246,7 +251,7 @@ function Set-AdmanUserPassword {
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
         # WR-03: refuse to display generated plaintext while a transcript is recording,
         # because Start-Transcript captures console output to disk.
-        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+        if ((Get-AdmanTranscriptCount) -gt 0) {
             throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
         }
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword)

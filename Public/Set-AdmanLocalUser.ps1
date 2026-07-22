@@ -104,7 +104,12 @@ function Set-AdmanLocalUser {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Phase 2 localhost validation (D-02).
     if (-not [string]::IsNullOrWhiteSpace($ComputerName) -and
@@ -127,8 +132,8 @@ function Set-AdmanLocalUser {
             -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
     }
 
-    # 'Reset' set: require -Password OR source one per D-05. If neither -Password nor
-    # a source can produce one, throw the parameter-set resolution error.
+    # 'Reset' set: source a password per D-05 when -Password is not supplied. The configured
+    # password source (Generate or Prompt) always produces a value; there is no silent no-op.
     # WR-01 fix: wrap the entire Reset-only block in an explicit ParameterSetName guard.
     # The early returns above already make this unreachable on Enable/Disable, but the
     # explicit guard prevents a future maintainer adding code between dispatch and the
@@ -136,11 +141,6 @@ function Set-AdmanLocalUser {
     if ($PSCmdlet.ParameterSetName -eq 'Reset') {
         $passwordSupplied = $PSBoundParameters.ContainsKey('Password') -and $null -ne $Password
         $passwordSourceSupplied = $PSBoundParameters.ContainsKey('PasswordSource') -and $PasswordSource
-
-        if (-not $passwordSupplied -and -not $passwordSourceSupplied) {
-            # Caller bound the default 'Reset' set with no password input at all.
-            throw 'Parameter set cannot be resolved: supply -Password, -Enable, or -Disable.'
-        }
 
         # D-05 per-call password source resolution: explicit password wins over explicit
         # source marker; otherwise fall back to config.
@@ -205,7 +205,7 @@ function Set-AdmanLocalUser {
         # WR-02: fail before mutating if a generated password would have to be displayed while a
         # transcript is recording. This prevents stranding an account with an unknown password.
         if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
-            if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+            if ((Get-AdmanTranscriptCount) -gt 0) {
                 throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
             }
         }
@@ -223,7 +223,7 @@ function Set-AdmanLocalUser {
         if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
             # WR-03: refuse to display generated plaintext while a transcript is recording,
             # because Start-Transcript captures console output to disk.
-            if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+            if ((Get-AdmanTranscriptCount) -gt 0) {
                 throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
             }
             $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)

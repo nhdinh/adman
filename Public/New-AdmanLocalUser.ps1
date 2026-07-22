@@ -69,7 +69,12 @@ function New-AdmanLocalUser {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Phase 2 localhost validation (D-02). Accept $null, '.', $env:COMPUTERNAME,
     # 'localhost'; throw on anything else. Phase 3 widens the validation.
@@ -145,7 +150,7 @@ function New-AdmanLocalUser {
     # WR-02 pre-mutation transcript guard: do not create an account with a generated
     # password if we would be unable to display it safely.
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
-        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+        if ((Get-AdmanTranscriptCount) -gt 0) {
             throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
         }
     }
