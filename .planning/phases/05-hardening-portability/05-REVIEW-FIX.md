@@ -1,81 +1,99 @@
 ---
-phase: 05-hardening-portability
-fixed_at: 2026-07-22T07:15:00Z
+phase: 05
+fixed_at: 2026-07-22T08:26:00Z
 review_path: C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
 iteration: 1
-findings_in_scope: 8
-fixed: 8
+findings_in_scope: 11
+fixed: 11
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 05: Code Review Fix Report
 
-**Fixed at:** 2026-07-22T07:15:00Z
+**Fixed at:** 2026-07-22T08:26:00Z
 **Source review:** C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 8
-- Fixed: 8
+- Findings in scope: 11
+- Fixed: 11
 - Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: XSS / HTML injection via unescaped `-Title` in `Export-AdmanReportHtml`
+### CR-01: Third-party CI action pinned to floating major version
 
-**Files modified:** `Public/Export-AdmanReportHtml.ps1`, `tests/Render.Tests.ps1`
-**Commit:** e798c18
-**Applied fix:** Added `$safeTitle = [System.Net.WebUtility]::HtmlEncode($Title)` in the `end` block and replaced all raw `$Title` interpolations in the embedded CSS `<title>`, the empty-result raw HTML strings, and the properties-only empty-result branch with `$safeTitle`. Added a unit test that injects a `<script>` tag via `-Title` and asserts it is encoded.
+**Files modified:** `.github/workflows/ci.yml`
+**Commit:** ba173e6
+**Applied fix:** Replaced `mchave3/setup-pwsh@v1` with the verified v1.0.0 commit SHA `c1a3d09904f9431d0fc1e079a11e49c11e8b0151` and added a comment documenting the supply-chain rationale.
 
-### CR-02: `Restore-AdmanQuarantinedUser` trusts tamperable audit records
+### CR-02: Unguarded `[datetime]::ParseExact` can crash audit rotation
 
-**Files modified:** `Private/Workflow/Get-AdmanOffboardingState.ps1`, `tests/Workflow.Restore.Tests.ps1`, `tests/Workflow.OffboardingState.Tests.ps1`
-**Commit:** 3676bd1
-**Applied fix:** `Get-AdmanOffboardingState` now calls `Get-AdmanAuditIntegrity -Path $file.FullName` before reading any line from an audit file and throws with the integrity reason if `Valid` is `$false`. Updated existing restore tests to emit valid hash-chain records and added a new test proving a tampered file causes a clear throw.
+**Files modified:** `Private/Audit/Rotation.ps1`
+**Commit:** fb885f3
+**Applied fix:** Wrapped the `ParseExact` call in a try/catch so filenames matching the regex but containing invalid calendar dates are skipped with a warning instead of aborting rotation.
 
-### WR-01: `Set-AdmanUserPassword` help description contradicts implementation
-
-**Files modified:** `Public/Set-AdmanUserPassword.ps1`
-**Commit:** 85ee38d
-**Applied fix:** Rewrote the `.DESCRIPTION` to describe the actual three gate invocations (`Set-ADAccountPassword`, `Set-ADUser`, optional `Unlock-ADAccount`), each with its own PENDING/OUTCOME audit pair and confirmation, and the failure aggregation behavior.
-
-### WR-02: `Get-AdmanAuditIntegrity` reports missing files as valid
-
-**Files modified:** `Private/Audit/Rotation.ps1`, `tests/Audit.Integrity.Tests.ps1`
-**Commit:** 90b2189
-**Applied fix:** Changed the missing-file return value from `Valid = $true` to `Valid = $false`. Added a unit test asserting a missing audit file is reported as invalid.
-
-### WR-03: Redundant `$allowed.Count` guard in `Invoke-AdmanBulkAction`
-
-**Files modified:** `Public/Invoke-AdmanBulkAction.ps1`
-**Commit:** 5898239
-**Applied fix:** Removed the redundant `-and $allowed.Count -gt 0` clause inside the already-guaranteed `$allowed.Count -gt 0` block.
-
-### WR-04: `Initialize-AdmanConfig` reads `adman.defaults.json` repeatedly
+### CR-03: Config validator lacks type guard for `security.passwordGeneration.length`
 
 **Files modified:** `Private/Config/Initialize-AdmanConfig.ps1`
-**Commit:** 1c2fbbf
-**Applied fix:** Loaded `adman.defaults.json` once near the top of `Initialize-AdmanConfig` into `$defaults` and reused it for the fresh-file bootstrap, timeout merge, domain/templates merge, audit merge, and deny-list seed steps.
+**Commit:** 06544c7
+**Applied fix:** Added the same numeric-or-digit-string guard used for `audit.retentionDays` before casting `security.passwordGeneration.length` to `[int]`.
 
-### WR-05: `Get-AdmanInventoryReport` probes remote query even when transport is `Skipped`
+### WR-01: Relative config paths are not normalized consistently with absolute paths
 
-**Files modified:** `Public/Get-AdmanInventoryReport.ps1`, `tests/Report.Inventory.Tests.ps1`
-**Commit:** 5619b94
-**Applied fix:** Changed the remote-query branch from `else { Invoke-AdmanRemoteQuery ... }` to `elseif ($transport -ne 'Skipped') { ... }` so skipped hosts never trigger a wasted remote query. Updated the skipped-transport test to assert `Invoke-AdmanRemoteQuery` is invoked zero times.
+**Files modified:** `Private/Config/Initialize-AdmanConfig.ps1`
+**Commit:** fec5f10
+**Applied fix:** Built a single `$joined` path for both relative and absolute `AuditDir`/`ReportDir` values, then resolved it through `GetUnresolvedProviderPathFromPSPath` in both branches.
 
-### WR-06: `Start-AdmanUserOnboarding` does not validate `NamePattern` format
+### WR-02: CI imports self-signed certificate into the machine Root store
 
-**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`, `tests/Workflow.Onboarding.Tests.ps1`
-**Commit:** 7308386
-**Applied fix:** Added a two-argument format-string trial (`$template.NamePattern -f 'First', 'Last'`) during onboarding template validation, throwing a clear message before preflight checks run. Added a unit test for an invalid `{2}` pattern.
+**Files modified:** `.github/workflows/ci.yml`
+**Commit:** 041538a
+**Applied fix:** Removed the `Cert:\LocalMachine\Root` import from the AllSigned smoke test; only `Cert:\LocalMachine\TrustedPublisher` is used for the CI ephemeral certificate.
+
+### WR-03: Generated passwords are captured by `Start-Transcript`
+
+**Files modified:** `Public/New-AdmanUser.ps1`, `Public/Set-AdmanUserPassword.ps1`, `Public/Set-AdmanLocalUser.ps1`
+**Commit:** d6117d9
+**Applied fix:** Added a transcript-active check before displaying generated plaintext in all three password-generating verbs; throws a clear message telling the operator to stop the transcript and retry.
+
+### WR-04: Bulk engine resolves each group twice
+
+**Files modified:** `Public/Invoke-AdmanBulkAction.ps1`
+**Commit:** f8ffcc9
+**Applied fix:** Introduced a `$groupCache` hashtable populated during pre-confirmation validation; the per-record filter and execution phases now reuse the cached group objects instead of calling `Resolve-AdmanGroup` again.
+
+### WR-05: Rotation regex only validates digit count, not calendar date
+
+**Files modified:** `Private/Audit/Rotation.ps1`
+**Commit:** 322b764
+**Applied fix:** Added a comment documenting that the regex checks only the 8-digit date shape and that calendar validity is enforced by the `ParseExact` call (which skips invalid dates).
+
+### WR-06: `ManagedOUs` element types are not validated
+
+**Files modified:** `Private/Config/Initialize-AdmanConfig.ps1`
+**Commit:** 17e73c1
+**Applied fix:** Added a loop over `ManagedOUs` that rejects any element that is not a `[string]` or is whitespace-only.
+
+### WR-07: `Start-Adman` path prompt `B` returns to format selection, not the top-level menu
+
+**Files modified:** `Public/Start-Adman.ps1`
+**Commit:** 2112130
+**Applied fix:** Changed both CSV and HTML path-prompt `B` handlers from `break` to `break menuLoop` so they return to the top-level menu instead of the format-selection loop.
+
+### WR-08: Onboarding sAMAccountName pre-flight validation is incomplete
+
+**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`
+**Commit:** 0b026a2
+**Applied fix:** Added checks for leading/trailing whitespace and for AD-invalid characters (`"`, `[`, `]`, `:`, `|`, `<`, `>`, `+`, `=`, `;`) before the wildcard check.
 
 ## Skipped Issues
 
-None — all findings were applied.
+None — all in-scope findings were fixed.
 
 ---
 
-_Fixed: 2026-07-22T07:15:00Z_
+_Fixed: 2026-07-22T08:26:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
