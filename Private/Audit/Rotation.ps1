@@ -218,7 +218,12 @@ function Invoke-AdmanAuditRotation {
     foreach ($file in (Get-ChildItem -LiteralPath $AuditDir -Filter 'audit-*.jsonl' -File -ErrorAction Stop)) {
         if ($file.Name -notmatch '^audit-(\d{8})\.jsonl$') { continue }
         $dateString = $Matches[1]
-        $fileDate = [datetime]::ParseExact($dateString, 'yyyyMMdd', [System.Globalization.CultureInfo]::InvariantCulture)
+        try {
+            $fileDate = [datetime]::ParseExact($dateString, 'yyyyMMdd', [System.Globalization.CultureInfo]::InvariantCulture)
+        } catch {
+            Write-Warning "Skipping audit file '$($file.Name)': embedded date '$dateString' is not a valid calendar date."
+            continue
+        }
 
         if ($fileDate -lt $cutoff) {
             $archiveMonth = $fileDate.ToString('yyyyMM')
