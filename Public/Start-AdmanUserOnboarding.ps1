@@ -84,6 +84,17 @@ function Start-AdmanUserOnboarding {
             if ($null -eq $template.$key) {
                 throw "Onboarding template is missing required key '$key'."
             }
+        } elseif ($key -eq 'NamePattern') {
+            if ([string]::IsNullOrWhiteSpace([string]$template.$key)) {
+                throw "Onboarding template is missing required key '$key'."
+            }
+            # WR-06: validate NamePattern is a usable two-argument format string before
+            # the preflight checks run, so malformed patterns produce a clear error.
+            try {
+                $null = $template.NamePattern -f 'First', 'Last'
+            } catch {
+                throw "Onboarding template NamePattern '$($template.NamePattern)' is not a valid two-argument format string: $_"
+            }
         } elseif ([string]::IsNullOrWhiteSpace([string]$template.$key)) {
             throw "Onboarding template is missing required key '$key'."
         }

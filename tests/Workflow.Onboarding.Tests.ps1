@@ -306,6 +306,22 @@ Describe 'Start-AdmanUserOnboarding: parameter + preflight validation' -Tag 'Uni
         Should -Invoke -ModuleName adman Confirm-AdmanAction -Times 0
         Should -Invoke -ModuleName adman New-AdmanUser -Times 0
     }
+
+    It 'throws before confirmation when NamePattern is not a valid two-argument format string (WR-06)' {
+        Seed-OnboardingConfig -NamePattern '{2}'
+        Mock -ModuleName adman Resolve-AdmanGroup { New-MockGroup -Name $Identity }
+        Mock -ModuleName adman Test-AdmanGroupAllowed { @{ Allowed = $true; Reason = '' } }
+        Mock -ModuleName adman Confirm-AdmanAction { @{ Outcome = 'Proceed'; WhatIf = $false } }
+        Mock -ModuleName adman New-AdmanUser { }
+        Mock -ModuleName adman Add-AdmanGroupMember { }
+        Mock -ModuleName adman Write-AdmanAudit { }
+
+        { Start-AdmanUserOnboarding -FirstName 'John' -LastName 'Doe' -Force } |
+            Should -Throw '*NamePattern*valid*format string*'
+
+        Should -Invoke -ModuleName adman Confirm-AdmanAction -Times 0
+        Should -Invoke -ModuleName adman New-AdmanUser -Times 0
+    }
 }
 
 Describe 'Start-AdmanUserOnboarding: manifest export' -Tag 'Unit' {
