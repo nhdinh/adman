@@ -157,7 +157,7 @@ Plans (finalized during `/gsd-plan-phase 4`):
   2. Runs under `AllSigned` (Authenticode-signed `.psd1/.psm1/.ps1`) and passes the CI matrix on both Windows PowerShell 5.1 and PowerShell 7.6 LTS — only then is `CompatiblePSEditions=@('Desktop','Core')` honestly claimed (no unguarded 7-only syntax).
   3. Portable across workstation and jump-host with no code changes; `.store/` is never committed; encrypted credential-file restore to a new machine re-prompts for the credential while keeping the non-secret config; audit tamper-evidence/forwarding + rotation and an out-of-tool Recycle-Bin recovery runbook are in place.
 
-**Plans**: 6/6 plans executed
+**Plans**: 7/7 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 5`):
@@ -171,7 +171,7 @@ Plans (finalized during `/gsd-plan-phase 5`):
 
 Gap-closure plans (from UAT 2026-07-22, 5 passed / 1 issue / 1 open gap):
 
-- [ ] 05-04-PLAN.md — G-05-1: fix PS7 `-ProgressAction` docs-coverage exclusion, offboarding archive self-hash mismatch, and CONF-02 whitespace-only ManagedOUs fail-closed message drift.
+- [x] 05-04-PLAN.md — G-05-1: fix PS7 `-ProgressAction` docs-coverage exclusion, offboarding archive self-hash mismatch, and CONF-02 whitespace-only ManagedOUs fail-closed message drift.
 
 ## Progress
 
@@ -185,7 +185,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | Complete    | 2026-07-16 |
 | 3. Remote Computer Operations (isolated) | 3/3 | Complete    | 2026-07-17 |
 | 4. Bulk & Workflows (highest blast radius, last) | 4/4 | Complete    | 2026-07-20 |
-| 5. Hardening & Portability | 6/6 | Complete    | 2026-07-22 |
+| 5. Hardening & Portability | 7/7 | In Progress|  |
 
 **Total:** 6 phases, 33 plans, 58/58 v1 requirements mapped.
 
