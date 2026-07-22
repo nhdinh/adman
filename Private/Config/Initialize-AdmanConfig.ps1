@@ -375,18 +375,20 @@ function Initialize-AdmanConfig {
     # Module root = parent of parent of this file (this file lives at <root>/Private/Config/).
     $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     if ($config.AuditDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.AuditDir)) {
-        if (-not [System.IO.Path]::IsPathRooted($config.AuditDir)) {
-            $config.AuditDir = Join-Path $moduleRoot $config.AuditDir
+        $joined = if ([System.IO.Path]::IsPathRooted($config.AuditDir)) {
+            $config.AuditDir
         } else {
-            $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.AuditDir)
+            Join-Path $moduleRoot $config.AuditDir
         }
+        $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
     }
     if ($config.ReportDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.ReportDir)) {
-        if (-not [System.IO.Path]::IsPathRooted($config.ReportDir)) {
-            $config.ReportDir = Join-Path $moduleRoot $config.ReportDir
+        $joined = if ([System.IO.Path]::IsPathRooted($config.ReportDir)) {
+            $config.ReportDir
         } else {
-            $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.ReportDir)
+            Join-Path $moduleRoot $config.ReportDir
         }
+        $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
     }
 
     # PSFramework config backbone (D-01): pinned with -Path, never the auto-import persistence. The
