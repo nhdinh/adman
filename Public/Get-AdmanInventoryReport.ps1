@@ -85,7 +85,7 @@ function Get-AdmanInventoryReport {
         $transport = 'Skipped'
         $targetName = if ($row.DNSHostName) { $row.DNSHostName } else { $row.Name }
 
-        $totalRemaining = [int]($totalCap - $totalStopwatch.Elapsed.TotalSeconds)
+        $totalRemaining = $totalCap - $totalStopwatch.Elapsed.TotalSeconds
         if ($totalRemaining -le 0) {
             $transport = 'Skipped'
             $skipped++
@@ -98,7 +98,7 @@ function Get-AdmanInventoryReport {
                 $skipped++
             }
 
-            $queryRemaining = [int]($hostBudget - $hostStopwatch.Elapsed.TotalSeconds)
+            $queryRemaining = $hostBudget - $hostStopwatch.Elapsed.TotalSeconds
             if ($queryRemaining -le 0) {
                 if ($transport -ne 'Skipped') { $skipped++ }
                 $transport = 'Skipped'
