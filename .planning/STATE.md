@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 **Phase:** 5 — Hardening & Portability
-**Current Plan:** 05-01a2
-**Status:** In Progress
-**Last Activity:** 2026-07-22 — Completed 05-01a3 local/group/bulk/workflow help coverage
+**Current Plan:** 05-01a3
+**Status:** Complete
+**Last Activity:** 2026-07-22 — Completed 05-01a2 AD lifecycle help coverage
 
 **Progress:** [██████████] 97% (Phase 5 of 6, 32 of 33 plans executed)
 
