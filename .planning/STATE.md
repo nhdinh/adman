@@ -6,10 +6,10 @@ current_phase: 5
 current_phase_name: Hardening & Portability
 current_plan: 05-01a3
 status: complete
-stopped_at: Completed 05-01a2-PLAN.md
+stopped_at: Completed 05-01a3-PLAN.md
 last_updated: "2026-07-22T05:07:00.949Z"
 last_activity: 2026-07-22
-last_activity_desc: Completed 05-01a2 AD lifecycle help coverage
+last_activity_desc: Completed 05-01a3 local/group/bulk/workflow help coverage
 progress:
   total_phases: 6
   completed_phases: 5
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 **Phase:** 5 — Hardening & Portability
 **Current Plan:** 05-01a3
 **Status:** Complete
-**Last Activity:** 2026-07-22 — Completed 05-01a2 AD lifecycle help coverage
+**Last Activity:** 2026-07-22 — Completed 05-01a3 local/group/bulk/workflow help coverage
 
 **Progress:** [██████████] 97% (Phase 5 of 6, 32 of 33 plans executed)
 
