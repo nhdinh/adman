@@ -102,6 +102,10 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
         param($Config)
         & (Get-Module adman) {
             param($Config)
+            $script:Initialized = $true
+            $script:ProtectedSIDs = @()
+            $script:DenyRids = @()
+            $script:ProtectedGroupDns = @()
             $script:Config = $Config
         } -Config $Config
     }

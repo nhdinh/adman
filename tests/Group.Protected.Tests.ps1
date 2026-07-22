@@ -54,7 +54,9 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
     # Seed $script:Config + ProtectedSIDs/DenyRids.
+    # CR-01: seed Initialized and ProtectedGroupDns so the gate's fail-closed guard passes.
     & (Get-Module adman) {
+        $script:Initialized = $true
         $script:Config = [pscustomobject]@{
             ManagedOUs = @('OU=Managed,DC=mock,DC=local')
             DC         = 'dc.mock.local'
@@ -63,6 +65,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
         }
         $script:ProtectedSIDs = @('S-1-5-21-111-222-333-512')
         $script:DenyRids      = @('500', '501', '502')
+        $script:ProtectedGroupDns = @()
     }
 
     # Helpers to build mock AD-shaped objects.
