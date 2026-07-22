@@ -277,6 +277,68 @@ Describe 'Initialize-AdmanConfig Phase 3 timeout config (RMT-01/02, D-02)' -Tag 
     }
 }
 
+Describe 'Initialize-AdmanConfig Phase 5 audit config (D-05)' -Tag 'Unit' {
+
+    It 'config/adman.defaults.json carries audit.retentionDays=90' {
+        $d = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'config\adman.defaults.json') -Raw | ConvertFrom-Json
+        [int]$d.audit.retentionDays | Should -Be 90
+    }
+
+    It 'Test-AdmanConfigValid throws when audit.retentionDays is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('audit')
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } |
+            Should -Throw -ExpectedMessage "*required key 'audit'*"
+    }
+
+    It 'Test-AdmanConfigValid throws when audit block exists but retentionDays is missing' {
+        $cfg = New-AdmanTestConfig
+        $cfg.audit = @{ }
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } |
+            Should -Throw -ExpectedMessage '*audit.retentionDays*required*'
+    }
+
+    It 'Test-AdmanConfigValid throws when audit.retentionDays is 0' {
+        $cfg = New-AdmanTestConfig
+        $cfg.audit.retentionDays = 0
+        $cfgObj = $cfg | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+        { & (Get-Module adman) { param($c, $root) Test-AdmanConfigValid -Config $c -ModuleRoot $root } -c $cfgObj -root $script:RepoRoot } |
+            Should -Throw -ExpectedMessage '*audit.retentionDays*must be >= 1*'
+    }
+
+    It 'Initialize-AdmanConfig seeds missing audit block from shipped defaults' {
+        $store = Join-Path $TestDrive 'seed-audit'
+        $cfg = New-AdmanTestConfig
+        $cfg.PSObject.Properties.Remove('audit')
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            [int]$script:Config.audit.retentionDays | Should -Be 90
+        }
+        $disk = Get-Content -LiteralPath (Join-Path $store 'config.json') -Raw | ConvertFrom-Json
+        [int]$disk.audit.retentionDays | Should -Be 90
+    }
+
+    It 'Initialize-AdmanConfig preserves an existing non-default audit.retentionDays value' {
+        $store = Join-Path $TestDrive 'preserve-audit'
+        $cfg = New-AdmanTestConfig
+        $cfg.audit.retentionDays = 365
+        $null = New-Item -ItemType Directory -Path $store -Force
+        $cfg | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $store 'config.json') -Encoding UTF8
+
+        $null = & (Get-Module adman) { param($p) $script:StorePath = $p; Initialize-AdmanConfig } -p $store
+
+        & (Get-Module adman) {
+            [int]$script:Config.audit.retentionDays | Should -Be 365
+        }
+    }
+}
+
 Describe 'Initialize-AdmanConfig Phase 4 template config (BULK/WORKFLOW, D-08/D-11/D-19)' -Tag 'Unit' {
 
     It 'config/adman.defaults.json carries domain and templates defaults' {

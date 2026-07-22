@@ -165,7 +165,11 @@ function Test-AdmanConfigValid {
 
     # D-05 audit block: required by schema; also enforce integer retentionDays >= 1 here
     # so non-numeric strings and 0 are rejected even if the JSON schema check is bypassed.
-    if ($null -eq $Config.audit -or $null -eq $Config.audit.retentionDays) {
+    if ($null -eq $Config.audit) {
+        throw "Config validation failed: 'audit.retentionDays' is required."
+    }
+    $auditKeys = @($Config.audit.PSObject.Properties | ForEach-Object { $_.Name })
+    if (-not ($auditKeys -contains 'retentionDays')) {
         throw "Config validation failed: 'audit.retentionDays' is required."
     }
     $retention = $Config.audit.retentionDays
