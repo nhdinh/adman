@@ -37,6 +37,9 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'ByFile')]
     [string]$CertificateFilePath,
 
+    [Parameter(ParameterSetName = 'ByFile')]
+    [Security.SecureString]$CertificatePassword,
+
     [string]$ModulePath = (Join-Path $PSScriptRoot '..' 'adman.psd1')
 )
 
@@ -60,7 +63,14 @@ switch ($PSCmdlet.ParameterSetName) {
         if (-not (Test-Path -LiteralPath $resolvedPath -PathType Leaf)) {
             throw "Certificate file not found: $CertificateFilePath"
         }
-        $cert = Get-PfxCertificate -FilePath $resolvedPath
+        # WR-07: avoid interactive Get-PfxCertificate prompt in non-interactive CI when a
+        # password-protected PFX is supplied.
+        if ($CertificatePassword) {
+            $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+                $resolvedPath, $CertificatePassword, 'Exportable')
+        } else {
+            $cert = Get-PfxCertificate -FilePath $resolvedPath
+        }
     }
 }
 
