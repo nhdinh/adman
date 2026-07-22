@@ -53,9 +53,11 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
     # The D-03 field set (authoritative; CONTEXT L42 + PLAN Test 1).
+    # D-05: hash and prevHash are always present as part of the fixed audit record schema.
     $script:D03Keys = @(
         'tsUtc', 'who', 'userSid', 'what', 'scope', 'target', 'targets', 'count',
-        'whatIf', 'result', 'reason', 'correlationId', 'host', 'psEdition', 'moduleVersion'
+        'whatIf', 'result', 'reason', 'correlationId', 'host', 'psEdition', 'moduleVersion',
+        'hash', 'prevHash'
     )
     # The banned secret-name regex (CONF-05; C3-L1). Real regex, no -SimpleMatch.
     $script:SecretNameRegex = 'pass(word)?|secret|credential|apiKey|privateKey|key|token'

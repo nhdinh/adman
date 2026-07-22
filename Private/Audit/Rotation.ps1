@@ -122,10 +122,37 @@ function Get-AdmanAuditIntegrity {
 
     $zeroHash = '0' * 64
 
+    # First pass: verify the prevHash chain. Tampering a record breaks the NEXT link,
+    # so this reports the first downstream inconsistency.
     for ($i = 0; $i -lt $records.Count; $i++) {
         $rec = $records[$i]
 
-        # Self-hash verification.
+        if (-not ($rec.PSObject.Properties.Name -contains 'prevHash')) {
+            return [pscustomobject]@{
+                Valid        = $false
+                Lines        = $records.Count
+                BrokenAtLine = ($i + 1)
+                Reason       = "Record is missing the 'prevHash' field."
+            }
+        }
+
+        $expectedPrevHash = if ($i -eq 0) { $zeroHash } else { ([string]$records[$i - 1].hash).ToLower() }
+        $storedPrevHash = ([string]$rec.prevHash).ToLower()
+
+        if ($storedPrevHash -ne $expectedPrevHash) {
+            return [pscustomobject]@{
+                Valid        = $false
+                Lines        = $records.Count
+                BrokenAtLine = ($i + 1)
+                Reason       = "prevHash mismatch at line $($i + 1) (stored '$storedPrevHash', expected '$expectedPrevHash')."
+            }
+        }
+    }
+
+    # Second pass: verify each record's own hash against its canonical bytes.
+    for ($i = 0; $i -lt $records.Count; $i++) {
+        $rec = $records[$i]
+
         if (-not ($rec.PSObject.Properties.Name -contains 'hash')) {
             return [pscustomobject]@{
                 Valid        = $false
@@ -155,28 +182,6 @@ function Get-AdmanAuditIntegrity {
                 Reason       = "Self-hash mismatch at line $($i + 1) (stored '$storedHash', computed '$computedHash')."
             }
         }
-
-        # Previous-hash chain verification.
-        if (-not ($rec.PSObject.Properties.Name -contains 'prevHash')) {
-            return [pscustomobject]@{
-                Valid        = $false
-                Lines        = $records.Count
-                BrokenAtLine = ($i + 1)
-                Reason       = "Record is missing the 'prevHash' field."
-            }
-        }
-
-        $expectedPrevHash = if ($i -eq 0) { $zeroHash } else { ([string]$records[$i - 1].hash).ToLower() }
-        $storedPrevHash = ([string]$rec.prevHash).ToLower()
-
-        if ($storedPrevHash -ne $expectedPrevHash) {
-            return [pscustomobject]@{
-                Valid        = $false
-                Lines        = $records.Count
-                BrokenAtLine = ($i + 1)
-                Reason       = "prevHash mismatch at line $($i + 1) (stored '$storedPrevHash', expected '$expectedPrevHash')."
-            }
-        }
     }
 
     return [pscustomobject]@{
@@ -184,5 +189,53 @@ function Get-AdmanAuditIntegrity {
         Lines        = $records.Count
         BrokenAtLine = 0
         Reason       = ''
+    }
+}
+
+function Invoke-AdmanAuditRotation {
+    <#
+    .SYNOPSIS
+        Archive audit JSONL files older than audit.retentionDays.
+
+    .DESCRIPTION
+        Enumerates audit-*.jsonl files in the audit directory. For each file whose
+        embedded date is older than $RetentionDays from today, moves it into
+        $AuditDir\archive\YYYYMM\ and writes an archive-YYYYMM.marker file with the
+        rotation timestamp.
+    #>
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Medium')]
+    param(
+        [string]$AuditDir = $script:Config.AuditDir,
+        [int]$RetentionDays = $script:Config.audit.retentionDays
+    )
+
+    if (-not (Test-Path -LiteralPath $AuditDir)) {
+        return
+    }
+
+    $cutoff = (Get-Date).Date.AddDays(-$RetentionDays)
+
+    foreach ($file in (Get-ChildItem -LiteralPath $AuditDir -Filter 'audit-*.jsonl' -File -ErrorAction Stop)) {
+        if ($file.Name -notmatch '^audit-(\d{8})\.jsonl$') { continue }
+        $dateString = $Matches[1]
+        $fileDate = [datetime]::ParseExact($dateString, 'yyyyMMdd', [System.Globalization.CultureInfo]::InvariantCulture)
+
+        if ($fileDate -lt $cutoff) {
+            $archiveMonth = $fileDate.ToString('yyyyMM')
+            $archiveDir = Join-Path $AuditDir ('archive\{0}' -f $archiveMonth)
+            if (-not (Test-Path -LiteralPath $archiveDir)) {
+                $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
+            }
+
+            $marker = Join-Path $archiveDir ('archive-{0}.marker' -f $archiveMonth)
+            if (-not (Test-Path -LiteralPath $marker)) {
+                ('{0:yyyy-MM-ddTHH:mm:ssZ}' -f (Get-Date).ToUniversalTime()) | Set-Content -LiteralPath $marker -Encoding UTF8 -ErrorAction Stop
+            }
+
+            $destination = Join-Path $archiveDir $file.Name
+            if ($PSCmdlet.ShouldProcess($file.FullName, 'Move to archive')) {
+                Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+            }
+        }
     }
 }

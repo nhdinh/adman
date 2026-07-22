@@ -165,6 +165,25 @@ function Write-AdmanAudit {
         if ($null -ne $Groups -and $Groups.Count -gt 0) {
             $rec['groups'] = $Groups
         }
+
+        # D-05: hash chain. Previous-hash lookup, hash computation, and append all occur
+        # inside the Global\adman-audit mutex critical section so concurrent writers cannot
+        # fork the chain. The canonical JSON excludes only the 'hash' key and is produced
+        # from the ordered record hashtable with -Compress -Depth 5 for stable serialization.
+        # Get-AdmanAuditPreviousHash throws on read/parse errors; we do NOT catch it here -
+        # the existing PENDING path refuses the mutation and the OUTCOME path escalates.
+        $previousHash = Get-AdmanAuditPreviousHash -Path $path
+        $rec['prevHash'] = $previousHash
+        $canonical = [ordered]@{}
+        foreach ($key in $rec.Keys) {
+            if ($key -eq 'hash') { continue }
+            $canonical[$key] = $rec[$key]
+        }
+        $canonicalJson = $canonical | ConvertTo-Json -Compress -Depth 5
+        $hashBytes = [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($canonicalJson))
+        $rec['hash'] = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
+
         $rec = $rec | ConvertTo-Json -Compress -Depth 5
 
         # Open via the seam (Append / Write / Read-share); write UTF8 bytes; flush durably.

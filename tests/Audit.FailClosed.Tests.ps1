@@ -293,6 +293,31 @@ Describe 'SAFE-04: Write-AdmanAudit fail-closed write-ahead behavior' -Tag 'Unit
             -Because 'the Open-AdmanAuditStream seam allows read-share'
     }
 
+    It 'Test 7: a previous-hash lookup failure on PENDING refuses the mutation and does not write the record' {
+        Mock New-AdmanAuditMutex -ModuleName adman { $script:FakeMutex }
+        Mock Get-AdmanAuditPreviousHash -ModuleName adman { throw 'audit file corrupt' }
+        Mock Open-AdmanAuditStream -ModuleName adman { $script:FakeStream }
+        Mock Write-AdmanEventLog -ModuleName adman { }
+
+        $t1 = New-AdmanAuditTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        {
+            & (Get-Module adman) {
+                param($T)
+                Write-AdmanAudit -CorrelationId ([guid]::NewGuid().ToString()) -Verb 'Disable-ADAccount' -Targets @($T) -Result 'PENDING' -Reason '' -WhatIf:$false
+            } -T $t1
+        } | Should -Throw -ExpectedMessage '*AUDIT FAIL-CLOSED*' `
+            -Because 'a previous-hash lookup failure on PENDING must refuse the mutation (D-05)'
+
+        # The audit file must not be created or must remain empty.
+        $path = Join-Path $script:AuditDir ('audit-{0}.jsonl' -f (Get-Date -Format 'yyyyMMdd'))
+        if (Test-Path -LiteralPath $path) {
+            $content = Get-Content -LiteralPath $path -Raw
+            ([string]$content).Trim().Length | Should -Be 0 -Because 'the PENDING record must not be written when prevHash lookup fails'
+        } else {
+            Test-Path -LiteralPath $path | Should -BeFalse -Because 'the audit file should not be created when prevHash lookup fails'
+        }
+    }
+
     It 'static: this test mocks the seams, NOT raw .NET statics' {
         $testSrc = Get-Content -LiteralPath $PSCommandPath -Raw
         # Mocks the seams.
