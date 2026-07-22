@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Hardening & Portability
-current_plan: 05-01a1
-status: complete
-stopped_at: Completed 05-01a1-PLAN.md
-last_updated: "2026-07-22T11:30:00Z"
+current_plan: 05-01a2
+status: in_progress
+stopped_at: Completed 05-01a3-PLAN.md
+last_updated: "2026-07-22T05:06:00.381Z"
 last_activity: 2026-07-22
 last_activity_desc: Completed 05-01a1 help coverage (config/startup/read/report)
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 **Phase:** 5 — Hardening & Portability
-**Current Plan:** 05-01a1
-**Status:** Complete
-**Last Activity:** 2026-07-22 — Completed 05-01a1 help coverage (config/startup/read/report)
+**Current Plan:** 05-01a2
+**Status:** In Progress
+**Last Activity:** 2026-07-22 — Completed 05-01a3 local/group/bulk/workflow help coverage
 
-**Progress:** [█████████░] 88% (Phase 5 of 6, 30 of 33 plans executed)
+**Progress:** [█████████░] 94% (Phase 5 of 6, 30 of 33 plans executed)
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 | Phase 05-hardening-portability P01b | 35 | 1 tasks | 5 files |
 | Phase 05-hardening-portability P03 | 45min | 3 tasks | 13 files |
 | Phase 05-hardening-portability P01a1 | 35min | 2 tasks | 17 files |
+| Phase 05-hardening-portability P01a3 | 20min | 1 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Canonical JSON for hashing excludes only the hash field; prevHash remains in the serialized record so the chain is stable.
 - [Phase ?]: Get-AdmanAuditIntegrity verifies the prevHash chain before self-hash so that mutating a record's hash is reported at the next link.
 - [Phase ?]: Rotation archive folders live under .store/audit/archive/YYYYMM/ so the same OS ACL boundary covers live and archived audit files.
+- [Phase ?]: Help blocks were moved inside each function body to satisfy PowerShell's Get-Help association rules, replacing the prior script-level placement above Set-StrictMode.
+- [Phase ?]: Examples were updated to use obviously fake identities (jdoe-fake, luser-fake) and contoso.local DNs so no example resembles a deployable live path.
 
 ### Pending Todos
 
@@ -210,7 +213,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-22T04:17:32.593Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-07-22T05:06:00.369Z
+Stopped at: Completed 05-01a3-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
