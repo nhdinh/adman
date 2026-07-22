@@ -96,7 +96,7 @@ function Get-AdmanAuditIntegrity {
 
     if (-not (Test-Path -LiteralPath $Path)) {
         return [pscustomobject]@{
-            Valid        = $true
+            Valid        = $false
             Lines        = 0
             BrokenAtLine = 0
             Reason       = 'File not found.'

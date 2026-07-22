@@ -165,4 +165,11 @@ Describe 'D-05: audit hash-chain integrity' -Tag 'Unit' {
         $result.Valid | Should -BeFalse -Because 'mutating the final record breaks its own hash'
         $result.BrokenAtLine | Should -Be 3 -Because 'line 3 is the tampered final record'
     }
+
+    It 'reports a missing audit file as invalid (WR-02)' {
+        $missingPath = Join-Path $script:AuditDir 'audit-missing.jsonl'
+        $result = & (Get-Module adman) { param($p) Get-AdmanAuditIntegrity -Path $p } -p $missingPath
+        $result.Valid | Should -BeFalse -Because 'a missing log is not evidence of integrity'
+        $result.Reason | Should -Match 'not found'
+    }
 }
