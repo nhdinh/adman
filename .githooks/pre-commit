@@ -1,0 +1,16 @@
+#!/bin/sh
+# D-08: prevent accidental commits of runtime secrets/config under .store/
+
+BLOCKED='\.store/'
+
+AGAINST=$(git rev-parse --verify HEAD 2>/dev/null)
+if [ -z "$AGAINST" ]; then
+    AGAINST=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+fi
+
+if git diff --cached --name-only "$AGAINST" | grep -qE "^$BLOCKED"; then
+    echo "ERROR: Committing .store/ files is not allowed." >&2
+    exit 1
+fi
+
+exit 0
