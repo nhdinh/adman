@@ -88,6 +88,12 @@ function Find-AdmanUser {
     )
 
     # Build the -Filter string with Escape-AdmanAdFilterLiteral on every user-supplied value.
+    # WR-05: require the caller to disambiguate when more than one search criterion is supplied.
+    $criteria = @('Name', 'SamAccountName', 'DisplayName') | Where-Object { $PSBoundParameters.ContainsKey($_) }
+    if ($criteria.Count -gt 1) {
+        throw "Find-AdmanUser: only one of -Name, -SamAccountName, or -DisplayName may be specified (supplied: $($criteria -join ', '))."
+    }
+
     $filter = $null
     if (-not [string]::IsNullOrWhiteSpace($SamAccountName)) {
         $esc = Escape-AdmanAdFilterLiteral -Value $SamAccountName
