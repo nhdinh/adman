@@ -281,6 +281,18 @@ Describe 'Export-AdmanReportHtml: self-contained HTML output (RPT-03)' -Tag 'Uni
         $content | Should -Match 'Stale accounts'
     }
 
+    It 'HTML-encodes the caller-supplied title to prevent injection (CR-01)' {
+        $htmlPath = Join-Path $TestDrive 'xss.html'
+        $row = New-AdmanTestUserRow -Sam 'alice' -Name 'Alice'
+        $maliciousTitle = "Stale accounts</t1tle><script>alert(1)</script>"
+        $row | Export-AdmanReportHtml -Path $htmlPath -Title $maliciousTitle
+        $content = Get-Content -LiteralPath $htmlPath -Raw
+        $content | Should -Not -Match '<script>'
+        $content | Should -Match '&lt;script&gt;'
+        $content | Should -Not -Match '</t1tle>'
+        $content | Should -Match '&lt;/t1tle&gt;'
+    }
+
     It 'renders a non-empty result set as a populated table' {
         $htmlPath = Join-Path $TestDrive 'report.html'
         $rows = @(

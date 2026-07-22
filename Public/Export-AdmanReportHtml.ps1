@@ -96,6 +96,11 @@ function Export-AdmanReportHtml {
     }
 
     end {
+        # HTML-encode the caller-supplied title before embedding it in the
+        # generated markup. This prevents XSS / HTML injection through the
+        # -Title parameter (CR-01).
+        $safeTitle = [System.Net.WebUtility]::HtmlEncode($Title)
+
         # Embedded CSS fragment per UI-SPEC contract. Single here-string passed
         # to ConvertTo-Html -Head. No external files, no JavaScript, no PS6+
         # parameters. The <title> element is included in the fragment because
@@ -145,7 +150,7 @@ tr:nth-child(even) {
     color: #008000;
 }
 </style>
-<title>$Title</title>
+<title>$safeTitle</title>
 "@
 
         # Boolean column names that must be rendered as 'True'/'False' strings
@@ -166,7 +171,7 @@ tr:nth-child(even) {
                 }
                 if ($proto.Count -eq 0) {
                     # Properties was supplied but contained only whitespace.
-                    $html = "<!DOCTYPE html>`n<html>`n<head>`n$css`n<title>$Title</title>`n</head>`n<body>`n<h1>$Title</h1>`n<p>(no results)</p>`n</body>`n</html>"
+                    $html = "<!DOCTYPE html>`n<html>`n<head>`n$css`n<title>$safeTitle</title>`n</head>`n<body>`n<h1>$safeTitle</h1>`n<p>(no results)</p>`n</body>`n</html>"
                     $html | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
                     return
                 }
@@ -182,7 +187,7 @@ tr:nth-child(even) {
                 return
             }
             # No -Properties: minimal HTML document with '(no results)'.
-            $html = "<!DOCTYPE html>`n<html>`n<head>`n$css`n<title>$Title</title>`n</head>`n<body>`n<h1>$Title</h1>`n<p>(no results)</p>`n</body>`n</html>"
+            $html = "<!DOCTYPE html>`n<html>`n<head>`n$css`n<title>$safeTitle</title>`n</head>`n<body>`n<h1>$safeTitle</h1>`n<p>(no results)</p>`n</body>`n</html>"
             $html | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
             return
         }
