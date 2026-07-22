@@ -121,11 +121,13 @@ function Set-AdmanUserPassword {
         throw 'adman is not initialized. Run Initialize-Adman first.'
     }
 
-    # D-05 per-call password source resolution (warning fix + HIGH #1 cycle-2 review fix).
-    $passwordSource = if ($PSBoundParameters.ContainsKey('NewPasswordSource') -and $NewPasswordSource) {
-        $NewPasswordSource
-    } elseif ($PSBoundParameters.ContainsKey('NewPassword') -and $null -ne $NewPassword) {
+    # D-05 per-call password source resolution (warning fix + HIGH #1 cycle-2 review fix):
+    # explicit password wins over explicit source marker; otherwise infer from
+    # $PSBoundParameters; otherwise config.
+    $passwordSource = if ($PSBoundParameters.ContainsKey('NewPassword') -and $null -ne $NewPassword) {
         'Prompt'
+    } elseif ($PSBoundParameters.ContainsKey('NewPasswordSource') -and $NewPasswordSource) {
+        $NewPasswordSource
     } else {
         $src = $script:Config.security.passwordSource
         if ([string]::IsNullOrWhiteSpace([string]$src)) { 'Generate' } else { [string]$src }

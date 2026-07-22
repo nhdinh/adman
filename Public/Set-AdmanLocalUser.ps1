@@ -147,11 +147,12 @@ function Set-AdmanLocalUser {
             throw 'Parameter set cannot be resolved: supply -Password, -Enable, or -Disable.'
         }
 
-        # D-05 per-call password source resolution.
-        $passwordSource = if ($passwordSourceSupplied) {
-            $PasswordSource
-        } elseif ($passwordSupplied) {
+        # D-05 per-call password source resolution: explicit password wins over explicit
+        # source marker; otherwise fall back to config.
+        $passwordSource = if ($passwordSupplied) {
             'Prompt'
+        } elseif ($passwordSourceSupplied) {
+            $PasswordSource
         } else {
             $src = $script:Config.security.passwordSource
             if ([string]::IsNullOrWhiteSpace([string]$src)) { 'Generate' } else { [string]$src }
