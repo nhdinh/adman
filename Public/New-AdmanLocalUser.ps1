@@ -87,10 +87,10 @@ function New-AdmanLocalUser {
 
     # D-05 per-call password source resolution (HIGH #1 cycle-2 review fix):
     # explicit menu marker wins; otherwise infer from $PSBoundParameters; otherwise config.
-    $passwordSource = if ($PSBoundParameters.ContainsKey('PasswordSource') -and $PasswordSource) {
-        $PasswordSource
-    } elseif ($PSBoundParameters.ContainsKey('Password') -and $null -ne $Password) {
+    $passwordSource = if ($PSBoundParameters.ContainsKey('Password') -and $null -ne $Password) {
         'Prompt'
+    } elseif ($PSBoundParameters.ContainsKey('PasswordSource') -and $PasswordSource) {
+        $PasswordSource
     } else {
         $src = $script:Config.security.passwordSource
         if ([string]::IsNullOrWhiteSpace([string]$src)) { 'Generate' } else { [string]$src }
