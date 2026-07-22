@@ -161,29 +161,40 @@ tr:nth-child(even) {
         # EMPTY-RESULT SCHEMA: zero rows collected.
         if ($rows.Count -eq 0) {
             if ($null -ne $Properties -and @($Properties).Count -gt 0) {
-                # Build a single-row "header prototype" with empty-string values,
-                # pipe ONLY that prototype to ConvertTo-Html, then post-process
-                # to remove the single <tr> data row.
-                $proto = [ordered]@{}
-                foreach ($p in @($Properties)) {
+                # Build a deterministic header-only table directly; avoid fragile
+                # regex post-processing of ConvertTo-Html output (WR-06).
+                $headerCells = foreach ($p in @($Properties)) {
                     if ([string]::IsNullOrWhiteSpace([string]$p)) { continue }
-                    $proto[$p] = ''
+                    $safeProp = [System.Net.WebUtility]::HtmlEncode([string]$p)
+                    "<th>$safeProp</th>"
                 }
-                if ($proto.Count -eq 0) {
+                if ($headerCells.Count -eq 0) {
                     # Properties was supplied but contained only whitespace.
                     $html = "<!DOCTYPE html>`n<html>`n<head>`n$css`n<title>$safeTitle</title>`n</head>`n<body>`n<h1>$safeTitle</h1>`n<p>(no results)</p>`n</body>`n</html>"
                     $html | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
                     return
                 }
-                $headerOnlyHtml = [pscustomobject]$proto | ConvertTo-Html -Head $css -Title $Title
-                # Remove the single data row: the prototype produces exactly one
-                # <tr> with empty <td> cells. The header row is the first <tr>
-                # (with <th> cells); the data row is the second <tr>. Remove
-                # the second <tr>...</tr> block.
-                $htmlText = ($headerOnlyHtml | Out-String)
-                # Match the data row: a <tr> containing only empty <td></td> cells.
-                $htmlText = $htmlText -replace '(?s)<tr>(\s*<td></td>)+\s*</tr>', ''
-                $htmlText | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
+                $headerRow = '<tr>' + ($headerCells -join '') + '</tr>'
+                $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+$css
+<title>$safeTitle</title>
+</head>
+<body>
+<h1>$safeTitle</h1>
+<table>
+<thead>
+$headerRow
+</thead>
+<tbody>
+</tbody>
+</table>
+</body>
+</html>
+"@
+                $html | Out-File -FilePath $Path -Encoding UTF8 -ErrorAction Stop
                 return
             }
             # No -Properties: minimal HTML document with '(no results)'.
