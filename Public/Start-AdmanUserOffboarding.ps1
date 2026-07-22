@@ -1,41 +1,46 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Start-AdmanUserOffboarding - reversible offboarding workflow (FLOW-02, D-19..D-21).
-
-.DESCRIPTION
-    Composes Disable-AdmanUser, Remove-AdmanGroupMember, and Move-AdmanUser under a
-    single outer confirmation. The workflow:
-
-      * Resolves the target user and validates the configured quarantine OU is within
-        a managed-OU root before any AD write or confirmation.
-      * Classifies each group in the user's memberOf as protected or removable using
-        resolved SIDs against $script:ProtectedSIDs, $script:DenyRids, and
-        $script:ProtectedGroupDns (including unresolved-SID entries).
-      * Presents one outer Confirm-AdmanAction; inner verbs are called with -Force:$true
-        so they do not re-prompt (review finding / FLOW-02).
-      * Disables the account, removes only non-protected groups, moves the account to
-        the quarantine OU, and records the original OU and stripped groups in the audit
-        log for restore (FLOW-03).
-      * A mid-workflow failure stops later steps for that target and writes a Failure
-        audit before rethrowing (FLOW-04).
-      * After a successful offboarding, prints a plain-text checklist of typical cleanup
-        items (mailbox, home directory, GPO) with explicit "manual only" wording; none
-        of these are automated.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is missing.
-
-.EXAMPLE
-    Start-AdmanUserOffboarding -Identity 'jdoe'
-
-.EXAMPLE
-    Start-AdmanUserOffboarding -Identity 'jdoe' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Start-AdmanUserOffboarding {
+    <#
+    .SYNOPSIS
+        Start-AdmanUserOffboarding - reversible offboarding workflow (FLOW-02, D-19..D-21).
+
+    .DESCRIPTION
+        Composes Disable-AdmanUser, Remove-AdmanGroupMember, and Move-AdmanUser under a
+        single outer confirmation. The workflow:
+
+          * Resolves the target user and validates the configured quarantine OU is within
+            a managed-OU root before any AD write or confirmation.
+          * Classifies each group in the user's memberOf as protected or removable using
+            resolved SIDs against $script:ProtectedSIDs, $script:DenyRids, and
+            $script:ProtectedGroupDns (including unresolved-SID entries).
+          * Presents one outer Confirm-AdmanAction; inner verbs are called with -Force:$true
+            so they do not re-prompt (review finding / FLOW-02).
+          * Disables the account, removes only non-protected groups, moves the account to
+            the quarantine OU, and records the original OU and stripped groups in the audit
+            log for restore (FLOW-03).
+          * A mid-workflow failure stops later steps for that target and writes a Failure
+            audit before rethrowing (FLOW-04).
+          * After a successful offboarding, prints a plain-text checklist of typical cleanup
+            items (mailbox, home directory, GPO) with explicit "manual only" wording; none
+            of these are automated.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is missing.
+
+    .PARAMETER Identity
+        The user to offboard. Accepts sAMAccountName, DN, GUID, or UPN.
+
+    .PARAMETER Force
+        Skip the workflow confirmation prompt.
+
+    .EXAMPLE
+        Start-AdmanUserOffboarding -Identity 'jdoe-fake'
+
+    .EXAMPLE
+        Start-AdmanUserOffboarding -Identity 'jdoe-fake' -WhatIf
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

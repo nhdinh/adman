@@ -1,37 +1,48 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Restore-AdmanQuarantinedUser - reverse offboarding from the authoritative audit log (FLOW-03).
-
-.DESCRIPTION
-    Reverses a successful offboarding by re-adding the recorded groups, moving the user
-    back to the original OU, and enabling the account last. This ordering invariant
-    ensures that a partial restore leaves the account disabled.
-
-    Safety behavior:
-      * The target must currently be in the configured quarantine OU; otherwise the
-        restore is refused before any AD write or confirmation.
-      * Restore state is read from the latest successful, non-dry-run offboarding audit
-        record matched by exact user DN or SID.
-      * The recorded original OU is re-checked against managed-OU roots before the move.
-      * One outer Confirm-AdmanAction gates the whole job; inner verbs are called with
-        -Force:$true so they do not re-prompt.
-      * A mid-workflow failure stops later steps and writes a Failure audit before
-        rethrowing (FLOW-04).
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is missing.
-
-.EXAMPLE
-    Restore-AdmanQuarantinedUser -Identity 'jdoe'
-
-.EXAMPLE
-    Restore-AdmanQuarantinedUser -Identity 'jdoe' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Restore-AdmanQuarantinedUser {
+    <#
+    .SYNOPSIS
+        Restore-AdmanQuarantinedUser - reverse offboarding from the authoritative audit log (FLOW-03).
+
+    .DESCRIPTION
+        Reverses a successful offboarding by re-adding the recorded groups, moving the user
+        back to the original OU, and enabling the account last. This ordering invariant
+        ensures that a partial restore leaves the account disabled.
+
+        Safety behavior:
+          * The target must currently be in the configured quarantine OU; otherwise the
+            restore is refused before any AD write or confirmation.
+          * Restore state is read from the latest successful, non-dry-run offboarding audit
+            record matched by exact user DN or SID. Get-AdmanOffboardingState performs this
+            lookup: it searches all audit-*.jsonl files in the live audit directory and in
+            the rotated archive folders under .store/audit/archive/YYYYMM/. There is no
+            arbitrary lookback cutoff, so restore works as long as the archive file exists.
+          * Audit files are retained in the live audit directory for the configured
+            audit.retentionDays value (default 90) and then moved into
+            .store/audit/archive/YYYYMM/ by Invoke-AdmanAuditRotation (D-05 / 05-03).
+          * The recorded original OU is re-checked against managed-OU roots before the move.
+          * One outer Confirm-AdmanAction gates the whole job; inner verbs are called with
+            -Force:$true so they do not re-prompt.
+          * A mid-workflow failure stops later steps and writes a Failure audit before
+            rethrowing (FLOW-04).
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is missing.
+
+    .PARAMETER Identity
+        The quarantined user to restore. Accepts sAMAccountName, DN, GUID, or UPN.
+
+    .PARAMETER Force
+        Skip the workflow confirmation prompt.
+
+    .EXAMPLE
+        Restore-AdmanQuarantinedUser -Identity 'jdoe-fake'
+
+    .EXAMPLE
+        Restore-AdmanQuarantinedUser -Identity 'jdoe-fake' -WhatIf
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

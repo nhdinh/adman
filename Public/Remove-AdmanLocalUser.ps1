@@ -1,36 +1,45 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Remove-AdmanLocalUser - remove a single local user through the local mutation gate
-    (LUSR-01, D-03).
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
-    Invoke-AdmanLocalMutation -Verb 'Remove-LocalUser'.
-
-    This action is IRREVERSIBLE. Local accounts have no Recycle Bin or quarantine OU
-    equivalent (SAFE-09's reversible-delete mechanism cannot apply to the local SAM).
-    The gate's Confirm-AdmanAction per-verb threshold override (built in Plan 02-01)
-    forces typed-count confirmation even at count=1, so the operator always types the
-    exact count. Pre-delete state (local SID, name, group memberships, profile path)
-    is captured in the audit record for manual re-create.
-
-    Phase 2 localhost validation (D-02): accepts $null, '.', $env:COMPUTERNAME,
-    'localhost'; throws "Remote targets arrive in Phase 3" otherwise.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    Remove-AdmanLocalUser -Name 'luser'
-
-.EXAMPLE
-    Remove-AdmanLocalUser -Name 'luser' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Remove-AdmanLocalUser {
+    <#
+    .SYNOPSIS
+        Remove-AdmanLocalUser - remove a single local user through the local mutation gate
+        (LUSR-01, D-03).
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
+        Invoke-AdmanLocalMutation -Verb 'Remove-LocalUser'.
+
+        This action is IRREVERSIBLE. Local accounts have no Recycle Bin or quarantine OU
+        equivalent (SAFE-09's reversible-delete mechanism cannot apply to the local SAM).
+        The gate's Confirm-AdmanAction per-verb threshold override (built in Plan 02-01)
+        forces typed-count confirmation even at count=1, so the operator always types the
+        exact count. Pre-delete state (local SID, name, group memberships, profile path)
+        is captured in the audit record for manual re-create.
+
+        Phase 2 localhost validation (D-02): accepts $null, '.', $env:COMPUTERNAME,
+        'localhost'; throws "Remote targets arrive in Phase 3" otherwise.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Name
+        The local user name to remove.
+
+    .PARAMETER ComputerName
+        Optional target machine. In Phase 2 only localhost, '.', or $env:COMPUTERNAME
+        are accepted.
+
+    .PARAMETER Force
+        Skip the per-verb confirmation prompt.
+
+    .EXAMPLE
+        Remove-AdmanLocalUser -Name 'luser-fake'
+
+    .EXAMPLE
+        Remove-AdmanLocalUser -Name 'luser-fake' -WhatIf
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

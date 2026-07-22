@@ -1,59 +1,82 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Set-AdmanLocalUser - reset a local user's password OR enable/disable a local user
-    through the local mutation gate (LUSR-01, D-02, D-05).
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Three parameter sets:
-      * 'Reset'   (Name + Password [+ PasswordSource]) - routes to 'Set-LocalUser'
-                  for password reset; sources the password per D-05 when -Password
-                  is not supplied.
-      * 'Enable'  (Name + Enable)                      - routes to 'Enable-LocalUser'.
-      * 'Disable' (Name + Disable)                     - routes to 'Disable-LocalUser'.
-    Enable and Disable are mutually exclusive (different sets). Password cannot be
-    combined with Enable or Disable (different sets). PasswordSource is bound to the
-    'Reset' set so it cannot be combined with -Enable/-Disable either.
-
-    When the caller supplies no switch and no -Password, the default 'Reset' set binds
-    and the verb throws "Parameter set cannot be resolved: supply -Password, -Enable,
-    or -Disable." (no silent no-op).
-
-    D-05 password sourcing for the 'Reset' set when -Password is NOT supplied:
-      * Reads $script:Config.security.passwordSource (default 'Generate').
-      * 'Generate' -> New-AdmanRandomPassword.
-      * 'Prompt'   -> Read-Host -AsSecureString twice + Test-AdmanPasswordComplexity.
-      * 'Ask'      -> defaults to 'Generate' for direct callers.
-
-    D-05 display-once hygiene (Reset set only): AFTER the gate returns successfully
-    (NOT under -WhatIf) AND when the per-call password source is 'Generate', retrieve
-    the plaintext ONCE via SecureStringToBSTR + PtrToStringBSTR, display behind
-    Read-Host 'Press Enter when recorded', [Console]::Clear() (best-effort),
-    ZeroFreeBSTR in finally.
-
-    Phase 2 localhost validation (D-02): accepts $null, '.', $env:COMPUTERNAME,
-    'localhost'; throws "Remote targets arrive in Phase 3" otherwise.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    Set-AdmanLocalUser -Name 'luser'                # password reset (D-05 sourced)
-
-.EXAMPLE
-    Set-AdmanLocalUser -Name 'luser' -Enable
-
-.EXAMPLE
-    Set-AdmanLocalUser -Name 'luser' -Disable
-
-.EXAMPLE
-    $sec = Read-Host -AsSecureString -Prompt 'New password'
-    Set-AdmanLocalUser -Name 'luser' -Password $sec -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Set-AdmanLocalUser {
+    <#
+    .SYNOPSIS
+        Set-AdmanLocalUser - reset a local user's password OR enable/disable a local user
+        through the local mutation gate (LUSR-01, D-02, D-05).
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Three parameter sets:
+          * 'Reset'   (Name + Password [+ PasswordSource]) - routes to 'Set-LocalUser'
+                      for password reset; sources the password per D-05 when -Password
+                      is not supplied.
+          * 'Enable'  (Name + Enable)                      - routes to 'Enable-LocalUser'.
+          * 'Disable' (Name + Disable)                     - routes to 'Disable-LocalUser'.
+        Enable and Disable are mutually exclusive (different sets). Password cannot be
+        combined with Enable or Disable (different sets). PasswordSource is bound to the
+        'Reset' set so it cannot be combined with -Enable/-Disable either.
+
+        When the caller supplies no switch and no -Password, the default 'Reset' set binds
+        and the verb throws "Parameter set cannot be resolved: supply -Password, -Enable,
+        or -Disable." (no silent no-op).
+
+        D-05 password sourcing for the 'Reset' set when -Password is NOT supplied:
+          * Reads $script:Config.security.passwordSource (default 'Generate').
+          * 'Generate' -> New-AdmanRandomPassword.
+          * 'Prompt'   -> Read-Host -AsSecureString twice + Test-AdmanPasswordComplexity.
+          * 'Ask'      -> defaults to 'Generate' for direct callers.
+
+        D-05 display-once hygiene (Reset set only): AFTER the gate returns successfully
+        (NOT under -WhatIf) AND when the per-call password source is 'Generate', retrieve
+        the plaintext ONCE via SecureStringToBSTR + PtrToStringBSTR, display behind
+        Read-Host 'Press Enter when recorded', [Console]::Clear() (best-effort),
+        ZeroFreeBSTR in finally.
+
+        Phase 2 localhost validation (D-02): accepts $null, '.', $env:COMPUTERNAME,
+        'localhost'; throws "Remote targets arrive in Phase 3" otherwise.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Name
+        The local user name to reset, enable, or disable.
+
+    .PARAMETER Password
+        Optional secure-string password for the 'Reset' parameter set. If omitted, the
+        configured D-05 password source is used.
+
+    .PARAMETER PasswordSource
+        Optional per-call override for the configured password source, valid only with
+        the 'Reset' parameter set: 'Generate' or 'Prompt'.
+
+    .PARAMETER Enable
+        Enable the local user. Cannot be combined with -Password or -Disable.
+
+    .PARAMETER Disable
+        Disable the local user. Cannot be combined with -Password or -Enable.
+
+    .PARAMETER ComputerName
+        Optional target machine. In Phase 2 only localhost, '.', or $env:COMPUTERNAME
+        are accepted.
+
+    .PARAMETER Force
+        Skip the workflow confirmation prompt.
+
+    .EXAMPLE
+        Set-AdmanLocalUser -Name 'luser-fake'                # password reset (D-05 sourced)
+
+    .EXAMPLE
+        Set-AdmanLocalUser -Name 'luser-fake' -Enable
+
+    .EXAMPLE
+        Set-AdmanLocalUser -Name 'luser-fake' -Disable
+
+    .EXAMPLE
+        $sec = Read-Host -AsSecureString -Prompt 'New password'
+        Set-AdmanLocalUser -Name 'luser-fake' -Password $sec -WhatIf
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High', DefaultParameterSetName = 'Reset')]
     param(
         [Parameter(Mandatory)]

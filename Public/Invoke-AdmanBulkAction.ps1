@@ -1,40 +1,63 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Invoke-AdmanBulkAction - generic gated bulk engine (BULK-01..04).
-
-.DESCRIPTION
-    Normalizes search/CSV input, resolves each target once, runs the same
-    deny/scope/protected filtering as single-object verbs, applies the
-    configurable bulk.maxCount cap AFTER filtering, performs one typed-count
-    confirmation for the filtered set, then loops calling Invoke-AdmanMutation
-    per item with try/catch/continue.
-
-    -Action is the declared job action. Pipeline input is tagged with this
-    action. CSV rows must carry the same action; a mismatch causes a terminating
-    error before any gate call. Move jobs require -TargetPath for the entire
-    job. Group jobs require -GroupIdentity for the whole job unless every row
-    supplies its own GroupIdentity.
-
-    After the outer typed-count confirmation, each per-item gate call runs with
-    -Force so the operator is not re-prompted N times. No-op cases (already
-    disabled/enabled, already in place, already member/not member) are detected
-    and skipped with a Success audit note.
-
-    -Force skips the outer typed-count confirmation while preserving per-item
-    policy/audit; this is an intentional senior escape hatch, not the default
-    TUI path.
-
-.EXAMPLE
-    Invoke-AdmanBulkAction -Action 'Disable' -InputObject (Find-AdmanUser -Name 'jdoe*') -Force
-
-.EXAMPLE
-    Invoke-AdmanBulkAction -Action 'Move' -Path 'C:\temp\users.csv' -TargetPath 'OU=Leavers,OU=Managed,DC=contoso,DC=local' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Invoke-AdmanBulkAction {
+    <#
+    .SYNOPSIS
+        Invoke-AdmanBulkAction - generic gated bulk engine (BULK-01..04).
+
+    .DESCRIPTION
+        Normalizes search/CSV input, resolves each target once, runs the same
+        deny/scope/protected filtering as single-object verbs, applies the
+        configurable bulk.maxCount cap AFTER filtering, performs one typed-count
+        confirmation for the filtered set, then loops calling Invoke-AdmanMutation
+        per item with try/catch/continue.
+
+        -Action is the declared job action. Pipeline input is tagged with this
+        action. CSV rows must carry the same action; a mismatch causes a terminating
+        error before any gate call. Move jobs require -TargetPath for the entire
+        job. Group jobs require -GroupIdentity for the whole job unless every row
+        supplies its own GroupIdentity.
+
+        After the outer typed-count confirmation, each per-item gate call runs with
+        -Force so the operator is not re-prompted N times. No-op cases (already
+        disabled/enabled, already in place, already member/not member) are detected
+        and skipped with a Success audit note.
+
+        -Force skips the outer typed-count confirmation while preserving per-item
+        policy/audit; this is an intentional senior escape hatch, not the default
+        TUI path. The bulk.maxCount cap is enforced before confirmation so an
+        oversized job is refused even if the operator would otherwise confirm.
+
+    .PARAMETER Action
+        The bulk job action. Must be one of 'Disable', 'Enable', 'Move', 'AddGroup',
+        or 'RemoveGroup'.
+
+    .PARAMETER InputObject
+        Pipeline input containing target objects or strings. Arrays passed as a bound
+        parameter are enumerated into individual records.
+
+    .PARAMETER Path
+        Path to a CSV file whose rows carry Action, ObjectType, Identity, and optional
+        TargetPath/GroupIdentity columns.
+
+    .PARAMETER TargetPath
+        Default destination OU for 'Move' jobs, used when a CSV row or pipeline object
+        does not supply its own TargetPath.
+
+    .PARAMETER GroupIdentity
+        Default group for 'AddGroup'/'RemoveGroup' jobs, used when a CSV row or pipeline
+        object does not supply its own GroupIdentity.
+
+    .PARAMETER Force
+        Skip the outer typed-count confirmation while preserving per-item policy and audit.
+
+    .EXAMPLE
+        Invoke-AdmanBulkAction -Action 'Disable' -InputObject (Find-AdmanUser -Name 'jdoe-fake*') -Force
+
+    .EXAMPLE
+        Invoke-AdmanBulkAction -Action 'Move' -Path 'C:\temp\users-fake.csv' -TargetPath 'OU=NoSuchOU,DC=contoso,DC=local' -WhatIf
+    #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]
