@@ -1,45 +1,45 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Format-AdmanReport - console renderer for D-03 schema objects (RPT-01).
-
-.DESCRIPTION
-    Renders a PSCustomObject[] (D-03 schema) as a console table. Default output is
-    Format-Table -AutoSize | Out-String -Width 4096 emitted as a single string.
-
-    Optional grid picker (-UseGridView):
-      * Desktop edition + interactive session + Get-Command Out-GridView available
-        -> Out-GridView (no -PassThru; display only).
-      * Core edition + Get-Module -ListAvailable Microsoft.PowerShell.ConsoleGuiTools
-        -> Out-ConsoleGridView.
-      * ANY failure inside the grid path silently degrades to the console table.
-
-    MEMORY BOUND (MEDIUM-4): the console renderer is bounded by the host display
-    buffer. For result sets expected to exceed ~10,000 rows the caller should use
-    Export-AdmanReportCsv (which streams row-by-row) instead.
-
-    EMPTY-RESULT SCHEMA (Cycle 2/3 finding): when the pipeline yields zero objects,
-    the renderer cannot infer headers from data.
-      * If -Properties is supplied, emit a header-only table built from that
-        property list (one row of column names, no data rows).
-      * If -Properties is NOT supplied, emit the literal string '(no results)'.
-
-    Callers producing reports that may legitimately be empty (e.g., a stale-account
-    report on a clean domain) MUST pass -Properties with the D-03 schema column
-    list so the empty output still shows the expected headers.
-
-    This renderer NEVER writes files; it emits strings to the pipeline.
-
-.EXAMPLE
-    Find-AdmanUser -SamAccountName 'alice' | Format-AdmanReport
-
-.EXAMPLE
-    Get-AdmanStaleReport | Format-AdmanReport -Properties $entry.Properties
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Format-AdmanReport {
+    <#
+    .SYNOPSIS
+        Format-AdmanReport - console renderer for D-03 schema objects (RPT-01).
+    
+    .DESCRIPTION
+        Renders a PSCustomObject[] (D-03 schema) as a console table. Default output is
+        Format-Table -AutoSize | Out-String -Width 4096 emitted as a single string.
+    
+        Optional grid picker (-UseGridView):
+          * Desktop edition + interactive session + Get-Command Out-GridView available
+            -> Out-GridView (no -PassThru; display only).
+          * Core edition + Get-Module -ListAvailable Microsoft.PowerShell.ConsoleGuiTools
+            -> Out-ConsoleGridView.
+          * ANY failure inside the grid path silently degrades to the console table.
+    
+        MEMORY BOUND (MEDIUM-4): the console renderer is bounded by the host display
+        buffer. For result sets expected to exceed ~10,000 rows the caller should use
+        Export-AdmanReportCsv (which streams row-by-row) instead.
+    
+        EMPTY-RESULT SCHEMA (Cycle 2/3 finding): when the pipeline yields zero objects,
+        the renderer cannot infer headers from data.
+          * If -Properties is supplied, emit a header-only table built from that
+            property list (one row of column names, no data rows).
+          * If -Properties is NOT supplied, emit the literal string '(no results)'.
+    
+        Callers producing reports that may legitimately be empty (e.g., a stale-account
+        report on a clean domain) MUST pass -Properties with the D-03 schema column
+        list so the empty output still shows the expected headers.
+    
+        This renderer NEVER writes files; it emits strings to the pipeline.
+    
+    .EXAMPLE
+        Find-AdmanUser -SamAccountName 'alice' | Format-AdmanReport
+    
+    .EXAMPLE
+        Get-AdmanStaleReport | Format-AdmanReport -Properties $entry.Properties
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false, ValueFromPipeline = $true)]

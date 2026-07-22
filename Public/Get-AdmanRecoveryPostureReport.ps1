@@ -1,26 +1,30 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Get-AdmanRecoveryPostureReport - Public recovery-posture report (RPT-07 / D-08).
-
-.DESCRIPTION
-    Thin Public wrapper over Private/Foundation/Get-AdmanRecoveryPosture.ps1.
-    Returns a PSCustomObject with the three posture fields plus a Generated timestamp and a
-    Freshness string describing the lastLogonTimestamp sync interval.
-
-    Reads from $script:Config.RecoveryPosture when Initialize-Adman has already run; otherwise
-    calls Get-AdmanRecoveryPosture directly so the report works pre-init.
-
-    Freshness string format:
-      'lastLogonTimestamp fresh to within N days (sync interval = X)'
-
-    Where N is $script:Config.LogonSyncGraceDays (default 15) and X is
-    $script:Config.LogonSyncIntervalDays (default 14).
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Get-AdmanRecoveryPostureReport {
+    <#
+    .SYNOPSIS
+        Get-AdmanRecoveryPostureReport - Public recovery-posture report (RPT-07 / D-08).
+    
+    .DESCRIPTION
+        Thin Public wrapper over Private/Foundation/Get-AdmanRecoveryPosture.ps1.
+        Returns a PSCustomObject with the three posture fields plus a Generated timestamp and a
+        Freshness string describing the lastLogonTimestamp sync interval.
+    
+        Reads from $script:Config.RecoveryPosture when Initialize-Adman has already run; otherwise
+        calls Get-AdmanRecoveryPosture directly so the report works pre-init.
+    
+        Freshness string format:
+          'lastLogonTimestamp fresh to within N days (sync interval = X)'
+    
+        Where N is $script:Config.LogonSyncGraceDays (default 15) and X is
+        $script:Config.LogonSyncIntervalDays (default 14).
+
+    .EXAMPLE
+        Get-AdmanRecoveryPostureReport
+        Returns AD Recycle Bin status, forest functional level, and tombstone lifetime.
+    #>
+
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param()

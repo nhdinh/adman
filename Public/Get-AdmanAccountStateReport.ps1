@@ -1,37 +1,45 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Get-AdmanAccountStateReport - four-state account report (RPT-05 / D-06).
-
-.DESCRIPTION
-    Returns accounts from the configured ManagedOUs roots bucketed as 'Disabled', 'Expired',
-    'Locked', or 'PasswordExpired' using Search-ADAccount state switches. NEVER uses
-    UAC bit math.
-
-    For each ManagedOUs root, Search-ADAccount is called four times:
-      * -AccountDisabled   -> Bucket 'Disabled'
-      * -AccountExpired    -> Bucket 'Expired'
-      * -LockedOut         -> Bucket 'Locked'
-      * -PasswordExpired   -> Bucket 'PasswordExpired'
-
-    An account can appear in multiple buckets if it matches multiple states.
-
-    Scope & paging invariants (D-02):
-      * Loops every $script:Config.ManagedOUs root.
-      * Shared splat: -SearchBase $root -SearchScope Subtree -ResultPageSize 1000
-        -Server $script:Config.DC -UsersOnly (or -ComputersOnly).
-      * Every returned object passes through Test-AdmanInManagedScope on its DistinguishedName.
-      * Each in-scope object is mapped through ConvertTo-AdmanResult and annotated with a
-        Bucket column.
-
-.PARAMETER ObjectType
-    'User' (default) or 'Computer'. Determines whether -UsersOnly or -ComputersOnly is passed
-    to Search-ADAccount.
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Get-AdmanAccountStateReport {
+    <#
+    .SYNOPSIS
+        Get-AdmanAccountStateReport - four-state account report (RPT-05 / D-06).
+    
+    .DESCRIPTION
+        Returns accounts from the configured ManagedOUs roots bucketed as 'Disabled', 'Expired',
+        'Locked', or 'PasswordExpired' using Search-ADAccount state switches. NEVER uses
+        UAC bit math.
+    
+        For each ManagedOUs root, Search-ADAccount is called four times:
+          * -AccountDisabled   -> Bucket 'Disabled'
+          * -AccountExpired    -> Bucket 'Expired'
+          * -LockedOut         -> Bucket 'Locked'
+          * -PasswordExpired   -> Bucket 'PasswordExpired'
+    
+        An account can appear in multiple buckets if it matches multiple states.
+    
+        Scope & paging invariants (D-02):
+          * Loops every $script:Config.ManagedOUs root.
+          * Shared splat: -SearchBase $root -SearchScope Subtree -ResultPageSize 1000
+            -Server $script:Config.DC -UsersOnly (or -ComputersOnly).
+          * Every returned object passes through Test-AdmanInManagedScope on its DistinguishedName.
+          * Each in-scope object is mapped through ConvertTo-AdmanResult and annotated with a
+            Bucket column.
+    
+    .PARAMETER ObjectType
+        'User' (default) or 'Computer'. Determines whether -UsersOnly or -ComputersOnly is passed
+        to Search-ADAccount.
+
+    .EXAMPLE
+        Get-AdmanAccountStateReport -ObjectType 'User'
+        Returns disabled, expired, locked, and password-expired user accounts.
+
+    .EXAMPLE
+        Get-AdmanAccountStateReport -ObjectType 'Computer'
+        Returns disabled, expired, locked, and password-expired computer accounts.
+    #>
+
     [CmdletBinding()]
     param(
         [ValidateSet('User', 'Computer')]

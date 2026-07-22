@@ -1,55 +1,55 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Export-AdmanReportHtml - self-contained HTML renderer for D-03 schema objects (RPT-03).
-
-.DESCRIPTION
-    Writes a PSCustomObject[] (D-03 schema) to a single self-contained HTML file
-    using ConvertTo-Html -Head with an embedded CSS fragment. No external CSS,
-    no JavaScript, no PS6+ parameters (no external stylesheet link, no charset
-    override, no metadata block, no transitional DOCTYPE).
-
-    MEMORY BOUND (MEDIUM-4): the HTML renderer MUST collect the full input
-    up-front because ConvertTo-Html requires it. For result sets expected to
-    exceed ~10,000 rows, the caller should use Export-AdmanReportCsv (which
-    streams) instead.
-
-    BOOLEAN CELLS (LOW finding resolution): ConvertTo-Html does NOT automatically
-    add .true/.false classes to boolean cells. The UI-SPEC references these
-    classes for status coloring. Resolution: boolean columns (Enabled, LockedOut,
-    PasswordExpired, RecycleBinEnabled) are emitted as the literal strings
-    'True'/'False' via a calculated property BEFORE piping to ConvertTo-Html,
-    so the CSS class hooks are not required for v1. The .true/.false CSS rules
-    remain in the embedded fragment as forward-compatible hooks but are not
-    load-bearing in v1.
-
-    EMPTY-RESULT SCHEMA (Cycle 2/3 finding): when the collected list is empty,
-    ConvertTo-Html cannot infer headers.
-      * If -Properties is supplied, build a single-row "header prototype"
-        PSCustomObject with those property names set to empty strings, pipe ONLY
-        that prototype to ConvertTo-Html, then post-process the resulting HTML
-        to remove the single <tr> data row (leaving the <table> with a header
-        row and zero data rows).
-      * If -Properties is NOT supplied, emit a minimal HTML document containing
-        the title and the literal text '(no results)' inside a <p> tag - no
-        <table> element.
-
-    Callers producing reports that may legitimately be empty MUST pass
-    -Properties with the D-03 schema column list.
-
-    The parent directory is NEVER auto-created (T-04-01): a missing directory
-    throws so the operator notices the path.
-
-.EXAMPLE
-    Find-AdmanUser -SamAccountName 'alice' | Export-AdmanReportHtml -Path .\alice.html
-
-.EXAMPLE
-    Get-AdmanStaleReport | Export-AdmanReportHtml -Path .\stale.html -Title 'Stale accounts' -Properties $entry.Properties
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Export-AdmanReportHtml {
+    <#
+    .SYNOPSIS
+        Export-AdmanReportHtml - self-contained HTML renderer for D-03 schema objects (RPT-03).
+    
+    .DESCRIPTION
+        Writes a PSCustomObject[] (D-03 schema) to a single self-contained HTML file
+        using ConvertTo-Html -Head with an embedded CSS fragment. No external CSS,
+        no JavaScript, no PS6+ parameters (no external stylesheet link, no charset
+        override, no metadata block, no transitional DOCTYPE).
+    
+        MEMORY BOUND (MEDIUM-4): the HTML renderer MUST collect the full input
+        up-front because ConvertTo-Html requires it. For result sets expected to
+        exceed ~10,000 rows, the caller should use Export-AdmanReportCsv (which
+        streams) instead.
+    
+        BOOLEAN CELLS (LOW finding resolution): ConvertTo-Html does NOT automatically
+        add .true/.false classes to boolean cells. The UI-SPEC references these
+        classes for status coloring. Resolution: boolean columns (Enabled, LockedOut,
+        PasswordExpired, RecycleBinEnabled) are emitted as the literal strings
+        'True'/'False' via a calculated property BEFORE piping to ConvertTo-Html,
+        so the CSS class hooks are not required for v1. The .true/.false CSS rules
+        remain in the embedded fragment as forward-compatible hooks but are not
+        load-bearing in v1.
+    
+        EMPTY-RESULT SCHEMA (Cycle 2/3 finding): when the collected list is empty,
+        ConvertTo-Html cannot infer headers.
+          * If -Properties is supplied, build a single-row "header prototype"
+            PSCustomObject with those property names set to empty strings, pipe ONLY
+            that prototype to ConvertTo-Html, then post-process the resulting HTML
+            to remove the single <tr> data row (leaving the <table> with a header
+            row and zero data rows).
+          * If -Properties is NOT supplied, emit a minimal HTML document containing
+            the title and the literal text '(no results)' inside a <p> tag - no
+            <table> element.
+    
+        Callers producing reports that may legitimately be empty MUST pass
+        -Properties with the D-03 schema column list.
+    
+        The parent directory is NEVER auto-created (T-04-01): a missing directory
+        throws so the operator notices the path.
+    
+    .EXAMPLE
+        Find-AdmanUser -SamAccountName 'alice' | Export-AdmanReportHtml -Path .\alice.html
+    
+    .EXAMPLE
+        Get-AdmanStaleReport | Export-AdmanReportHtml -Path .\stale.html -Title 'Stale accounts' -Properties $entry.Properties
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false, ValueFromPipeline = $true)]

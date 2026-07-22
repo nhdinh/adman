@@ -1,42 +1,46 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Start-Adman - read-only adman console menu entry point (Phase 1, D-01).
-
-.DESCRIPTION
-    Flat while-loop TUI dispatcher. Calls Initialize-Adman once, prints the startup
-    banner (domain, DC, capability flags), then loops:
-
-      1. Print the numbered menu from Get-AdmanMenuDefinition (1..N) plus 'Q. Quit'.
-      2. Read-Host 'Select' - accept integer 1..N or 'Q'. 'B' is NOT reserved at the
-         top level (it is reserved inside action prompts per UI-SPEC §Reserved inputs).
-      3. For a valid choice, call Read-AdmanActionParams with the entry's PromptSpec
-         to build the parameter hashtable. 'B' inside a prompt returns $null (resume
-         the loop); 'Q' throws the ADMAN_QUIT sentinel which this loop catches and
-         breaks on.
-      4. Dispatch via the call operator with the splatted parameter hashtable.
-      5. After the verb returns its PSCustomObject[], present an inline output-format
-         prompt (1=console, 2=CSV, 3=HTML, 4=grid if available, B=back, Q=quit).
-         For CSV/HTML, prompt for the output path and validate the parent directory
-         exists before invoking the renderer; on invalid path, re-prompt once then
-         treat a second failure as 'B'.
-      6. PROPERTIES PROPAGATION (Cycle 4 finding): read the selected menu entry's
-         Properties field (from Get-AdmanMenuDefinition) and pass it as -Properties
-         to the chosen renderer. This guarantees that when a report verb returns
-         zero rows, the CSV/HTML/console output still renders the header row from
-         the D-03 schema instead of a zero-byte file or a no-table document.
-
-    The menu contains no AD read logic and no formatting logic beyond the banner.
-    Every verb dispatched is the same Public function a senior calls directly
-    (MENU-04).
-
-    READ-ONLY TUI: this function never mutates state, so it deliberately declares
-    plain [CmdletBinding()] without the ShouldProcess attribute (review LOW).
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Start-Adman {
+    <#
+    .SYNOPSIS
+        Start-Adman - read-only adman console menu entry point (Phase 1, D-01).
+    
+    .DESCRIPTION
+        Flat while-loop TUI dispatcher. Calls Initialize-Adman once, prints the startup
+        banner (domain, DC, capability flags), then loops:
+    
+          1. Print the numbered menu from Get-AdmanMenuDefinition (1..N) plus 'Q. Quit'.
+          2. Read-Host 'Select' - accept integer 1..N or 'Q'. 'B' is NOT reserved at the
+             top level (it is reserved inside action prompts per UI-SPEC §Reserved inputs).
+          3. For a valid choice, call Read-AdmanActionParams with the entry's PromptSpec
+             to build the parameter hashtable. 'B' inside a prompt returns $null (resume
+             the loop); 'Q' throws the ADMAN_QUIT sentinel which this loop catches and
+             breaks on.
+          4. Dispatch via the call operator with the splatted parameter hashtable.
+          5. After the verb returns its PSCustomObject[], present an inline output-format
+             prompt (1=console, 2=CSV, 3=HTML, 4=grid if available, B=back, Q=quit).
+             For CSV/HTML, prompt for the output path and validate the parent directory
+             exists before invoking the renderer; on invalid path, re-prompt once then
+             treat a second failure as 'B'.
+          6. PROPERTIES PROPAGATION (Cycle 4 finding): read the selected menu entry's
+             Properties field (from Get-AdmanMenuDefinition) and pass it as -Properties
+             to the chosen renderer. This guarantees that when a report verb returns
+             zero rows, the CSV/HTML/console output still renders the header row from
+             the D-03 schema instead of a zero-byte file or a no-table document.
+    
+        The menu contains no AD read logic and no formatting logic beyond the banner.
+        Every verb dispatched is the same Public function a senior calls directly
+        (MENU-04).
+    
+        READ-ONLY TUI: this function never mutates state, so it deliberately declares
+        plain [CmdletBinding()] without the ShouldProcess attribute (review LOW).
+
+    .EXAMPLE
+        Start-Adman
+        Launches the interactive adman TUI menu.
+    #>
+
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '')]
     [CmdletBinding()]
     param()

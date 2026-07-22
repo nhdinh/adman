@@ -1,43 +1,43 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Get-AdmanInventoryReport - computer OS/inventory report with remote enrichment (RPT-06, RMT-03).
-
-.DESCRIPTION
-    Returns computers from the configured ManagedOUs roots with OS version and basic AD
-    attributes. Each result is mapped through ConvertTo-AdmanResult -ObjectType Computer
-    and annotated with a Bucket column set to 'Inventory'.
-
-    Remote enrichment (Phase 3):
-      * Every row is extended with Transport, RemoteOS, Uptime, and LoggedOnUser.
-      * Transport is 'WinRM', 'CimWsman', 'CimDcom', or 'Skipped'.
-      * RemoteOS is a trimmed string from Win32_OperatingSystem Caption/Version/CSDVersion.
-      * Uptime is a [TimeSpan] from LastBootUpTime when the host is reachable.
-      * LoggedOnUser is the console user from Win32_ComputerSystem.UserName.
-      * AD-side OperatingSystem, OperatingSystemVersion, and OperatingSystemServicePack
-        columns are preserved unchanged.
-      * Hosts that cannot be reached or that exhaust the per-host/total time budget are
-        reported as Transport='Skipped' with empty remote fields. A single Write-Warning
-        summarizes how many hosts were skipped.
-
-    Scope & paging invariants (D-02):
-      * Loops every $script:Config.ManagedOUs root.
-      * Get-ADComputer -Filter * -SearchBase $root -SearchScope Subtree
-        -ResultPageSize 1000 -Server $script:Config.DC -Properties <D-02 list
-        plus OperatingSystem, OperatingSystemVersion, OperatingSystemServicePack,
-        IPv4Address, DNSHostName>.
-      * Every returned object passes through Test-AdmanInManagedScope on its
-        DistinguishedName; out-of-scope objects are dropped.
-
-    The report is read-only and never mutates the directory.
-
-.EXAMPLE
-    Get-AdmanInventoryReport
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Get-AdmanInventoryReport {
+    <#
+    .SYNOPSIS
+        Get-AdmanInventoryReport - computer OS/inventory report with remote enrichment (RPT-06, RMT-03).
+    
+    .DESCRIPTION
+        Returns computers from the configured ManagedOUs roots with OS version and basic AD
+        attributes. Each result is mapped through ConvertTo-AdmanResult -ObjectType Computer
+        and annotated with a Bucket column set to 'Inventory'.
+    
+        Remote enrichment (Phase 3):
+          * Every row is extended with Transport, RemoteOS, Uptime, and LoggedOnUser.
+          * Transport is 'WinRM', 'CimWsman', 'CimDcom', or 'Skipped'.
+          * RemoteOS is a trimmed string from Win32_OperatingSystem Caption/Version/CSDVersion.
+          * Uptime is a [TimeSpan] from LastBootUpTime when the host is reachable.
+          * LoggedOnUser is the console user from Win32_ComputerSystem.UserName.
+          * AD-side OperatingSystem, OperatingSystemVersion, and OperatingSystemServicePack
+            columns are preserved unchanged.
+          * Hosts that cannot be reached or that exhaust the per-host/total time budget are
+            reported as Transport='Skipped' with empty remote fields. A single Write-Warning
+            summarizes how many hosts were skipped.
+    
+        Scope & paging invariants (D-02):
+          * Loops every $script:Config.ManagedOUs root.
+          * Get-ADComputer -Filter * -SearchBase $root -SearchScope Subtree
+            -ResultPageSize 1000 -Server $script:Config.DC -Properties <D-02 list
+            plus OperatingSystem, OperatingSystemVersion, OperatingSystemServicePack,
+            IPv4Address, DNSHostName>.
+          * Every returned object passes through Test-AdmanInManagedScope on its
+            DistinguishedName; out-of-scope objects are dropped.
+    
+        The report is read-only and never mutates the directory.
+    
+    .EXAMPLE
+        Get-AdmanInventoryReport
+    #>
+
     [CmdletBinding()]
     param()
 

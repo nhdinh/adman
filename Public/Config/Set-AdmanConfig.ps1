@@ -1,21 +1,6 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Set-AdmanConfig - validated, fail-closed config edit (CONF-01/02, T-00-13).
-.DESCRIPTION
-    State-changing verb (ShouldProcess, ConfirmImpact='High'). Applies a single key/value change
-    (dotted keys supported, e.g. 'safety.bulkConfirmThreshold') to a CLONE of the loaded config,
-    re-runs the single Task-2 validator (Test-AdmanConfigValid) and the CONF-02 fail-closed scope
-    check, and only then persists via Save-AdmanConfig (ConvertTo-Json -Depth 5). Because the edit
-    is validated BEFORE it is written, an admin cannot weaken ManagedOUs/DenyList/safety via this
-    verb (T-00-13). A failed validation leaves $script:Config and the file untouched.
-.PARAMETER Key
-    Config key to set (supports dotted paths, e.g. 'transport.timeouts.WinRM').
-.PARAMETER Value
-    New value for the key.
-.PARAMETER Path
-    Config file path; defaults to $script:StorePath\config.json.
-#>
+﻿#Requires -Version 5.1
+Set-StrictMode -Version Latest
+
 function Set-AdmanConfigValue {
     [CmdletBinding()]
     param(
@@ -41,6 +26,28 @@ function Set-AdmanConfigValue {
 }
 
 function Set-AdmanConfig {
+    <#
+    .SYNOPSIS
+        Set-AdmanConfig - validated, fail-closed config edit (CONF-01/02, T-00-13).
+    .DESCRIPTION
+        State-changing verb (ShouldProcess, ConfirmImpact='High'). Applies a single key/value change
+        (dotted keys supported, e.g. 'safety.bulkConfirmThreshold') to a CLONE of the loaded config,
+        re-runs the single Task-2 validator (Test-AdmanConfigValid) and the CONF-02 fail-closed scope
+        check, and only then persists via Save-AdmanConfig (ConvertTo-Json -Depth 5). Because the edit
+        is validated BEFORE it is written, an admin cannot weaken ManagedOUs/DenyList/safety via this
+        verb (T-00-13). A failed validation leaves $script:Config and the file untouched.
+    .PARAMETER Key
+        Config key to set (supports dotted paths, e.g. 'transport.timeouts.WinRM').
+    .PARAMETER Value
+        New value for the key.
+    .PARAMETER Path
+        Config file path; defaults to $script:StorePath\config.json.
+
+    .EXAMPLE
+        Set-AdmanConfig -Key 'safety.bulkConfirmThreshold' -Value 10
+        Updates a single config value after validation.
+    #>
+
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)][string]$Key,

@@ -1,37 +1,41 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Get-AdmanStaleReport - stale / never-logged-on user report (RPT-04 / D-05).
-
-.DESCRIPTION
-    Returns users from the configured ManagedOUs roots bucketed as 'Stale' or 'NeverLoggedOn'
-    using the replicated lastLogonTimestamp attribute. NEVER queries per-DC lastLogon.
-
-    Bucketing rules (D-05):
-      * lastLogonTimestamp is 0 or $null:
-          - Cross-check whenCreated against the grace window.
-          - Only bucket as 'NeverLoggedOn' if whenCreated is OLDER than the grace window.
-          - Accounts created INSIDE the grace window are excluded (not yet expected to log on).
-      * lastLogonTimestamp is non-zero:
-          - Convert with [datetime]::FromFileTimeUtc.
-          - Bucket as 'Stale' if older than (Get-Date).AddDays(-$script:Config.LogonSyncGraceDays).
-          - Otherwise excluded (fresh).
-
-    The grace window is $script:Config.LogonSyncGraceDays, cached by Initialize-Adman (D-07).
-    If Initialize-Adman has not run, the default of 15 days is used.
-
-    Scope & paging invariants (D-02):
-      * Loops every $script:Config.ManagedOUs root.
-      * Get-ADUser -Filter * -SearchBase $root -SearchScope Subtree -ResultPageSize 1000
-        -Server $script:Config.DC -Properties <D-02 list + lastLogonTimestamp>.
-      * Every returned object passes through Test-AdmanInManagedScope on its DistinguishedName.
-      * Each in-scope object is mapped through ConvertTo-AdmanResult -ObjectType User and
-        annotated with a Bucket column ('Stale' or 'NeverLoggedOn').
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Get-AdmanStaleReport {
+    <#
+    .SYNOPSIS
+        Get-AdmanStaleReport - stale / never-logged-on user report (RPT-04 / D-05).
+    
+    .DESCRIPTION
+        Returns users from the configured ManagedOUs roots bucketed as 'Stale' or 'NeverLoggedOn'
+        using the replicated lastLogonTimestamp attribute. NEVER queries per-DC lastLogon.
+    
+        Bucketing rules (D-05):
+          * lastLogonTimestamp is 0 or $null:
+              - Cross-check whenCreated against the grace window.
+              - Only bucket as 'NeverLoggedOn' if whenCreated is OLDER than the grace window.
+              - Accounts created INSIDE the grace window are excluded (not yet expected to log on).
+          * lastLogonTimestamp is non-zero:
+              - Convert with [datetime]::FromFileTimeUtc.
+              - Bucket as 'Stale' if older than (Get-Date).AddDays(-$script:Config.LogonSyncGraceDays).
+              - Otherwise excluded (fresh).
+    
+        The grace window is $script:Config.LogonSyncGraceDays, cached by Initialize-Adman (D-07).
+        If Initialize-Adman has not run, the default of 15 days is used.
+    
+        Scope & paging invariants (D-02):
+          * Loops every $script:Config.ManagedOUs root.
+          * Get-ADUser -Filter * -SearchBase $root -SearchScope Subtree -ResultPageSize 1000
+            -Server $script:Config.DC -Properties <D-02 list + lastLogonTimestamp>.
+          * Every returned object passes through Test-AdmanInManagedScope on its DistinguishedName.
+          * Each in-scope object is mapped through ConvertTo-AdmanResult -ObjectType User and
+            annotated with a Bucket column ('Stale' or 'NeverLoggedOn').
+
+    .EXAMPLE
+        Get-AdmanStaleReport
+        Returns stale and never-logged-on users from managed OUs.
+    #>
+
     [CmdletBinding()]
     param()
 

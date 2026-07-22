@@ -1,32 +1,36 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Test-AdmanCapability - cheap, read-only startup capability probe with actionable guidance (MENU-05).
-
-.DESCRIPTION
-    Probes what this session can do, never hangs, and NEVER mutates the directory to discover
-    rights. Returns a PSCustomObject of flags and stores it in $script:Capability. For every false
-    flag it emits Write-PSFMessage -Level Warning with ACTIONABLE guidance so the menu can tell the
-    operator exactly how to fix it (exact RSAT install command, VPN/ADWS 9389 check, delegated-
-    admin vs. credential, WinRM -> CIM/DCOM fallback, Recycle Bin tombstone note).
-
-    Probes (all read-only; all transport/domain failures are caught into flags, not thrown):
-      * RsatPresent       = Get-Module -ListAvailable -Name ActiveDirectory
-      * DomainReachable   = try Get-ADDomain -Server $DC (ADWS TCP 9389) with short handling
-      * AuditWritable     = Test-AdmanAuditWritable (zero-byte open-append + Flush probe)
-      * RecycleBinEnabled = Get-ADOptionalFeature Recycle Bin -> EnabledScopes (warning only)
-      * RightsSufficient  = Test-AdmanRightsSufficient (read managed OU + whoami /groups; read-only)
-      * WinRM / CimDcom   = Test-WSMan, else optional New-CimSession -Protocol Dcom (short timeout)
-
-    FAIL-CLOSED (the only two terminating errors):
-      * empty ManagedOUs          -> throw 'FAIL-CLOSED: managed-OU is empty.'
-      * AuditWritable -eq $false  -> throw 'FAIL-CLOSED: audit path not writable.'
-    Transport timeouts are kept short (<= 30s) so the menu never hangs (MENU-05).
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Test-AdmanCapability {
+    <#
+    .SYNOPSIS
+        Test-AdmanCapability - cheap, read-only startup capability probe with actionable guidance (MENU-05).
+    
+    .DESCRIPTION
+        Probes what this session can do, never hangs, and NEVER mutates the directory to discover
+        rights. Returns a PSCustomObject of flags and stores it in $script:Capability. For every false
+        flag it emits Write-PSFMessage -Level Warning with ACTIONABLE guidance so the menu can tell the
+        operator exactly how to fix it (exact RSAT install command, VPN/ADWS 9389 check, delegated-
+        admin vs. credential, WinRM -> CIM/DCOM fallback, Recycle Bin tombstone note).
+    
+        Probes (all read-only; all transport/domain failures are caught into flags, not thrown):
+          * RsatPresent       = Get-Module -ListAvailable -Name ActiveDirectory
+          * DomainReachable   = try Get-ADDomain -Server $DC (ADWS TCP 9389) with short handling
+          * AuditWritable     = Test-AdmanAuditWritable (zero-byte open-append + Flush probe)
+          * RecycleBinEnabled = Get-ADOptionalFeature Recycle Bin -> EnabledScopes (warning only)
+          * RightsSufficient  = Test-AdmanRightsSufficient (read managed OU + whoami /groups; read-only)
+          * WinRM / CimDcom   = Test-WSMan, else optional New-CimSession -Protocol Dcom (short timeout)
+    
+        FAIL-CLOSED (the only two terminating errors):
+          * empty ManagedOUs          -> throw 'FAIL-CLOSED: managed-OU is empty.'
+          * AuditWritable -eq $false  -> throw 'FAIL-CLOSED: audit path not writable.'
+        Transport timeouts are kept short (<= 30s) so the menu never hangs (MENU-05).
+
+    .EXAMPLE
+        Test-AdmanCapability
+        Probes RSAT, domain reachability, audit path, and transport options.
+    #>
+
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param()

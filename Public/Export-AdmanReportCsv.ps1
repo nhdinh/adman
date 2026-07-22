@@ -1,46 +1,46 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Export-AdmanReportCsv - streaming CSV renderer for D-03 schema objects (RPT-02).
-
-.DESCRIPTION
-    Writes a PSCustomObject[] (D-03 schema) to a CSV file using Export-Csv
-    -NoTypeInformation -Encoding UTF8.
-
-    STREAMING (MEDIUM-4 + Cycle 2/3 finding): the renderer uses a begin/process/end
-    structure with explicit first-row handling so memory stays O(1) in the row
-    count. Each row is written and released inside process; no intermediate
-    collection is built. This is the documented fallback for large result sets
-    (e.g., inventory exports of large OUs).
-      * begin: validate the parent directory of -Path exists (throw a clear error
-        if not); remove any stale file at -Path so reruns do not append onto old
-        data; reset the first-row flag.
-      * process: the FIRST input object is piped to Export-Csv WITHOUT -Append
-        (creates the file with headers). Subsequent objects are piped to
-        Export-Csv WITH -Append (appends a data row, no duplicate header).
-      * end: when the pipeline yielded zero objects, emit a header-only CSV if
-        -Properties was supplied (single UTF8-with-BOM line of joined column
-        names via Out-File); otherwise write a zero-byte file and emit a
-        verbose message that no schema was provided.
-
-    EMPTY-RESULT SCHEMA (Cycle 2/3 finding): callers producing reports that may
-    legitimately be empty (e.g., a stale-account report on a clean domain) MUST
-    pass -Properties with the D-03 schema column list so the empty output still
-    shows the expected headers.
-
-    The parent directory is NEVER auto-created (T-04-01): a missing directory
-    throws so the operator notices the path.
-
-.EXAMPLE
-    Find-AdmanUser -SamAccountName 'alice' | Export-AdmanReportCsv -Path .\alice.csv
-
-.EXAMPLE
-    Get-AdmanStaleReport | Export-AdmanReportCsv -Path .\stale.csv -Properties $entry.Properties
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Export-AdmanReportCsv {
+    <#
+    .SYNOPSIS
+        Export-AdmanReportCsv - streaming CSV renderer for D-03 schema objects (RPT-02).
+    
+    .DESCRIPTION
+        Writes a PSCustomObject[] (D-03 schema) to a CSV file using Export-Csv
+        -NoTypeInformation -Encoding UTF8.
+    
+        STREAMING (MEDIUM-4 + Cycle 2/3 finding): the renderer uses a begin/process/end
+        structure with explicit first-row handling so memory stays O(1) in the row
+        count. Each row is written and released inside process; no intermediate
+        collection is built. This is the documented fallback for large result sets
+        (e.g., inventory exports of large OUs).
+          * begin: validate the parent directory of -Path exists (throw a clear error
+            if not); remove any stale file at -Path so reruns do not append onto old
+            data; reset the first-row flag.
+          * process: the FIRST input object is piped to Export-Csv WITHOUT -Append
+            (creates the file with headers). Subsequent objects are piped to
+            Export-Csv WITH -Append (appends a data row, no duplicate header).
+          * end: when the pipeline yielded zero objects, emit a header-only CSV if
+            -Properties was supplied (single UTF8-with-BOM line of joined column
+            names via Out-File); otherwise write a zero-byte file and emit a
+            verbose message that no schema was provided.
+    
+        EMPTY-RESULT SCHEMA (Cycle 2/3 finding): callers producing reports that may
+        legitimately be empty (e.g., a stale-account report on a clean domain) MUST
+        pass -Properties with the D-03 schema column list so the empty output still
+        shows the expected headers.
+    
+        The parent directory is NEVER auto-created (T-04-01): a missing directory
+        throws so the operator notices the path.
+    
+    .EXAMPLE
+        Find-AdmanUser -SamAccountName 'alice' | Export-AdmanReportCsv -Path .\alice.csv
+    
+    .EXAMPLE
+        Get-AdmanStaleReport | Export-AdmanReportCsv -Path .\stale.csv -Properties $entry.Properties
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false, ValueFromPipeline = $true)]

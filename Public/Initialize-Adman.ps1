@@ -1,30 +1,42 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Initialize-Adman - full startup orchestration (D-04).
-
-.DESCRIPTION
-    Runs the fixed startup sequence that turns a loaded config (00-02) into a fail-closed session
-    the 00-04 gate can read. Order is fixed and asserted by tests:
-      1. Initialize-AdmanConfig      (load/validate config + deny-list seed; pass -SetupMode through)
-      2. Test-AdmanAuditWritable     (zero-byte probe; fail-closed if false)
-      3. Get-AdmanCredential         (rights-first pass-through / DPAPI / prompt -> $script:Credential)
-      4. Test-AdmanCapability        (probe flags + guidance -> $script:Capability)
-      5. Get-AdmanLogonSyncInterval  (D-07 sync interval -> LogonSyncIntervalDays/LogonSyncGraceDays)
-      6. Get-AdmanRecoveryPosture    (D-08 posture -> $script:Config.RecoveryPosture; never fatal)
-      7. Resolve-AdmanDomainSid      (DomainSID + forest-root SID -> $script:DomainSid/ForestRootSid)
-      8. Get-AdmanProtectedIdentity  (ProtectedGroupDns / ProtectedSIDs / DenyRids)
-      9. Best-effort event-log source registration (never fatal).
-    Sets $script:Initialized = $true on success.
-
-    -SetupMode (init wizard): runs the config load + seed ONLY and returns - the wizard creates the
-    config with NO AD mutation, so the fail-closed scope/audit throws and the AD-touching
-    resolution are skipped.
-#>
-
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Initialize-Adman {
+    <#
+    .SYNOPSIS
+        Initialize-Adman - full startup orchestration (D-04).
+    
+    .DESCRIPTION
+        Runs the fixed startup sequence that turns a loaded config (00-02) into a fail-closed session
+        the 00-04 gate can read. Order is fixed and asserted by tests:
+          1. Initialize-AdmanConfig      (load/validate config + deny-list seed; pass -SetupMode through)
+          2. Test-AdmanAuditWritable     (zero-byte probe; fail-closed if false)
+          3. Get-AdmanCredential         (rights-first pass-through / DPAPI / prompt -> $script:Credential)
+          4. Test-AdmanCapability        (probe flags + guidance -> $script:Capability)
+          5. Get-AdmanLogonSyncInterval  (D-07 sync interval -> LogonSyncIntervalDays/LogonSyncGraceDays)
+          6. Get-AdmanRecoveryPosture    (D-08 posture -> $script:Config.RecoveryPosture; never fatal)
+          7. Resolve-AdmanDomainSid      (DomainSID + forest-root SID -> $script:DomainSid/ForestRootSid)
+          8. Get-AdmanProtectedIdentity  (ProtectedGroupDns / ProtectedSIDs / DenyRids)
+          9. Best-effort event-log source registration (never fatal).
+        Sets $script:Initialized = $true on success.
+    
+        -SetupMode (init wizard): runs the config load + seed ONLY and returns - the wizard creates the
+        config with NO AD mutation, so the fail-closed scope/audit throws and the AD-touching
+        resolution are skipped.
+
+    .PARAMETER SetupMode
+        First-run wizard/init mode: runs config load + seed only and returns without touching AD
+        or the audit path.
+
+    .EXAMPLE
+        Initialize-Adman
+        Runs the full startup sequence for an adman session.
+
+    .EXAMPLE
+        Initialize-Adman -SetupMode
+        Runs config load/seed only for the first-run wizard.
+    #>
+
     [CmdletBinding()]
     param(
         [switch]$SetupMode
