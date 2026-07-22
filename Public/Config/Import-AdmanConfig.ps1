@@ -49,7 +49,8 @@ function Import-AdmanConfig {
     # Single validator (D-04) then CONF-02 fail-closed - an import cannot weaken scope/deny-list (T-00-13).
     Test-AdmanConfigValid -Config $config -ModuleRoot $moduleRoot | Out-Null
     if (-not $SetupMode) {
-        if (@($config.ManagedOUs).Count -lt 1) {
+        $scopeCount = if ($null -eq $config.ManagedOUs) { 0 } else { @($config.ManagedOUs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count }
+        if ($scopeCount -lt 1) {
             throw "FAIL-CLOSED: managed-OU scope (ManagedOUs) is empty; refusing to import a config with no managed-OU root."
         }
     }

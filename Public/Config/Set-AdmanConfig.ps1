@@ -68,7 +68,8 @@ function Set-AdmanConfig {
 
     # Single validator (D-04) then CONF-02 fail-closed - a Set cannot weaken scope/deny-list (T-00-13).
     Test-AdmanConfigValid -Config $proposed -ModuleRoot $moduleRoot | Out-Null
-    if (@($proposed.ManagedOUs).Count -lt 1) {
+    $scopeCount = if ($null -eq $proposed.ManagedOUs) { 0 } else { @($proposed.ManagedOUs | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count }
+    if ($scopeCount -lt 1) {
         throw "FAIL-CLOSED: managed-OU scope (ManagedOUs) is empty; Set-AdmanConfig cannot remove the last managed-OU root."
     }
 
