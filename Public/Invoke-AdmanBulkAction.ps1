@@ -307,7 +307,11 @@ function Invoke-AdmanBulkAction {
                 if ($Action -eq 'Move') { $params['TargetPath'] = if ($rec.TargetPath) { $rec.TargetPath } else { $TargetPath } }
                 if ($Action -in @('AddGroup', 'RemoveGroup')) { $params['GroupIdentity'] = $rec.ResolvedGroup.DistinguishedName }
 
-                Invoke-AdmanMutation -Verb $rec.GateVerb -Targets @($rec.Identity) -Parameters $params `
+                # WR-07: pass the resolved object snapshot into the gate so the same AD
+                # view is used for the no-op decision and the mutation; avoids a second
+                # resolution that could race with directory changes.
+                Invoke-AdmanMutation -Verb $rec.GateVerb -Targets @($rec.Identity) `
+                    -ResolvedObjects @($rec.ResolvedTarget) -Parameters $params `
                     -Force:$true -WhatIf:$WhatIfPreference | Out-Null
                 $perItem.Add([pscustomobject]@{ Identity = $rec.Identity; Result = 'Success'; Note = $null })
             } catch {

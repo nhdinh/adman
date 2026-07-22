@@ -51,7 +51,14 @@ function Invoke-AdmanMutation {
         [Parameter(Mandatory)]
         [string[]]$Targets,
         [hashtable]$Parameters = @{},
-        [switch]$Force
+        [switch]$Force,
+
+        # WR-07: optional pre-resolved AD objects. When supplied, the gate reuses the same
+        # snapshot for preview and execution instead of re-querying AD per item. This closes
+        # the race where a bulk no-op decision (already disabled/enabled/in place/member) is
+        # made on one snapshot and the mutation runs against a newer, different snapshot.
+        [Parameter()]
+        [object[]]$ResolvedObjects
     )
 
     $cid = [guid]::NewGuid().ToString()
@@ -64,8 +71,12 @@ function Invoke-AdmanMutation {
     # SAFE-10: ONE resolver, called once. The same array feeds preview AND execute.
     # D-01: New-ADUser routes through the synthetic pre-create resolver (the object does
     # not exist yet, so Get-ADObject -Identity would throw).
+    # WR-07: if the caller already resolved the objects (bulk engine), reuse that snapshot
+    # so preview and execution cannot disagree due to an intervening AD change.
     $resolved = @()
-    if ($Verb -eq 'New-ADUser') {
+    if ($PSBoundParameters.ContainsKey('ResolvedObjects') -and $null -ne $ResolvedObjects -and $ResolvedObjects.Count -gt 0) {
+        $resolved = @($ResolvedObjects)
+    } elseif ($Verb -eq 'New-ADUser') {
         $resolved = @(Resolve-AdmanCreateTarget `
                 -Name $Parameters['Name'] `
                 -SamAccountName $Parameters['SamAccountName'] `
