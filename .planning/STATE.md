@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Hardening & Portability
-current_plan: 05-01a2
-status: in_progress
-stopped_at: Completed 05-01a3-PLAN.md
-last_updated: "2026-07-22T05:06:00.381Z"
+current_plan: 05-01a3
+status: complete
+stopped_at: Completed 05-01a2-PLAN.md
+last_updated: "2026-07-22T05:07:00.949Z"
 last_activity: 2026-07-22
-last_activity_desc: Completed 05-01a1 help coverage (config/startup/read/report)
+last_activity_desc: Completed 05-01a2 AD lifecycle help coverage
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # Project State
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 **Status:** In Progress
 **Last Activity:** 2026-07-22 — Completed 05-01a3 local/group/bulk/workflow help coverage
 
-**Progress:** [█████████░] 94% (Phase 5 of 6, 30 of 33 plans executed)
+**Progress:** [██████████] 97% (Phase 5 of 6, 32 of 33 plans executed)
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 | Phase 05-hardening-portability P03 | 45min | 3 tasks | 13 files |
 | Phase 05-hardening-portability P01a1 | 35min | 2 tasks | 17 files |
 | Phase 05-hardening-portability P01a3 | 20min | 1 tasks | 10 files |
+| Phase 05-hardening-portability P01a2 | 7min | 1 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Rotation archive folders live under .store/audit/archive/YYYYMM/ so the same OS ACL boundary covers live and archived audit files.
 - [Phase ?]: Help blocks were moved inside each function body to satisfy PowerShell's Get-Help association rules, replacing the prior script-level placement above Set-StrictMode.
 - [Phase ?]: Examples were updated to use obviously fake identities (jdoe-fake, luser-fake) and contoso.local DNs so no example resembles a deployable live path.
+- [Phase ?]: Moved AD lifecycle comment-based help blocks inside function bodies to ensure Get-Help discovery.
+- [Phase ?]: Scoped SupportsShouldProcess description assertion in Help.Coverage.Tests.ps1 to the hard-coded 05-01a2 function list.
 
 ### Pending Todos
 
@@ -213,7 +216,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-22T05:06:00.369Z
-Stopped at: Completed 05-01a3-PLAN.md
+Last session: 2026-07-22T05:07:00.936Z
+Stopped at: Completed 05-01a2-PLAN.md
 Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
