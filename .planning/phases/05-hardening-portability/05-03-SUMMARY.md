@@ -228,3 +228,14 @@ None - no external service configuration required.
 ---
 *Phase: 05-hardening-portability*
 *Completed: 2026-07-22*
+
+## Self-Check: PASSED
+
+- [x] SUMMARY.md written to `.planning/phases/05-hardening-portability/05-03-SUMMARY.md`
+- [x] All deliverable files exist on disk
+- [x] All task commits exist in git history (57a782e, f762e78, c45a75c, 7d7f1a9)
+- [x] Final metadata commit created (a6d4bf9)
+- [x] Verification test suite passed (48/48 unit tests across 7 test files)
+- [x] `.githooks/pre-commit` is executable in git index (mode 100755)
+- [x] STATE.md and ROADMAP.md updated via gsd-tools
+
