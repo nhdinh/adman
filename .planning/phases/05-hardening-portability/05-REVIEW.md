@@ -1,190 +1,152 @@
 ---
 phase: 05-hardening-portability
-reviewed: 2026-07-22T06:49:23Z
+reviewed: 2026-07-22T03:45:00Z
 depth: standard
-files_reviewed: 53
+files_reviewed: 5
 files_reviewed_list:
-  - .github/workflows/ci.yml
-  - Private/Audit/Rotation.ps1
-  - Private/Audit/Write-AdmanAudit.ps1
-  - Private/Config/Initialize-AdmanConfig.ps1
+  - docs/USAGE.md
+  - docs/RECOVERY-RUNBOOK.md
+  - tests/Docs.Coverage.Tests.ps1
+  - README.md
   - Private/Workflow/Get-AdmanOffboardingState.ps1
-  - Public/Add-AdmanGroupMember.ps1
-  - Public/Add-AdmanLocalGroupMember.ps1
-  - Public/Config/Export-AdmanConfig.ps1
-  - Public/Config/Get-AdmanConfig.ps1
-  - Public/Config/Import-AdmanConfig.ps1
-  - Public/Config/Set-AdmanConfig.ps1
-  - Public/Disable-AdmanComputer.ps1
-  - Public/Disable-AdmanUser.ps1
-  - Public/Enable-AdmanComputer.ps1
-  - Public/Enable-AdmanUser.ps1
-  - Public/Export-AdmanReportCsv.ps1
-  - Public/Export-AdmanReportHtml.ps1
-  - Public/Find-AdmanComputer.ps1
-  - Public/Find-AdmanUser.ps1
-  - Public/Format-AdmanReport.ps1
-  - Public/Get-AdmanAccountStateReport.ps1
-  - Public/Get-AdmanInventoryReport.ps1
-  - Public/Get-AdmanRecoveryPostureReport.ps1
-  - Public/Get-AdmanStaleReport.ps1
-  - Public/Initialize-Adman.ps1
-  - Public/Invoke-AdmanBulkAction.ps1
-  - Public/Move-AdmanComputer.ps1
-  - Public/Move-AdmanUser.ps1
-  - Public/New-AdmanUser.ps1
-  - Public/Remove-AdmanGroupMember.ps1
-  - Public/Remove-AdmanLocalGroupMember.ps1
-  - Public/Remove-AdmanLocalUser.ps1
-  - Public/Reset-AdmanComputerAccount.ps1
-  - Public/Restore-AdmanQuarantinedUser.ps1
-  - Public/Set-AdmanLocalUser.ps1
-  - Public/Set-AdmanUserPassword.ps1
-  - Public/Start-Adman.ps1
-  - Public/Start-AdmanUserOffboarding.ps1
-  - Public/Start-AdmanUserOnboarding.ps1
-  - Public/Test-AdmanCapability.ps1
-  - Public/Unlock-AdmanUser.ps1
-  - build/Sign-AdmanModule.ps1
-  - config/adman.defaults.json
-  - config/adman.schema.json
-  - tests/Audit.EventLog.Tests.ps1
-  - tests/Audit.FailClosed.Tests.ps1
-  - tests/Audit.Integrity.Tests.ps1
-  - tests/Audit.Rotation.Tests.ps1
-  - tests/Audit.Schema.Tests.ps1
-  - tests/Config.Load.Tests.ps1
-  - tests/Help.Coverage.Tests.ps1
-  - tests/PesterConfiguration.psd1
-  - tests/Workflow.OffboardingState.Tests.ps1
 findings:
-  critical: 2
-  warning: 6
+  critical: 0
+  warning: 7
   info: 3
-  total: 11
+  total: 10
 status: issues_found
 ---
 
-# Phase 05: Code Review Report
+# Phase 5: Code Review Report
 
-**Reviewed:** 2026-07-22T06:49:23Z
+**Reviewed:** 2026-07-22T03:45:00Z
 **Depth:** standard
-**Files Reviewed:** 53
+**Files Reviewed:** 5
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the Phase 5 hardening/portability deliverables: dual-edition CI workflow, audit hash-chain/rotation, config loader, offboarding-state restore, all public verbs, report renderers, signing script, defaults/schema, and unit tests.
-
-Two security blockers remain:
-
-1. `Export-AdmanReportHtml` interpolates the caller-supplied `-Title` directly into HTML/CSS without encoding, creating an XSS / HTML-injection vector.
-2. `Restore-AdmanQuarantinedUser` reads authoritative restore state from the audit log but never verifies the file's hash-chain integrity, so a tampered audit record can drive an attacker-controlled restore.
-
-The rest of the codebase is consistent with the established safety patterns (fail-closed config, PENDING/OUTCOME audit pairs, managed-OU scope checks, DPAPI-free password display). The warnings below are maintainability and correctness gaps that should be closed before the phase is considered complete.
+Phase 5 Plan 01b refreshed operator-facing documentation and added a Pester contract test that keeps docs in sync with the module manifest and menu definition. The docs coverage test passes (16/16), and the parse error in `Private/Workflow/Get-AdmanOffboardingState.ps1` has been fixed. However, the reviewed files still contain correctness, robustness, and documentation-accuracy defects: the offboarding-state reader lacks initialization and object-class guards, the runbook misstates the default AD tombstone lifetime, and the contract-test regexes are fragile against future doc examples.
 
 ## Critical Issues
 
-### CR-01: XSS / HTML injection via unescaped `-Title` in `Export-AdmanReportHtml`
-
-**File:** `Public/Export-AdmanReportHtml.ps1:148, 169, 185`
-**Issue:** The `-Title` parameter is embedded verbatim into the generated HTML/CSS. A caller can inject arbitrary markup or script (e.g. `</style><script>...</script>`) that executes when the self-contained report is opened in a browser. Because the report is designed to be emailed/shared, this is a stored XSS vulnerability.
-**Fix:** HTML-encode `$Title` once and reuse the encoded value:
-
-```powershell
-$safeTitle = [System.Net.WebUtility]::HtmlEncode($Title)
-$css = @"
-<style>
-...
-<title>$safeTitle</title>
-"@
-...
-<h1>$safeTitle</h1>
-```
-
-### CR-02: `Restore-AdmanQuarantinedUser` trusts tamperable audit records
-
-**File:** `Public/Restore-AdmanQuarantinedUser.ps1:99` and `Private/Workflow/Get-AdmanOffboardingState.ps1:59-87`
-**Issue:** The restore workflow uses `Get-AdmanOffboardingState` to read the latest offboarding record from live and archived audit JSONL files. The codebase already ships `Get-AdmanAuditIntegrity` to detect tampering, but neither `Get-AdmanOffboardingState` nor `Restore-AdmanQuarantinedUser` calls it. An attacker with filesystem write access can modify `originalOU`/`groups` in an archived record and trick the restore into moving the user to an attacker-controlled OU or re-adding attacker-controlled groups. Although the managed-OU scope check blocks an out-of-scope destination, in-scope group membership tampering is not blocked.
-**Fix:** Verify the integrity of any audit file before consuming records from it. In `Get-AdmanOffboardingState`, inside the file loop, call `Get-AdmanAuditIntegrity -Path $file.FullName` and throw if `Valid -eq $false`:
-
-```powershell
-foreach ($file in $auditFiles) {
-    $integrity = Get-AdmanAuditIntegrity -Path $file.FullName
-    if (-not $integrity.Valid) {
-        throw "Audit integrity check failed for '$($file.FullName)': $($integrity.Reason)"
-    }
-    foreach ($line in (Get-Content -LiteralPath $file.FullName -ErrorAction Stop)) { ... }
-}
-```
+No critical issues identified in the reviewed files.
 
 ## Warnings
 
-### WR-01: `Set-AdmanUserPassword` help description contradicts implementation
+### WR-01: `Get-AdmanOffboardingState` does not validate resolved object class
 
-**File:** `Public/Set-AdmanUserPassword.ps1:16-18` vs. `211-215`
-**Issue:** The `.DESCRIPTION` claims the wrapper detects `$Parameters['Unlock']` and calls `Unlock-ADAccount` inside the same gate invocation. The actual code performs three separate `Invoke-AdmanMutation` calls (password reset, `Set-ADUser`, optional `Unlock-ADAccount`), each with its own audit pair and confirmation. The parameter help is correct, but the top-level description is stale and will mislead maintainers.
-**Fix:** Rewrite the `.DESCRIPTION` to match the implementation: three distinct gate invocations, each with its own PENDING/OUTCOME audit and confirmation.
-
-### WR-02: `Get-AdmanAuditIntegrity` reports missing files as valid
-
-**File:** `Private/Audit/Rotation.ps1:97-103`
-**Issue:** When the audit file does not exist, the function returns `Valid = $true` with `Reason = 'File not found.'`. For a tamper-evident verifier, a missing log is not evidence of integrity; a deleted audit file should be reported as a verification failure.
-**Fix:** Return `Valid = $false` for missing files, or add a dedicated `Missing` flag and update callers/tests accordingly.
-
-### WR-03: Redundant `$allowed.Count` guard in `Invoke-AdmanBulkAction`
-
-**File:** `Public/Invoke-AdmanBulkAction.ps1:247`
-**Issue:** The inner `if ($Action -in @('AddGroup', 'RemoveGroup') -and $allowed.Count -gt 0)` repeats a condition already guaranteed by the enclosing `if ($allowed.Count -gt 0)` block at line 239. This is harmless but unnecessary noise.
-**Fix:** Remove the redundant `-and $allowed.Count -gt 0` clause.
-
-### WR-04: `Initialize-AdmanConfig` reads `adman.defaults.json` repeatedly
-
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:263, 283, 305, 320, 344`
-**Issue:** The defaults file is loaded and parsed five separate times during a single config load. This is inefficient and increases the chance that a future change to defaults-loading behavior is applied inconsistently.
-**Fix:** Load `$defaults` once near the top of the function and reuse it for seeding timeouts, domain/templates, audit block, and deny-list.
-
-### WR-05: `Get-AdmanInventoryReport` probes remote query even when transport is `Skipped`
-
-**File:** `Public/Get-AdmanInventoryReport.ps1:94-118`
-**Issue:** When `Connect-AdmanTarget` returns `'Skipped'`, the code still enters the remote-query branch and calls `Invoke-AdmanRemoteQuery -Transport 'Skipped'` as long as `queryRemaining` is positive. This wastes time and relies on `Invoke-AdmanRemoteQuery` to no-op for the skipped transport.
-**Fix:** Skip `Invoke-AdmanRemoteQuery` when `$transport -eq 'Skipped'`:
-
+**File:** `Private/Workflow/Get-AdmanOffboardingState.ps1:27`
+**Issue:** `Resolve-AdmanTarget` can resolve users, computers, groups, or OUs. The function selects the first result and assumes it is a user without checking `objectClass`. For a non-user identity the function will normally return `$null` because the audit records it searches are always for `Start-AdmanUserOffboarding`, but the missing guard makes the function less self-documenting and could match inappropriate state if the audit schema ever broadens.
+**Fix:** Add an explicit object-class check after resolution:
 ```powershell
-if ($transport -ne 'Skipped' -and $queryRemaining -gt 0) {
-    $remote = Invoke-AdmanRemoteQuery ...
-    ...
+$resolved = Resolve-AdmanTarget -Targets @($Identity) | Select-Object -First 1
+if ($null -eq $resolved) {
+    throw "Identity '$Identity' could not be resolved to a single user."
+}
+if ($resolved.objectClass -ne 'user') {
+    throw "Identity '$Identity' resolved to a $($resolved.objectClass), not a user."
 }
 ```
 
-### WR-06: `Start-AdmanUserOnboarding` does not validate `NamePattern` format
+### WR-02: `Get-AdmanOffboardingState` reads `$script:Config.AuditDir` without initialization guard
 
-**File:** `Public/Start-AdmanUserOnboarding.ps1:100`
-**Issue:** The template `NamePattern` is passed directly to the `-f` format operator. A malformed pattern (e.g. `{2}` or invalid format specifiers) throws before the preflight checks can run, producing a confusing error.
-**Fix:** Validate `NamePattern` is a valid two-argument format string during template validation (line 79-90), or wrap the format call in a try/catch with a clear message.
+**File:** `Private/Workflow/Get-AdmanOffboardingState.ps1:42`
+**Issue:** The function directly accesses `$script:Config.AuditDir`. If `Initialize-Adman` has not run, `$script:Config` is `$null` and the property access throws a low-level null-reference error instead of the clear "adman is not initialized" message used by exported functions. This is especially likely if the private function is invoked directly during testing or debugging.
+**Fix:** Mirror the WR-01 guard from `Restore-AdmanQuarantinedUser`:
+```powershell
+if (-not $script:Config -or -not $script:Config.PSObject.Properties['AuditDir']) {
+    throw 'adman is not initialized. Run Initialize-Adman first.'
+}
+$auditDir = $script:Config.AuditDir
+```
+
+### WR-03: Unhandled `[datetime]` cast when `tsUtc` is malformed
+
+**File:** `Private/Workflow/Get-AdmanOffboardingState.ps1:98`
+**Issue:** The function catches JSON parse errors per line but does not catch `InvalidCastException` from `[datetime]$_.tsUtc`. A corrupted or manually edited audit line with a non-date `tsUtc` string will terminate the entire restore lookup instead of being skipped like other malformed records.
+**Fix:** Convert the timestamp inside the per-record try block and skip on failure:
+```powershell
+try {
+    $rec = $line | ConvertFrom-Json -ErrorAction Stop
+    $rec | Add-Member -NotePropertyName 'tsUtcDate' -NotePropertyValue ([datetime]$rec.tsUtc) -ErrorAction Stop
+} catch {
+    Write-Warning "Skipping corrupt offboarding audit line in '$($file.FullName)': $_"
+    continue
+}
+# ... later ...
+$latest = $candidates | Sort-Object -Property tsUtcDate -Descending | Select-Object -First 1
+```
+
+### WR-04: RECOVERY-RUNBOOK.md states incorrect default tombstone lifetime
+
+**File:** `docs/RECOVERY-RUNBOOK.md:38`
+**Issue:** The runbook says "default 180 days" for tombstone lifetime. Since Windows Server 2003 SP1 the default tombstone lifetime (and therefore the default deleted-object lifetime when the AD Recycle Bin is enabled) is 60 days, not 180. Operators relying on this figure may delay recovery actions and find objects have already been garbage-collected.
+**Fix:** Change the sentence to:
+```markdown
+If the object has passed the deleted object lifetime (which defaults to the tombstone lifetime, 60 days on modern forests), it is no longer in the Recycle Bin and an authoritative restore from backup is the only option.
+```
+
+### WR-05: RECOVERY-RUNBOOK.md shows unescaped LDAP wildcard in filter example
+
+**File:** `docs/RECOVERY-RUNBOOK.md:31`
+**Issue:** The example `Get-ADObject -Filter "Name -like 'jdoe*'"` embeds a literal value into an LDAP filter without escaping. If an operator copies the pattern with a name containing `*`, `(`, `)`, `\`, or NUL, the filter can match unintended objects or become malformed.
+**Fix:** Add a note immediately after the example:
+```markdown
+Replace `jdoe` with the actual name. If the name contains LDAP filter special characters (`*`, `(`, `)`, `\`), escape them first or identify the object by GUID/DN.
+```
+
+### WR-06: Docs coverage test regex can match PowerShell comment lines as headings
+
+**File:** `tests/Docs.Coverage.Tests.ps1:173`
+**Issue:** The next-heading regex `(?m)^###?\s+` matches any line beginning with one to three hashes followed by whitespace. A future function example that includes a commented PowerShell line such as `# This is a comment` would be mistaken for the next heading, truncating the function section and causing false test failures.
+**Fix:** Track fenced-code-block state while scanning, or simplify by splitting on lines and only testing heading patterns outside code fences. A minimal improvement is to look for the next function heading (`^### \`) specifically rather than any heading pattern, because every function in the Exported functions section uses an `###` heading.
+
+### WR-07: Docs coverage test enumerates exported commands too broadly
+
+**File:** `tests/Docs.Coverage.Tests.ps1:48`
+**Issue:** `(Get-Command -Module adman).Name` collects all command types exported by the module. The manifest currently restricts aliases and cmdlets to empty lists, but if a future manifest change exports an alias or if command discovery order shifts, the contract could include non-function commands or miss functions.
+**Fix:** Be explicit about the command type:
+```powershell
+$script:ExportedFunctions = @((Get-Command -Module adman -CommandType Function).Name | Sort-Object)
+```
 
 ## Info
 
-### IN-01: Plaintext password variables are not cleared after display
+### IN-01: Docs coverage test does not restore `$env:PSModulePath`
 
-**File:** `Public/New-AdmanUser.ps1:220`, `Public/Set-AdmanUserPassword.ps1:238`, `Public/Set-AdmanLocalUser.ps1:223`
-**Issue:** After displaying the generated password, the BSTR is zeroed, but the `$plain` string variable remains in managed memory until garbage collection. This weakens the shoulder-surf hygiene the code aims for.
-**Fix:** Assign `$plain = $null` after `WriteLine` and before `Read-Host` (or at the end of the `try` block) so the reference is dropped promptly.
+**File:** `tests/Docs.Coverage.Tests.ps1:33`
+**Issue:** The test prepends a stub directory to `$env:PSModulePath` in `BeforeAll` and never restores the original value in `AfterAll`. In a long test run this can affect subsequent test files that rely on module path ordering.
+**Fix:** Save and restore the original path:
+```powershell
+BeforeAll {
+    $script:OriginalPSModulePath = $env:PSModulePath
+    # ... stub setup ...
+    $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
+}
+AfterAll {
+    $env:PSModulePath = $script:OriginalPSModulePath
+    Remove-Module -Name adman -Force -ErrorAction SilentlyContinue
+}
+```
 
-### IN-02: SHA256 instances are not disposed
+### IN-02: Docs coverage test uses unqualified `Get-Command` for parameter lookup
 
-**File:** `Private/Audit/Rotation.ps1:173`, `Private/Audit/Write-AdmanAudit.ps1:183-184`
-**Issue:** `[System.Security.Cryptography.SHA256]::Create()` returns an `IDisposable` object that is left for finalization. On Windows this is generally harmless, but it is inconsistent with the careful resource handling elsewhere (stream dispose, mutex dispose, BSTR zeroing).
-**Fix:** Wrap the SHA256 in a `try/finally` or use a `using` block and call `Dispose()`.
+**File:** `tests/Docs.Coverage.Tests.ps1:205`
+**Issue:** `Get-Command $func -ErrorAction Stop` resolves the command through normal discovery order. If another loaded module exports a function with the same name, the test could inspect the wrong command's parameters.
+**Fix:** Qualify by module:
+```powershell
+$cmd = Get-Command -Module adman -Name $func -CommandType Function -ErrorAction Stop
+```
 
-### IN-03: `Unlock-AdmanUser` `-WhatIf` fallback can use an empty DC
+### IN-03: Certificate naming inconsistency between README and RECOVERY-RUNBOOK
 
-**File:** `Public/Unlock-AdmanUser.ps1:91-95`
-**Issue:** Under `-WhatIf`, if the PDCe lookup fails, the verb falls back to `$script:Config.DC`. If the config DC is empty, the preview still renders but the downstream gate will fail with a less clear error than a direct "could not resolve PDC emulator" message.
-**Fix:** If the fallback DC is empty/null, throw a clear error instead of passing an empty `-Server` into the gate.
+**File:** `docs/RECOVERY-RUNBOOK.md:95`
+**Issue:** The runbook refers to "old certificate (`adman-signing-v1.cer`)" but `README.md:153` exports `adman-signing.cer` without a version suffix. This inconsistency could confuse operators during rotation.
+**Fix:** Align the filenames. Either update the README example to export `adman-signing-v1.cer` or update the runbook to refer to "the previously exported `.cer` file" instead of a specific v1 name.
 
 ---
 
-_Reviewed: 2026-07-22T06:49:23Z_
+_Reviewed: 2026-07-22T03:45:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
