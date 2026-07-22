@@ -15,8 +15,9 @@
     # Version number of this module.
     ModuleVersion = '0.1.0'
 
-    # Supported PSEditions — Desktop only until the Phase 5 CI matrix passes on 7.6.
-    CompatiblePSEditions = @('Desktop')
+    # Supported PSEditions — Windows PowerShell 5.1 (Desktop) and PowerShell 7.6 LTS (Core).
+    # The Phase 5 dual-edition CI matrix is now configured and runs on every push/PR.
+    CompatiblePSEditions = @('Desktop','Core')
 
     # ID used to uniquely identify this module.
     GUID = 'a1d2a3a4-0000-4a6d-9a6e-000000000001'
@@ -66,10 +67,9 @@
         PSData = @{
             Tags = @('adman', 'safety', 'foundation')
             ReleaseNotes = @'
-Phase 0 (00-01) scaffold only: export boundary + loader + lint/test harness.
-CompatiblePSEditions is Desktop-only on purpose; it gains Core only after the
-Phase 5 dual-edition CI matrix passes on PowerShell 7.6 (honest edition claim).
-The mutation gate Invoke-AdmanMutation is private and not exported (SAFE-08).
+Now tested and supported on both Windows PowerShell 5.1 (Desktop) and
+PowerShell 7.6 LTS (Core) via the Phase 5 dual-edition CI matrix.
+The mutation gate Invoke-AdmanMutation remains private and not exported (SAFE-08).
 '@
         }
     }
