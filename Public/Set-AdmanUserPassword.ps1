@@ -1,60 +1,86 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Set-AdmanUserPassword - reset a single AD user's password through the mutation
-    gate (USER-04, D-05).
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
-    Invoke-AdmanMutation -Verb 'Set-ADAccountPassword'. The gate resolves the target
-    once (SAFE-10), runs Test-AdmanTargetAllowed, confirms via Confirm-AdmanAction,
-    writes the PENDING audit, and invokes the Adman.AD.Write.Set-ADAccountPassword
-    wrapper for the one real write. The wrapper (Plan 02-01) detects
-    $Parameters['Unlock'], strips it, and calls Unlock-ADAccount after the reset
-    succeeds — one gate invocation, one audit pair. ChangePasswordAtLogon is split
-    to a follow-up Set-ADUser call after the reset (HIGH #4).
-
-    D-05 password sourcing when -NewPassword is NOT supplied:
-      * Reads $script:Config.security.passwordSource (default 'Generate').
-      * 'Generate' -> New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length.
-      * 'Prompt'   -> Read-Host -AsSecureString twice, equality check via transient
-                      BSTR (zeroed in finally), then Test-AdmanPasswordComplexity.
-      * 'Ask'      -> defaults to 'Generate' for direct callers; the menu path
-                      handles the sub-choice via Read-AdmanActionParams and splats
-                      the resolved value into -NewPasswordSource.
-
-    must-change resolution (warning fix): when $PSBoundParameters.ContainsKey(
-    'ChangePasswordAtLogon'), use [bool]$ChangePasswordAtLogon (caller intent wins);
-    otherwise read $script:Config.security.mustChangeAtNextLogon with a $true
-    fallback (D-05 config-overridable per-installation). A [bool]=$true default
-    would mask whether the caller supplied the value or the default fired — the
-    PSBoundParameters pattern is the only way to detect caller intent.
-
-    D-05 display-once hygiene (B7 fix + per-call source warning fix + HIGH #1
-    cycle-2 review fix): identical to New-AdmanUser — AFTER the gate returns
-    successfully (NOT under -WhatIf) AND when the per-call password source is
-    Generate, retrieve the plaintext ONCE via SecureStringToBSTR + PtrToStringBSTR,
-    display behind Read-Host 'Press Enter when recorded', [Console]::Clear()
-    (best-effort; headless hosts throw IOException), ZeroFreeBSTR in finally. The
-    plaintext never touches any stream or audit field.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    Set-AdmanUserPassword -Identity 'jdoe'
-
-.EXAMPLE
-    Set-AdmanUserPassword -Identity 'jdoe' -ChangePasswordAtLogon $false -Unlock
-
-.EXAMPLE
-    $sec = Read-Host -AsSecureString -Prompt 'New password'
-    Set-AdmanUserPassword -Identity 'jdoe' -NewPassword $sec -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Set-AdmanUserPassword {
+    <#
+    .SYNOPSIS
+        Set-AdmanUserPassword - reset a single AD user's password through the mutation
+        gate (USER-04, D-05).
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
+        Invoke-AdmanMutation -Verb 'Set-ADAccountPassword'. The gate resolves the target
+        once (SAFE-10), runs Test-AdmanTargetAllowed, confirms via Confirm-AdmanAction,
+        writes the PENDING audit, and invokes the Adman.AD.Write.Set-ADAccountPassword
+        wrapper for the one real write. The wrapper (Plan 02-01) detects
+        $Parameters['Unlock'], strips it, and calls Unlock-ADAccount after the reset
+        succeeds — one gate invocation, one audit pair. ChangePasswordAtLogon is split
+        to a follow-up Set-ADUser call after the reset (HIGH #4).
+
+        This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
+        audit pair, prompts for confirmation, and supports -WhatIf for dry-run preview.
+
+        D-05 password sourcing when -NewPassword is NOT supplied:
+          * Reads $script:Config.security.passwordSource (default 'Generate').
+          * 'Generate' -> New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length.
+          * 'Prompt'   -> Read-Host -AsSecureString twice, equality check via transient
+                          BSTR (zeroed in finally), then Test-AdmanPasswordComplexity.
+          * 'Ask'      -> defaults to 'Generate' for direct callers; the menu path
+                          handles the sub-choice via Read-AdmanActionParams and splats
+                          the resolved value into -NewPasswordSource.
+
+        must-change resolution (warning fix): when $PSBoundParameters.ContainsKey(
+        'ChangePasswordAtLogon'), use [bool]$ChangePasswordAtLogon (caller intent wins);
+        otherwise read $script:Config.security.mustChangeAtNextLogon with a $true
+        fallback (D-05 config-overridable per-installation). A [bool]=$true default
+        would mask whether the caller supplied the value or the default fired — the
+        PSBoundParameters pattern is the only way to detect caller intent.
+
+        D-05 display-once hygiene (B7 fix + per-call source warning fix + HIGH #1
+        cycle-2 review fix): identical to New-AdmanUser — AFTER the gate returns
+        successfully (NOT under -WhatIf) AND when the per-call password source is
+        Generate, retrieve the plaintext ONCE via SecureStringToBSTR + PtrToStringBSTR,
+        display behind Read-Host 'Press Enter when recorded', [Console]::Clear()
+        (best-effort; headless hosts throw IOException), ZeroFreeBSTR in finally. The
+        plaintext never touches any stream or audit field.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Identity
+        The sAMAccountName, distinguished name, GUID, or SID of the AD user whose password
+        will be reset.
+
+    .PARAMETER NewPassword
+        Optional secure-string password. If omitted, the password is sourced from
+        $script:Config.security.passwordSource ('Generate' or 'Prompt').
+
+    .PARAMETER NewPasswordSource
+        Optional per-call override for password sourcing: 'Generate' or 'Prompt'.
+        Used by the menu path; direct callers usually omit this and use -NewPassword.
+
+    .PARAMETER ChangePasswordAtLogon
+        Optional nullable boolean. If supplied, forces the value; otherwise the config
+        key $script:Config.security.mustChangeAtNextLogon is used with a $true fallback.
+
+    .PARAMETER Unlock
+        When set, unlocks the account after a successful password reset via a separate
+        gate invocation so it gets its own audit pair and confirmation.
+
+    .PARAMETER Force
+        Bypasses the confirmation prompt when set. -WhatIf still previews the action.
+
+    .EXAMPLE
+        Set-AdmanUserPassword -Identity 'jdoe'
+
+    .EXAMPLE
+        Set-AdmanUserPassword -Identity 'jdoe' -ChangePasswordAtLogon $false -Unlock
+
+    .EXAMPLE
+        $sec = Read-Host -AsSecureString -Prompt 'New password'
+        Set-AdmanUserPassword -Identity 'jdoe' -NewPassword $sec -WhatIf
+    #>
+
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

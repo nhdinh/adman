@@ -1,39 +1,52 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Move-AdmanUser - move a single AD user to another OU within managed scope
-    through the mutation gate (USER-06, T-02-08).
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Validates -TargetPath under managed roots
-    BEFORE calling the gate (UX fail-fast), then routes through
-    Invoke-AdmanMutation -Verb 'Move-ADObject' with $Parameters['TargetPath'].
-
-    Destination validation (T-02-08 mitigation): the target OU DN is normalized
-    via ConvertTo-AdmanNormalizedDn (lowercase, RDN-trimmed, escape-unescaped)
-    and compared against every root in $script:Config.ManagedOUs with a
-    component-boundary anchor: $t -eq $r -or $t.EndsWith(',' + $r). A naive
-    prefix check would false-pass 'OU=ManagedX' against 'OU=Managed'; the
-    boundary anchor refuses it. Out-of-scope destinations throw
-    "TargetPath '<x>' is outside managed OU scope." BEFORE the gate call.
-
-    The gate ALSO runs the same TargetPath validator inside Invoke-AdmanMutation
-    (Plan 02-01) so direct gate callers cannot bypass it; this Public-verb check
-    is the UX fail-fast layer.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Leavers,OU=Managed,DC=contoso,DC=local'
-
-.EXAMPLE
-    Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Sub,OU=Managed,DC=contoso,DC=local' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Move-AdmanUser {
+    <#
+    .SYNOPSIS
+        Move-AdmanUser - move a single AD user to another OU within managed scope
+        through the mutation gate (USER-06, T-02-08).
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Validates -TargetPath under managed roots
+        BEFORE calling the gate (UX fail-fast), then routes through
+        Invoke-AdmanMutation -Verb 'Move-ADObject' with $Parameters['TargetPath'].
+
+        Destination validation (T-02-08 mitigation): the target OU DN is normalized
+        via ConvertTo-AdmanNormalizedDn (lowercase, RDN-trimmed, escape-unescaped)
+        and compared against every root in $script:Config.ManagedOUs with a
+        component-boundary anchor: $t -eq $r -or $t.EndsWith(',' + $r). A naive
+        prefix check would false-pass 'OU=ManagedX' against 'OU=Managed'; the
+        boundary anchor refuses it. Out-of-scope destinations throw
+        "TargetPath '<x>' is outside managed OU scope." BEFORE the gate call.
+
+        The gate ALSO runs the same TargetPath validator inside Invoke-AdmanMutation
+        (Plan 02-01) so direct gate callers cannot bypass it; this Public-verb check
+        is the UX fail-fast layer.
+
+        This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
+        audit pair, prompts for confirmation, and supports -WhatIf for dry-run preview.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Identity
+        The sAMAccountName, distinguished name, GUID, or SID of the AD user to move.
+
+    .PARAMETER TargetPath
+        The distinguished name of the destination OU within managed scope,
+        e.g. 'OU=Leavers,OU=Managed,DC=contoso,DC=local'.
+
+    .PARAMETER Force
+        Bypasses the confirmation prompt when set. -WhatIf still previews the action.
+
+    .EXAMPLE
+        Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Leavers,OU=Managed,DC=contoso,DC=local'
+
+    .EXAMPLE
+        Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Sub,OU=Managed,DC=contoso,DC=local' -WhatIf
+    #>
+
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

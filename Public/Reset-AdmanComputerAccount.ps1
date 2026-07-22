@@ -1,48 +1,58 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Reset-AdmanComputerAccount - reset a single AD computer account through the
-    mutation gate (COMP-04) with honest guidance on which method applies.
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Routes through Invoke-AdmanMutation with
-    -Verb 'Set-ADAccountPassword' and $Parameters['Reset']=$true. This is the
-    AD-side "Reset Account" semantics — the ADUC equivalent.
-
-    Two methods exist for recovering a broken computer-account / secure-channel
-    state; this verb implements the FIRST and documents the SECOND:
-
-      1. AD-side "Reset Account" (THIS VERB): Set-ADAccountPassword -Reset resets
-         the machine account password to the default. ADUC equivalent. Breaks
-         the secure channel until the machine rejoins the domain OR the channel
-         is repaired on-machine.
-
-      2. On-machine channel repair (RUNBOOK STEP, OUT-OF-GATE):
-         Test-ComputerSecureChannel -Repair -Credential (Get-Credential)
-         runs ON the affected machine and requires local admin rights there.
-         Use this when the machine is otherwise healthy and only the channel
-         is broken — it preserves the domain membership and avoids a rejoin.
-
-    After the gate call returns (and NOT under -WhatIf), the verb emits the
-    guidance text via Write-PSFMessage -Level Host (the established diagnostic
-    pattern — Write-Host would trip the lint gate; the CLAUDE.md
-    PSAvoidUsingWriteHost suppression covers ONLY the TUI-rendering module)
-    AND attaches it to the return object's Guidance property so pipeline
-    callers can surface it.
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    Reset-AdmanComputerAccount -Identity 'PC-01'
-
-.EXAMPLE
-    Reset-AdmanComputerAccount -Identity 'PC-01' -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function Reset-AdmanComputerAccount {
+    <#
+    .SYNOPSIS
+        Reset-AdmanComputerAccount - reset a single AD computer account through the
+        mutation gate (COMP-04) with honest guidance on which method applies.
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Routes through Invoke-AdmanMutation with
+        -Verb 'Set-ADAccountPassword' and $Parameters['Reset']=$true. This is the
+        AD-side "Reset Account" semantics — the ADUC equivalent.
+
+        Two methods exist for recovering a broken computer-account / secure-channel
+        state; this verb implements the FIRST and documents the SECOND:
+
+          1. AD-side "Reset Account" (THIS VERB): Set-ADAccountPassword -Reset resets
+             the machine account password to the default. ADUC equivalent. Breaks
+             the secure channel until the machine rejoins the domain OR the channel
+             is repaired on-machine.
+
+          2. On-machine channel repair (RUNBOOK STEP, OUT-OF-GATE):
+             Test-ComputerSecureChannel -Repair -Credential (Get-Credential)
+             runs ON the affected machine and requires local admin rights there.
+             Use this when the machine is otherwise healthy and only the channel
+             is broken — it preserves the domain membership and avoids a rejoin.
+
+        After the gate call returns (and NOT under -WhatIf), the verb emits the
+        guidance text via Write-PSFMessage -Level Host (the established diagnostic
+        pattern — Write-Host would trip the lint gate; the CLAUDE.md
+        PSAvoidUsingWriteHost suppression covers ONLY the TUI-rendering module)
+        AND attaches it to the return object's Guidance property so pipeline
+        callers can surface it.
+
+        This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
+        audit pair, prompts for confirmation, and supports -WhatIf for dry-run preview.
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Identity
+        The sAMAccountName, distinguished name, GUID, or SID of the AD computer account
+        to reset.
+
+    .PARAMETER Force
+        Bypasses the confirmation prompt when set. -WhatIf still previews the action.
+
+    .EXAMPLE
+        Reset-AdmanComputerAccount -Identity 'PC-01'
+
+    .EXAMPLE
+        Reset-AdmanComputerAccount -Identity 'PC-01' -WhatIf
+    #>
+
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]

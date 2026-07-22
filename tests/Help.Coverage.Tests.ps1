@@ -56,6 +56,13 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
         'ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable'
     )
 
+    # Scoped list for 05-01a2 incremental enforcement of SupportsShouldProcess description coverage.
+    $script:AdLifecycleFunctions = @(
+        'New-AdmanUser','Disable-AdmanUser','Enable-AdmanUser','Set-AdmanUserPassword',
+        'Unlock-AdmanUser','Move-AdmanUser','Disable-AdmanComputer','Enable-AdmanComputer',
+        'Move-AdmanComputer','Reset-AdmanComputerAccount'
+    )
+
     $allCommands = @((Get-Module $script:ModuleName).ExportedFunctions.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object)
     if ($FunctionName -and $FunctionName.Count -gt 0) {
         $script:Commands = @($allCommands | Where-Object { $FunctionName -contains $_ })
@@ -77,6 +84,14 @@ Describe 'adman public help coverage' -Tag 'Unit' -ForEach $script:Commands {
         $command = $_
         $help = Get-Help $command -Full -ErrorAction SilentlyContinue
         $cmdInfo = Get-Command $command -ErrorAction SilentlyContinue
+
+        $SupportsShouldProcess = $false
+        foreach ($attr in $cmdInfo.ScriptBlock.Attributes) {
+            if ($attr -is [System.Management.Automation.CmdletBindingAttribute] -and $attr.SupportsShouldProcess) {
+                $SupportsShouldProcess = $true
+                break
+            }
+        }
     }
 
     It '<_> has a non-empty .Synopsis' {
@@ -129,5 +144,20 @@ Describe 'adman public help coverage' -Tag 'Unit' -ForEach $script:Commands {
 
         # Sets must match exactly (declared vs documented).
         Compare-Object -ReferenceObject $declared -DifferenceObject $helpParams | Should -BeNullOrEmpty
+    }
+
+    It '<_> .Description mentions at least two of -WhatIf/confirm/audit when state-changing' -Skip:(-not $SupportsShouldProcess -or ($script:AdLifecycleFunctions -notcontains $command)) {
+        $text = if ($help.Description -is [System.Collections.IEnumerable] -and $help.Description -isnot [string]) {
+            ($help.Description | ForEach-Object { $_.Text }) -join "`n"
+        } else {
+            [string]$help.Description.Text
+        }
+        $text | Should -Not -BeNullOrEmpty
+        $lower = $text.ToLowerInvariant()
+        $terms = 0
+        if ($lower -like '*whatif*') { $terms++ }
+        if ($lower -like '*confirm*') { $terms++ }
+        if ($lower -like '*audit*') { $terms++ }
+        $terms | Should -BeGreaterOrEqual 2 -Because 'state-changing help must document -WhatIf, confirmation, and audit behavior'
     }
 }

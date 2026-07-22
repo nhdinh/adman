@@ -1,64 +1,91 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    New-AdmanUser - create a single AD user through the mutation gate (USER-02, D-01, D-05).
-
-.DESCRIPTION
-    Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
-    Invoke-AdmanMutation -Verb 'New-ADUser'. The gate runs the D-01 synthetic pre-create
-    target path: Resolve-AdmanCreateTarget fabricates the to-be-created object (no
-    Get-ADObject -Identity call), Test-AdmanTargetAllowed runs the create-branch (managed-OU
-    scope against the parent OU DN only), the uniqueness pre-flight refuses sAMAccountName
-    or CN collisions BEFORE confirm, and the wrapper Adman.AD.Write.New-ADUser performs the
-    one real write. TOCTOU between pre-flight and write is closed by letting New-ADUser
-    itself throw on collision; the gate records Result='Failure' in the OUTCOME audit.
-
-    D-05 password sourcing when -AccountPassword is NOT supplied:
-      * Reads $script:Config.security.passwordSource (default 'Generate').
-      * 'Generate' -> New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length.
-      * 'Prompt'   -> Read-Host -AsSecureString twice, equality check via transient BSTR
-                      (zeroed in finally), then Test-AdmanPasswordComplexity.
-      * 'Ask'      -> defaults to 'Generate' for direct callers; the menu path handles the
-                      sub-choice via Read-AdmanActionParams and splats the resolved value
-                      into -AccountPasswordSource.
-
-    D-05 display-once hygiene (B7 fix + per-call source warning fix):
-      * AFTER the gate returns successfully (NOT under -WhatIf) AND when the per-call
-        password source is 'Generate', retrieve the plaintext ONCE via
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR + PtrToStringBSTR,
-        display it behind Read-Host 'Press Enter when recorded', then [Console]::Clear()
-        to shrink the shoulder-surf window, and finally ZeroFreeBSTR in a finally block.
-      * Per-call source detection: $AccountPasswordSource (explicit menu marker) wins;
-        otherwise the $PSBoundParameters heuristic infers 'Prompt' when -AccountPassword
-        was supplied, else falls back to $script:Config.security.passwordSource.
-      * The plaintext is a local function-scoped variable, NEVER written to any stream
-        (no Write-Verbose/Debug/Output, no audit field, no log line). The ONLY output
-        is the transient console display before the Clear.
-      * Skipped under -WhatIf (the password was never set).
-
-    must-change-at-next-logon: reads $script:Config.security.mustChangeAtNextLogon
-    (default $true when the key is absent) and passes it into
-    $params['ChangePasswordAtLogon'].
-
-    WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
-    when $script:Config.ManagedOUs is absent.
-
-.EXAMPLE
-    New-AdmanUser -Name 'John Doe' -SamAccountName 'jdoe' `
-        -UserPrincipalName 'jdoe@contoso.local' `
-        -ParentOuDn 'OU=Users,OU=Managed,DC=contoso,DC=local'
-
-.EXAMPLE
-    $sec = Read-Host -AsSecureString -Prompt 'Password'
-    New-AdmanUser -Name 'John Doe' -SamAccountName 'jdoe' `
-        -UserPrincipalName 'jdoe@contoso.local' `
-        -ParentOuDn 'OU=Users,OU=Managed,DC=contoso,DC=local' `
-        -AccountPassword $sec -WhatIf
-#>
-
 Set-StrictMode -Version Latest
 
 function New-AdmanUser {
+    <#
+    .SYNOPSIS
+        New-AdmanUser - create a single AD user through the mutation gate (USER-02, D-01, D-05).
+
+    .DESCRIPTION
+        Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
+        Invoke-AdmanMutation -Verb 'New-ADUser'. The gate runs the D-01 synthetic pre-create
+        target path: Resolve-AdmanCreateTarget fabricates the to-be-created object (no
+        Get-ADObject -Identity call), Test-AdmanTargetAllowed runs the create-branch (managed-OU
+        scope against the parent OU DN only), the uniqueness pre-flight refuses sAMAccountName
+        or CN collisions BEFORE confirm, and the wrapper Adman.AD.Write.New-ADUser performs the
+        one real write. TOCTOU between pre-flight and write is closed by letting New-ADUser
+        itself throw on collision; the gate records Result='Failure' in the OUTCOME audit.
+
+        This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
+        audit pair, prompts for confirmation, and supports -WhatIf for dry-run preview.
+
+        D-05 password sourcing when -AccountPassword is NOT supplied:
+          * Reads $script:Config.security.passwordSource (default 'Generate').
+          * 'Generate' -> New-AdmanRandomPassword -Length $script:Config.security.passwordGeneration.length.
+          * 'Prompt'   -> Read-Host -AsSecureString twice, equality check via transient BSTR
+                          (zeroed in finally), then Test-AdmanPasswordComplexity.
+          * 'Ask'      -> defaults to 'Generate' for direct callers; the menu path handles the
+                          sub-choice via Read-AdmanActionParams and splats the resolved value
+                          into -AccountPasswordSource.
+
+        D-05 display-once hygiene (B7 fix + per-call source warning fix):
+          * AFTER the gate returns successfully (NOT under -WhatIf) AND when the per-call
+            password source is 'Generate', retrieve the plaintext ONCE via
+            [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR + PtrToStringBSTR,
+            display it behind Read-Host 'Press Enter when recorded', then [Console]::Clear()
+            to shrink the shoulder-surf window, and finally ZeroFreeBSTR in a finally block.
+          * Per-call source detection: $AccountPasswordSource (explicit menu marker) wins;
+            otherwise the $PSBoundParameters heuristic infers 'Prompt' when -AccountPassword
+            was supplied, else falls back to $script:Config.security.passwordSource.
+          * The plaintext is a local function-scoped variable, NEVER written to any stream
+            (no Write-Verbose/Debug/Output, no audit field, no log line). The ONLY output
+            is the transient console display before the Clear.
+          * Skipped under -WhatIf (the password was never set).
+
+        must-change-at-next-logon: reads $script:Config.security.mustChangeAtNextLogon
+        (default $true when the key is absent) and passes it into
+        $params['ChangePasswordAtLogon'].
+
+        WR-01 init check: throws 'adman is not initialized. Run Initialize-Adman first.'
+        when $script:Config.ManagedOUs is absent.
+
+    .PARAMETER Name
+        The full name (cn/Name) of the new AD user, e.g. 'John Doe'.
+
+    .PARAMETER SamAccountName
+        The sAMAccountName (logon name, max 20 characters) for the new user, e.g. 'jdoe'.
+
+    .PARAMETER UserPrincipalName
+        The UPN for the new user, e.g. 'jdoe@contoso.local'.
+
+    .PARAMETER ParentOuDn
+        The distinguished name of the managed OU where the user will be created,
+        e.g. 'OU=Users,OU=Managed,DC=contoso,DC=local'.
+
+    .PARAMETER AccountPassword
+        Optional secure-string password. If omitted, the password is sourced from
+        $script:Config.security.passwordSource ('Generate' or 'Prompt').
+
+    .PARAMETER AccountPasswordSource
+        Optional per-call override for password sourcing: 'Generate' or 'Prompt'.
+        Used by the menu path; direct callers usually omit this and use -AccountPassword.
+
+    .PARAMETER Force
+        Bypasses the confirmation prompt when set. -WhatIf still previews the action.
+
+    .EXAMPLE
+        New-AdmanUser -Name 'John Doe' -SamAccountName 'jdoe' `
+            -UserPrincipalName 'jdoe@contoso.local' `
+            -ParentOuDn 'OU=Users,OU=Managed,DC=contoso,DC=local'
+
+    .EXAMPLE
+        $sec = Read-Host -AsSecureString -Prompt 'Password'
+        New-AdmanUser -Name 'John Doe' -SamAccountName 'jdoe' `
+            -UserPrincipalName 'jdoe@contoso.local' `
+            -ParentOuDn 'OU=Users,OU=Managed,DC=contoso,DC=local' `
+            -AccountPassword $sec -WhatIf
+    #>
+
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
     param(
         [Parameter(Mandatory)]
