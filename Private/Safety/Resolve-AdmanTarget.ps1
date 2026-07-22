@@ -34,7 +34,9 @@ function Resolve-AdmanTarget {
         # Identity parameter set ONLY: -Identity + -Server + -Properties (NO -SearchBase/-SearchScope).
         # Scope is enforced downstream in Test-AdmanTargetAllowed step (c), identically for
         # preview and execute (SAFE-07/SAFE-10).
+        # WR-03: include Enabled so callers (e.g. Invoke-AdmanBulkAction) can detect
+        # already-disabled/enabled accounts without a second AD query.
         Get-ADObject -Identity $id -Server $script:Config.DC `
-            -Properties objectSid, objectClass, DistinguishedName, memberOf -ErrorAction Stop
+            -Properties objectSid, objectClass, DistinguishedName, memberOf, Enabled -ErrorAction Stop
     }
 }
