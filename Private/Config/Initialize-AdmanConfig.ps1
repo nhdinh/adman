@@ -40,10 +40,8 @@ function ConvertTo-AdmanCleanConfig {
     if ($Node -is [string]) { return $Node }
     if ($Node -is [array]) {
         $arr = @()
-        foreach ($item in $Node) { $arr += ,(ConvertTo-AdmanCleanConfig -Node $item) }
-        # Unary comma emits the array as a single pipeline object so PowerShell does not unroll a
-        # one-element array into a scalar on return - arrayness must survive validation.
-        return ,$arr
+        foreach ($item in $Node) { $arr += (ConvertTo-AdmanCleanConfig -Node $item) }
+        return $arr
     }
     if ($Node -is [System.Collections.IDictionary]) {
         $clean = [ordered]@{}
