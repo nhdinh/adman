@@ -157,12 +157,12 @@ Plans (finalized during `/gsd-plan-phase 4`):
   2. Runs under `AllSigned` (Authenticode-signed `.psd1/.psm1/.ps1`) and passes the CI matrix on both Windows PowerShell 5.1 and PowerShell 7.6 LTS — only then is `CompatiblePSEditions=@('Desktop','Core')` honestly claimed (no unguarded 7-only syntax).
   3. Portable across workstation and jump-host with no code changes; `.store/` is never committed; encrypted credential-file restore to a new machine re-prompts for the credential while keeping the non-secret config; audit tamper-evidence/forwarding + rotation and an out-of-tool Recycle-Bin recovery runbook are in place.
 
-**Plans**: 2/6 plans executed
+**Plans**: 3/6 plans executed
 **UI hint**: no
 
 Plans (finalized during `/gsd-plan-phase 5`):
 
-- [ ] 05-01a1-PLAN.md — Help-coverage test scaffold + comment-based help for config/startup/read/report functions (DOC-03).
+- [x] 05-01a1-PLAN.md — Help-coverage test scaffold + comment-based help for config/startup/read/report functions (DOC-03).
 - [ ] 05-01a2-PLAN.md — Comment-based help for AD user/computer lifecycle functions (DOC-03).
 - [ ] 05-01a3-PLAN.md — Comment-based help for local account, group, bulk, and workflow functions (DOC-03).
 - [x] 05-01b-PLAN.md — Standalone documentation: refresh README.md, create docs/USAGE.md and docs/RECOVERY-RUNBOOK.md, and enforce coverage with tests/Docs.Coverage.Tests.ps1 (DOC-01/02).
@@ -181,7 +181,7 @@ Phases execute in numeric order: 0 → 1 → 2 → 3 → 4 → 5 (inserted decim
 | 2. Single-Object Lifecycle (writes begin) | 10/10 | In Progress|  |
 | 3. Remote Computer Operations (isolated) | 3/3 | Complete    | 2026-07-17 |
 | 4. Bulk & Workflows (highest blast radius, last) | 4/4 | Complete    | 2026-07-20 |
-| 5. Hardening & Portability | 2/6 | In Progress|  |
+| 5. Hardening & Portability | 3/6 | In Progress|  |
 
 **Total:** 6 phases, 31 plans, 58/58 v1 requirements mapped.
 

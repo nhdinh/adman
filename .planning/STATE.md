@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Hardening & Portability
-current_plan: 05-03 (complete)
-status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-07-22T04:17:32.613Z"
+current_plan: 05-01a1
+status: complete
+stopped_at: Completed 05-01a1-PLAN.md
+last_updated: "2026-07-22T11:30:00Z"
 last_activity: 2026-07-22
-last_activity_desc: Completed 05-03 audit hardening
+last_activity_desc: Completed 05-01a1 help coverage (config/startup/read/report)
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 **Phase:** 5 — Hardening & Portability
-**Current Plan:** 05-03 (complete)
-**Status:** Ready for next plan
-**Last Activity:** 2026-07-22 — Completed 05-03 audit hardening
+**Current Plan:** 05-01a1
+**Status:** Complete
+**Last Activity:** 2026-07-22 — Completed 05-01a1 help coverage (config/startup/read/report)
 
-**Progress:** [█████████░] 88% (Phase 5 of 6, 29 of 33 plans executed)
+**Progress:** [█████████░] 88% (Phase 5 of 6, 30 of 33 plans executed)
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 | Phase 04 P04 | 35min | 3 tasks | 5 files |
 | Phase 05-hardening-portability P01b | 35 | 1 tasks | 5 files |
 | Phase 05-hardening-portability P03 | 45min | 3 tasks | 13 files |
+| Phase 05-hardening-portability P01a1 | 35min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 
 Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecting current work:
 
+- [Phase 05-01a1]: Help coverage test derives command list from manifest FunctionsToExport and supports optional FunctionName slice for incremental enforcement across 05-01a1/05-01a2/05-01a3.
+- [Phase 05-01a1]: Repaired pre-existing Help.Coverage.Tests.ps1 single-element array unwrapping bug on Windows PowerShell 5.1 by using direct @(...) array subexpressions instead of if/else wrapping.
+- [Phase 05-01a1]: Help example assertion requires non-empty code text only, matching the codebase's prevalent code-only .EXAMPLE style.
 - Roadmap: Adopted research SUMMARY.md 6-phase blast-radius-ordered skeleton (0 Foundation/Safety → 1 Read-only reporting → 2 Single-object writes → 3 Remoting → 4 Bulk/workflows → 5 Hardening) as-is; it maps all 58 requirements.
 - Roadmap: Governing principle locked — the safety spine (Phase 0) must exist and be proven (incl. a Pester test that no exported function calls AD write cmdlets directly) before any real write can merge.
 - Roadmap: Config/credential split (Decided in PROJECT.md) — portable plain-JSON non-secret config + separate opt-in DPAPI-encrypted credential file, both in gitignored `.store/`; pass-through by default; no built-in RID baseline (protection via recursive admin-group membership + custom deny-list only).

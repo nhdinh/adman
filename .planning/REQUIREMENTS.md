@@ -99,9 +99,9 @@ Requirements for initial release. Guardrails (SAFE) are first-class — they ARE
 
 ### Documentation (DOC)
 
-- [ ] **DOC-01**: A README explains install (RSAT prereq), first-run config, and safe usage
-- [ ] **DOC-02**: A usage guide covers every menu action and parameterized function with examples
-- [ ] **DOC-03**: Every public command/parameter has inline comment-based help (`Get-Help`), enforced by a lint gate
+- [x] **DOC-01**: A README explains install (RSAT prereq), first-run config, and safe usage
+- [x] **DOC-02**: A usage guide covers every menu action and parameterized function with examples
+- [x] **DOC-03**: Every public command/parameter has inline comment-based help (`Get-Help`), enforced by a lint gate
 
 ## v2 Requirements
 
@@ -206,9 +206,9 @@ Final mapping (validated 2026-07-10). Phases follow the research skeleton: **0 F
 | BULK-02 | Phase 4 | Complete |
 | BULK-03 | Phase 4 | Complete |
 | BULK-04 | Phase 4 | Complete |
-| DOC-01 | Phase 5 | Pending |
-| DOC-02 | Phase 5 | Pending |
-| DOC-03 | Phase 5 | Pending |
+| DOC-01 | Phase 5 | Complete |
+| DOC-02 | Phase 5 | Complete |
+| DOC-03 | Phase 5 | Complete |
 
 **Coverage (validated 2026-07-10):**
 
