@@ -114,12 +114,7 @@ function Set-AdmanUserPassword {
         [switch]$Force
     )
 
-    # WR-01: fail with a clear message when Initialize-Adman has not run.
-    if (-not $script:Config -or
-        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
-        -not $script:Config.ManagedOUs) {
-        throw 'adman is not initialized. Run Initialize-Adman first.'
-    }
+    Assert-AdmanInitialized
 
     # D-05 per-call password source resolution (warning fix + HIGH #1 cycle-2 review fix):
     # explicit password wins over explicit source marker; otherwise infer from

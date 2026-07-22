@@ -56,12 +56,7 @@ function Remove-AdmanGroupMember {
         [switch]$Force
     )
 
-    # WR-01: fail with a clear message when Initialize-Adman has not run.
-    if (-not $script:Config -or
-        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
-        -not $script:Config.ManagedOUs) {
-        throw 'adman is not initialized. Run Initialize-Adman first.'
-    }
+    Assert-AdmanInitialized
 
     $params = @{ GroupIdentity = $GroupIdentity }
 

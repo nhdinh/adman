@@ -61,12 +61,7 @@ function Unlock-AdmanUser {
         [switch]$Force
     )
 
-    # WR-01: fail with a clear message when Initialize-Adman has not run.
-    if (-not $script:Config -or
-        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
-        -not $script:Config.ManagedOUs) {
-        throw 'adman is not initialized. Run Initialize-Adman first.'
-    }
+    Assert-AdmanInitialized
 
     # Resolve the PDC emulator. Lockout state is PDCe-authoritative (Pitfall 2).
     # WR-03 fix: under -WhatIf, skip the LockedOut pre-read entirely. The pre-read is a
