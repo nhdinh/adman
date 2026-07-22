@@ -36,6 +36,10 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
     & (Get-Module adman) {
+        $script:Initialized = $true
+        $script:ProtectedSIDs = @()
+        $script:DenyRids = @()
+        $script:ProtectedGroupDns = @()
         $script:Config = [pscustomobject]@{
             ManagedOUs = @('OU=Managed,DC=mock,DC=local')
             DC         = 'dc.mock.local'
