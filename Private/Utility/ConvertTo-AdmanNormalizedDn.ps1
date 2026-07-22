@@ -24,10 +24,10 @@ function ConvertTo-AdmanNormalizedDn {
     $s = $Dn.ToLowerInvariant()
     # Unescape common DN escapes ( \, \+ \" \\ \; \< \> \= and hex \XX ) so the boundary test
     # compares canonical component text, not escape artifacts.
-    $s = [regex]::Replace($s, '\\([0-9a-f]{2})', {
+    $s = [regex]::Replace($s, '(?<!\\)\\([0-9a-fA-F]{2})', {
             param($m) [char][Convert]::ToInt32($m.Groups[1].Value, 16)
         })
-    $s = $s -replace '\\(.)', '$1'
+    $s = $s -replace '\\([,\+"\\;\<\>\=])', '$1'
     # Trim whitespace around each RDN (split on unescaped commas - after unescape above, commas
     # that remain are component separators).
     $parts = $s -split ','
