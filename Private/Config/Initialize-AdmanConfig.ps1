@@ -102,6 +102,13 @@ function Test-AdmanConfigValid {
     if ($null -ne $Config.ManagedOUs -and -not ($Config.ManagedOUs -is [array])) {
         throw "Config validation failed: 'ManagedOUs' must be an array of DN strings."
     }
+    if ($null -ne $Config.ManagedOUs) {
+        foreach ($ou in $Config.ManagedOUs) {
+            if (-not ($ou -is [string]) -or [string]::IsNullOrWhiteSpace($ou)) {
+                throw "Config validation failed: every 'ManagedOUs' entry must be a non-empty DN string."
+            }
+        }
+    }
 
     # DenyList: required array of { token:string, note:string }. A missing or null DenyList is
     # a hard validation failure; the seed step in Initialize-AdmanConfig ensures it is populated
