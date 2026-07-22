@@ -96,9 +96,9 @@ function Restore-AdmanQuarantinedUser {
         throw 'User is not currently in the quarantine OU; refusing restore.'
     }
 
-    $state = Get-AdmanOffboardingState -Identity $Identity
+    $state = Get-AdmanOffboardingState -Identity $stableIdentity
     if ($null -eq $state) {
-        throw "No successful offboarding state found for '$Identity'; cannot restore."
+        throw "No successful offboarding state found for '$stableIdentity'; cannot restore."
     }
 
     # Re-check the recorded original OU is under managed roots (T-04-14).
