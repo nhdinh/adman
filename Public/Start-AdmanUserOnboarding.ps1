@@ -119,6 +119,12 @@ function Start-AdmanUserOnboarding {
     if ($sam.Length -gt 20) {
         throw "Generated sAMAccountName '$sam' exceeds the 20-character limit (got $($sam.Length))."
     }
+    if ($sam -match '^\s|\s$') {
+        throw "Generated sAMAccountName '$sam' has leading or trailing whitespace."
+    }
+    if ($sam -match '["\[\]:|<>+=;]') {
+        throw "Generated sAMAccountName '$sam' contains characters not allowed in AD sAMAccountName."
+    }
     if ($sam -match '[\*\?]') {
         throw "Generated sAMAccountName '$sam' contains wildcard characters (* or ?)."
     }
