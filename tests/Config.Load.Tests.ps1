@@ -68,6 +68,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
                 mustChangeAtNextLogon  = $true
             }
             domain               = 'mock.local'
+            audit                = @{ retentionDays = 90 }
             templates            = @{
                 onboarding  = @{
                     ParentOuDn     = 'OU=Users,OU=Managed,DC=mock,DC=local'

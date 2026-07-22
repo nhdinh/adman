@@ -163,6 +163,19 @@ function Test-AdmanConfigValid {
         throw "Config validation failed: 'AuditDir' and 'ReportDir' must be strings."
     }
 
+    # D-05 audit block: required by schema; also enforce integer retentionDays >= 1 here
+    # so non-numeric strings and 0 are rejected even if the JSON schema check is bypassed.
+    if ($null -eq $Config.audit -or $null -eq $Config.audit.retentionDays) {
+        throw "Config validation failed: 'audit.retentionDays' is required."
+    }
+    $retention = $Config.audit.retentionDays
+    if ($retention -isnot [int] -and $retention -isnot [long] -and -not ($retention -is [string] -and $retention -match '^\d+$')) {
+        throw "Config validation failed: 'audit.retentionDays' must be an integer >= 1."
+    }
+    if ([int]$retention -lt 1) {
+        throw "Config validation failed: 'audit.retentionDays' must be >= 1."
+    }
+
     # D-05 security block (schema-required top-level key; the required-keys loop above already
     # refuses when 'security' itself is absent - these checks fire when the block is present but
     # malformed).
@@ -285,6 +298,28 @@ function Initialize-AdmanConfig {
                 $existing = $config.PSObject.Properties.Name
                 if (-not ($existing -contains $topKey) -or $null -eq $config.$topKey) {
                     $config | Add-Member -MemberType NoteProperty -Name $topKey -Value $defaults.$topKey -Force
+                }
+            }
+        }
+    }
+
+    # Phase 5 additive audit defaults (D-05): seed missing audit.retentionDays from
+    # shipped defaults without overwriting an existing user value.
+    if (Test-Path -LiteralPath $defaultsPath) {
+        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
+        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
+        if ($null -ne $defaults.audit) {
+            $existing = $config.PSObject.Properties.Name
+            if (-not ($existing -contains 'audit') -or $null -eq $config.audit) {
+                # Audit block is absent: copy the whole default block so it validates.
+                $config | Add-Member -MemberType NoteProperty -Name audit -Value $defaults.audit -Force
+            } else {
+                # Audit block exists: merge only missing keys.
+                $auditKeys = @($config.audit | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
+                foreach ($prop in $defaults.audit.PSObject.Properties) {
+                    if (-not ($auditKeys -contains $prop.Name) -or $null -eq $config.audit.$($prop.Name)) {
+                        $config.audit | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                    }
                 }
             }
         }

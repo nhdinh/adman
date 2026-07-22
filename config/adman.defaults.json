@@ -26,6 +26,10 @@
     "_comment_maxCount": "Placeholder cap only. ENFORCEMENT is Phase 4 (BULK-02); not enforced in Phase 0.",
     "maxCount": 50
   },
+  "audit": {
+    "_comment_retentionDays": "D-05 audit JSONL retention. Minimum 1 (schema-enforced).",
+    "retentionDays": 90
+  },
   "AuditDir": ".store/audit",
   "ReportDir": "reports",
   "transport": {

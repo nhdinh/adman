@@ -18,7 +18,8 @@
     "delegatedAdminGroup",
     "security",
     "domain",
-    "templates"
+    "templates",
+    "audit"
   ],
   "properties": {
     "ManagedOUs": {
@@ -35,6 +36,19 @@
         "properties": {
           "token": { "type": "string", "description": "Non-secret RID suffix (500/501/502) or well-known SID literal." },
           "note":  { "type": "string", "description": "Human note, e.g. 'starter, not exhaustive'." }
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "description": "Audit log policy (D-05).",
+      "required": [ "retentionDays" ],
+      "properties": {
+        "retentionDays": {
+          "type": "integer",
+          "description": "Number of days to retain audit JSONL files before rotation.",
+          "default": 90,
+          "minimum": 1
         }
       }
     },
