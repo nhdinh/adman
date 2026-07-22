@@ -213,6 +213,7 @@ Describe 'D-05: config schema additions (security block)' -Tag 'Unit' {
             ReportDir           = 'reports'
             transport           = @{ order = @('WinRM', 'CimWsman', 'CimDcom', 'Skip'); timeouts = @{ WinRM = 15; CIM = 20; perHostProbeCap = 10; totalInventoryRemoteCap = 120 } }
             credentialPolicy    = @{ allowRememberMe = $false }
+            audit               = @{ retentionDays = 90 }
             AdmanProtectedGroup = ''
             DC                  = ''
             domain              = 'mock.local'

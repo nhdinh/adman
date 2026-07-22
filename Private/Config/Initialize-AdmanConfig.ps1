@@ -168,11 +168,19 @@ function Test-AdmanConfigValid {
     if ($null -eq $Config.audit) {
         throw "Config validation failed: 'audit.retentionDays' is required."
     }
-    $auditKeys = @($Config.audit.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($Config.audit -is [System.Collections.IDictionary]) {
+        $auditKeys = @($Config.audit.Keys)
+    } else {
+        $auditKeys = @($Config.audit.PSObject.Properties | ForEach-Object { $_.Name })
+    }
     if (-not ($auditKeys -contains 'retentionDays')) {
         throw "Config validation failed: 'audit.retentionDays' is required."
     }
-    $retention = $Config.audit.retentionDays
+    if ($Config.audit -is [System.Collections.IDictionary]) {
+        $retention = $Config.audit['retentionDays']
+    } else {
+        $retention = $Config.audit.retentionDays
+    }
     if ($retention -isnot [int] -and $retention -isnot [long] -and -not ($retention -is [string] -and $retention -match '^\d+$')) {
         throw "Config validation failed: 'audit.retentionDays' must be an integer >= 1."
     }
