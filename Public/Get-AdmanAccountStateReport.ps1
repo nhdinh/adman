@@ -79,13 +79,12 @@ function Get-AdmanAccountStateReport {
             $callSplat = $splat.Clone()
             $callSplat[$sq.Switch] = $true
             $raw = Search-ADAccount @callSplat
-            foreach ($obj in @($raw)) {
+            foreach ($obj in ($raw | Where-Object { $null -ne $_ })) {
                 # CR-02: Search-ADAccount returns a fixed property set with 'SID'
                 # (NOT 'ObjectSid') and has no -Properties parameter. Annotate the
                 # raw object so ConvertTo-AdmanResult sees ObjectSid; otherwise the
                 # D-03 schema column is silently $null for every row.
-                if ($null -ne $obj -and
-                    $obj.PSObject.Properties['SID'] -and
+                if ($obj.PSObject.Properties['SID'] -and
                     -not $obj.PSObject.Properties['ObjectSid']) {
                     $obj | Add-Member -MemberType NoteProperty -Name 'ObjectSid' -Value $obj.SID -Force
                 }

@@ -113,7 +113,7 @@ function Find-AdmanUser {
             -Server $script:Config.DC `
             -Properties $properties `
             -ErrorAction Stop
-        foreach ($obj in @($raw)) {
+        foreach ($obj in ($raw | Where-Object { $null -ne $_ })) {
             $mapped = ConvertTo-AdmanResult -ADObject $obj -ObjectType 'User'
             if (Test-AdmanInManagedScope -DistinguishedName $mapped.DistinguishedName) {
                 $results.Add($mapped)

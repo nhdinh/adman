@@ -67,7 +67,7 @@ function Get-AdmanInventoryReport {
             -Server $script:Config.DC `
             -Properties $properties `
             -ErrorAction Stop
-        foreach ($obj in @($raw)) {
+        foreach ($obj in ($raw | Where-Object { $null -ne $_ })) {
             $mapped = ConvertTo-AdmanResult -ADObject $obj -ObjectType 'Computer'
             if (-not (Test-AdmanInManagedScope -DistinguishedName $mapped.DistinguishedName)) { continue }
             $mapped | Add-Member -MemberType NoteProperty -Name 'Bucket' -Value 'Inventory' -Force
