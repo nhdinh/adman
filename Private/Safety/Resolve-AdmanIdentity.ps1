@@ -102,7 +102,8 @@ function Resolve-AdmanIdentity {
             # trailing-dollar form (operator typed bare 'PC01' - computer sAMAccountName
             # is conventionally 'PC01$').
             $exactHits = @(Get-ADObject -Filter "sAMAccountName -eq '$esc'" -Server $script:Config.DC `
-                -Properties objectSid, objectClass, DistinguishedName, memberOf -ErrorAction Stop)
+                    -Properties objectSid, objectClass, DistinguishedName, memberOf -ErrorAction Stop |
+                Where-Object { $_.objectClass -contains 'computer' })
             if ($exactHits.Count -gt 1) {
                 throw "Multiple AD objects match sAMAccountName '$InputValue'."
             }
