@@ -9,13 +9,20 @@ function Set-AdmanUserPassword {
 
     .DESCRIPTION
         Thin prompt-and-dispatch Public verb. Builds the parameter hashtable and calls
-        Invoke-AdmanMutation -Verb 'Set-ADAccountPassword'. The gate resolves the target
-        once (SAFE-10), runs Test-AdmanTargetAllowed, confirms via Confirm-AdmanAction,
-        writes the PENDING audit, and invokes the Adman.AD.Write.Set-ADAccountPassword
-        wrapper for the one real write. The wrapper (Plan 02-01) detects
-        $Parameters['Unlock'], strips it, and calls Unlock-ADAccount after the reset
-        succeeds — one gate invocation, one audit pair. ChangePasswordAtLogon is split
-        to a follow-up Set-ADUser call after the reset (HIGH #4).
+        one or more Invoke-AdmanMutation gates so that every state-changing sub-operation
+        gets its own PENDING/OUTCOME audit pair, its own Confirm-AdmanAction confirmation,
+        and its own -WhatIf preview:
+
+          1. Set-ADAccountPassword performs the actual password reset.
+          2. Set-ADUser applies ChangePasswordAtLogon (HIGH #4: Set-ADAccountPassword does
+             not accept this parameter).
+          3. Unlock-ADAccount runs only when -Unlock is specified, after the reset succeeds.
+
+        Each gate invocation resolves the target once (SAFE-10), runs Test-AdmanTargetAllowed,
+        confirms via Confirm-AdmanAction, writes the PENDING audit, invokes the AD write,
+        and writes the OUTCOME audit. Failures are captured and aggregated so a follow-up
+        throw does not surface as an unhandled exception while earlier sub-operations show
+        'Success' in the audit log.
 
         This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
         audit pair, prompts for confirmation, and supports -WhatIf for dry-run preview.
