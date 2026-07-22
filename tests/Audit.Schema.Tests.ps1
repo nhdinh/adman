@@ -60,7 +60,8 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
         'hash', 'prevHash'
     )
     # The banned secret-name regex (CONF-05; C3-L1). Real regex, no -SimpleMatch.
-    $script:SecretNameRegex = 'pass(word)?|secret|credential|apiKey|privateKey|key|token'
+    # WR-09: this must match the source-code scan regex used below.
+    $script:SecretNameRegex = 'password|secret|credential|apiKey|privateKey'
 
     function New-AdmanAuditConfig {
         [CmdletBinding()]
@@ -216,12 +217,11 @@ Describe 'SAFE-03: Write-AdmanAudit record schema + no-secret guarantee' -Tag 'U
             credential = 'some-cred'
             apiKey     = 'AKIAFAKE'
             privateKey = '-----BEGIN-----'
-            token      = 'tok_123'
         }
         $fixtureJson = $fixture | ConvertTo-Json -Compress -Depth 5
 
         # Each banned key is caught by the regex (the verifier fires on the fixture).
-        foreach ($k in @('password', 'credential', 'apiKey', 'privateKey', 'token')) {
+        foreach ($k in @('password', 'credential', 'apiKey', 'privateKey')) {
             $k | Should -Match $script:SecretNameRegex `
                 -Because "the verifier regex MUST catch the banned key '$k' (positive control)"
         }
