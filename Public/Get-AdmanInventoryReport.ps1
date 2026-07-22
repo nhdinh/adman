@@ -103,7 +103,9 @@ function Get-AdmanInventoryReport {
                 if ($transport -ne 'Skipped') { $skipped++ }
                 $transport = 'Skipped'
             }
-            else {
+            elseif ($transport -ne 'Skipped') {
+                # WR-05: do not waste time invoking a remote query when transport was
+                # already skipped by Connect-AdmanTarget.
                 $remote = Invoke-AdmanRemoteQuery -ComputerName $targetName -Transport $transport -TimeoutSeconds $queryRemaining
                 if ($remote.Transport -eq 'Skipped' -and $transport -ne 'Skipped') {
                     $skipped++

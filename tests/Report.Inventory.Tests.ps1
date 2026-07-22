@@ -192,6 +192,8 @@ Describe 'Get-AdmanInventoryReport: remote enrichment (RMT-03, D-01)' -Tag 'Unit
             $row.LoggedOnUser | Should -BeNullOrEmpty
         }
         Should -Invoke Write-Warning -ModuleName adman -Times 1
+        # WR-05: a skipped transport must not trigger a wasted remote query.
+        Should -Invoke Invoke-AdmanRemoteQuery -ModuleName adman -Times 0
     }
 
     It 'marks Skipped and warns once when Invoke-AdmanRemoteQuery returns Skipped due to CIM error' {
