@@ -169,6 +169,10 @@ Plans (finalized during `/gsd-plan-phase 5`):
 - [x] 05-02-PLAN.md — Dual-edition + signing: create build/Sign-AdmanModule.ps1, add .github/workflows/ci.yml matrix on Windows PowerShell 5.1 and PowerShell 7.6 LTS with AllSigned proof, and update adman.psd1 CompatiblePSEditions to @('Desktop','Core').
 - [x] 05-03-PLAN.md — Audit hardening + commit guard: add audit.retentionDays config, SHA-256 hash chain and rotation in Private/Audit/Rotation.ps1, integrate prevHash into Write-AdmanAudit, add tests/Audit.Integrity.Tests.ps1 and tests/Audit.EventLog.Tests.ps1, and create .githooks/pre-commit.
 
+Gap-closure plans (from UAT 2026-07-22, 5 passed / 1 issue / 1 open gap):
+
+- [ ] 05-04-PLAN.md — G-05-1: fix PS7 `-ProgressAction` docs-coverage exclusion, offboarding archive self-hash mismatch, and CONF-02 whitespace-only ManagedOUs fail-closed message drift.
+
 ## Progress
 
 **Execution Order:**
