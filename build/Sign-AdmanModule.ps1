@@ -40,7 +40,7 @@ param(
     [Parameter(ParameterSetName = 'ByFile')]
     [Security.SecureString]$CertificatePassword,
 
-    [string]$ModulePath = (Join-Path $PSScriptRoot '..' 'adman.psd1')
+    [string]$ModulePath = (Join-Path (Join-Path $PSScriptRoot '..') 'adman.psd1')
 )
 
 Set-StrictMode -Version Latest
