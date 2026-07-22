@@ -219,15 +219,19 @@ Describe 'Set-AdmanLocalUser: gate routing + parameter sets (LUSR-01, D-02)' -Ta
         }
     }
 
-    It 'parameter-set resolution: throws when neither -Password nor -Enable/-Disable is supplied' {
+    It 'parameter-set resolution: sources a password via D-05 when no switch is supplied' {
         Mock -ModuleName adman Invoke-AdmanLocalMutation { }
         Mock -ModuleName adman New-AdmanRandomPassword { New-TestSecureString }
         Mock -ModuleName adman Read-Host { '' }
         Mock -ModuleName adman Write-Host { }
 
-        # Default 'Reset' set binds with no -Password -> throw the parameter-set resolution error.
-        { Set-AdmanLocalUser -Name 'luser' -ErrorAction Stop } |
-            Should -Throw '*supply -Password, -Enable, or -Disable*'
+        # Default 'Reset' set binds with no -Password; D-05 sourcing generates one and
+        # routes to the Set-LocalUser gate (WR-02: no throw, no silent no-op).
+        { Set-AdmanLocalUser -Name 'luser' -WhatIf } | Should -Not -Throw
+        Should -Invoke -ModuleName adman New-AdmanRandomPassword -Times 1
+        Should -Invoke -ModuleName adman Invoke-AdmanLocalMutation -Times 1 -ParameterFilter {
+            $Verb -eq 'Set-LocalUser' -and $Parameters['Password'] -is [securestring]
+        }
     }
 
     It 'parameter-set conflict: -Enable and -Disable are mutually exclusive' {
