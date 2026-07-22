@@ -21,7 +21,9 @@ jobs:
       # dual-edition CI matrix before merging.
       - name: Install PowerShell 7.6 LTS
         if: matrix.edition == 'core'
-        uses: mchave3/setup-pwsh@v1
+        # Pinned to a specific commit hash to mitigate supply-chain risk; update only
+        # after verifying the new release in a non-signing CI job.
+        uses: mchave3/setup-pwsh@c1a3d09904f9431d0fc1e079a11e49c11e8b0151  # v1.0.0
         with:
           version: '7.6.4'
 
