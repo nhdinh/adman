@@ -56,6 +56,11 @@ function Invoke-AdmanMutation {
 
     $cid = [guid]::NewGuid().ToString()
 
+    # CR-01: fail-closed initialization guard. A session that loaded config but failed the
+    # protected-identity cache step can reach this gate with null DenyRids/ProtectedSIDs/
+    # ProtectedGroupDns, which would silently bypass protected-account checks.
+    Assert-AdmanInitialized
+
     # SAFE-10: ONE resolver, called once. The same array feeds preview AND execute.
     # D-01: New-ADUser routes through the synthetic pre-create resolver (the object does
     # not exist yet, so Get-ADObject -Identity would throw).

@@ -92,6 +92,10 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
         & (Get-Module adman) {
             param($Config)
             $script:Config = $Config
+            $script:Initialized = $true
+            $script:ProtectedSIDs = @()
+            $script:DenyRids = @()
+            $script:ProtectedGroupDns = @()
             # CR-03: clear the per-session machine-scope cache so each test gets a fresh
             # AD lookup (the cache would otherwise leak mock expectations between tests).
             $script:LocalMachineScopeCache = @{}

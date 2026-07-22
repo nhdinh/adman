@@ -20,13 +20,18 @@ function Assert-AdmanInitialized {
     [CmdletBinding()]
     param()
 
-    if (-not $script:Initialized -or
+    $initialized = Get-Variable Initialized -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    $protectedSIDs = Get-Variable ProtectedSIDs -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    $denyRids = Get-Variable DenyRids -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+    $protectedGroupDns = Get-Variable ProtectedGroupDns -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+
+    if (-not $initialized -or
         -not $script:Config -or
         -not $script:Config.PSObject.Properties['ManagedOUs'] -or
         -not $script:Config.ManagedOUs -or
-        -not $script:ProtectedSIDs -or
-        -not $script:DenyRids -or
-        -not $script:ProtectedGroupDns) {
+        $null -eq $protectedSIDs -or
+        $null -eq $denyRids -or
+        $null -eq $protectedGroupDns) {
         throw 'adman is not initialized. Run Initialize-Adman first.'
     }
 }

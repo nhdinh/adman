@@ -50,6 +50,10 @@ function Invoke-AdmanLocalMutation {
 
     $cid = [guid]::NewGuid().ToString()
 
+    # CR-01: fail-closed initialization guard. Local mutations share the same safety caches
+    # (DenyRids, ProtectedSIDs, ProtectedGroupDns) as AD mutations; refuse if they are not ready.
+    Assert-AdmanInitialized
+
     # SAFE-10: ONE resolver, called once. New-LocalUser routes through the create-branch
     # (synthetic target; the object does not exist yet, so Get-LocalUser would throw).
     $resolved = @()

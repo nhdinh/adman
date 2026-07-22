@@ -65,6 +65,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
                 safety     = [pscustomobject]@{ bulkConfirmThreshold = 5 }
                 bulk       = [pscustomobject]@{ maxCount = 50 }
             }
+            $script:Initialized = $true
             $script:DenyRids = @('500', '501', '502')
             $script:ProtectedSIDs = @('S-1-5-21-111-222-333-512')
             $script:ProtectedGroupDns = @('CN=Domain Admins,CN=Users,DC=mock,DC=local')
