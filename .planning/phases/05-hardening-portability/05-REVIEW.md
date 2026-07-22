@@ -1,203 +1,195 @@
 ---
 phase: 05-hardening-portability
-reviewed: 2026-07-22T04:00:00Z
+reviewed: 2026-07-22T00:00:00Z
 depth: standard
-files_reviewed: 25
+files_reviewed: 52
 files_reviewed_list:
   - .github/workflows/ci.yml
   - Private/Audit/Rotation.ps1
   - Private/Audit/Write-AdmanAudit.ps1
   - Private/Config/Initialize-AdmanConfig.ps1
   - Private/Workflow/Get-AdmanOffboardingState.ps1
-  - Public/New-AdmanUser.ps1
-  - Public/Set-AdmanUserPassword.ps1
-  - Public/Set-AdmanLocalUser.ps1
+  - Public/Add-AdmanGroupMember.ps1
+  - Public/Add-AdmanLocalGroupMember.ps1
+  - Public/Config/Export-AdmanConfig.ps1
+  - Public/Config/Get-AdmanConfig.ps1
+  - Public/Config/Import-AdmanConfig.ps1
+  - Public/Config/Set-AdmanConfig.ps1
+  - Public/Disable-AdmanComputer.ps1
+  - Public/Disable-AdmanUser.ps1
+  - Public/Enable-AdmanComputer.ps1
+  - Public/Enable-AdmanUser.ps1
+  - Public/Export-AdmanReportCsv.ps1
+  - Public/Export-AdmanReportHtml.ps1
+  - Public/Find-AdmanComputer.ps1
+  - Public/Find-AdmanUser.ps1
+  - Public/Format-AdmanReport.ps1
+  - Public/Get-AdmanAccountStateReport.ps1
+  - Public/Get-AdmanInventoryReport.ps1
+  - Public/Get-AdmanRecoveryPostureReport.ps1
+  - Public/Get-AdmanStaleReport.ps1
+  - Public/Initialize-Adman.ps1
   - Public/Invoke-AdmanBulkAction.ps1
-  - Public/Start-AdmanUserOnboarding.ps1
-  - Public/Start-AdmanUserOffboarding.ps1
+  - Public/Move-AdmanComputer.ps1
+  - Public/Move-AdmanUser.ps1
+  - Public/New-AdmanUser.ps1
+  - Public/Remove-AdmanGroupMember.ps1
+  - Public/Remove-AdmanLocalGroupMember.ps1
+  - Public/Remove-AdmanLocalUser.ps1
+  - Public/Reset-AdmanComputerAccount.ps1
   - Public/Restore-AdmanQuarantinedUser.ps1
+  - Public/Set-AdmanLocalUser.ps1
+  - Public/Set-AdmanUserPassword.ps1
   - Public/Start-Adman.ps1
+  - Public/Start-AdmanUserOffboarding.ps1
+  - Public/Start-AdmanUserOnboarding.ps1
+  - Public/Test-AdmanCapability.ps1
+  - Public/Unlock-AdmanUser.ps1
   - build/Sign-AdmanModule.ps1
   - config/adman.defaults.json
   - config/adman.schema.json
-  - docs/USAGE.md
   - docs/RECOVERY-RUNBOOK.md
-  - tests/Audit.Hash.Tests.ps1
-  - tests/Audit.Rotation.Tests.ps1
+  - docs/USAGE.md
+  - tests/Audit.EventLog.Tests.ps1
+  - tests/Audit.FailClosed.Tests.ps1
   - tests/Audit.Integrity.Tests.ps1
+  - tests/Audit.Rotation.Tests.ps1
+  - tests/Audit.Schema.Tests.ps1
   - tests/Config.Load.Tests.ps1
+  - tests/Docs.Coverage.Tests.ps1
+  - tests/Help.Coverage.Tests.ps1
+  - tests/PesterConfiguration.psd1
   - tests/Workflow.OffboardingState.Tests.ps1
-  - adman.psd1
-  - adman.psm1
 findings:
-  critical: 3
-  warning: 8
-  info: 1
+  critical: 2
+  warning: 7
+  info: 3
   total: 12
 status: issues_found
 ---
 
-# Phase 05: Code Review Report
+# Phase 05-hardening-portability: Code Review Report
 
-**Reviewed:** 2026-07-22T04:00:00Z
+**Reviewed:** 2026-07-22
 **Depth:** standard
-**Files Reviewed:** 25
+**Files Reviewed:** 52
 **Status:** issues_found
 
 ## Summary
 
-Phase 05 (hardening-portability) added the dual-edition CI matrix, Authenticode signing, fail-closed config loading, the audit hash-chain and rotation, and the offboarding restore workflow. The code generally implements the documented safety invariants (write-ahead audit, hash-chain integrity, PDCe pinning, preview=execute resolver reuse, fail-closed scope), but several defects remain: a supply-chain risk in the CI workflow, an unguarded date parser that can crash rotation, a missing type guard in config validation, and a handful of robustness/quality warnings in config path handling, certificate trust, password display, bulk resolution, and validation coverage.
+Reviewed the complete Phase 5 hardening/portability surface: audit hash-chain + rotation, fail-closed config loading/validation, offboarding restore workflow, the full public cmdlet surface, Authenticode signing, JSON schema/defaults, operator docs, and unit tests. The implementation preserves the project's core safety invariants (write-ahead audit, PDCe pinning, managed-OU scope, no secrets in audit), but two critical defects remain: a config-cleaning helper that corrupts arrays and can fail-open the scope gate, and a TUI path-prompt bug that makes the "Back" input quit the menu entirely. Several warnings around null-safe enumeration, transient AD resolution failures, and parameter splatting were also identified.
 
 ## Critical Issues
 
-### CR-01: Third-party CI action pinned to floating major version
+### CR-01: ConvertTo-AdmanCleanConfig corrupts arrays and can fail-open the scope gate
 
-**File:** `.github/workflows/ci.yml:24`
-**Issue:** The workflow consumes `mchave3/setup-pwsh@v1`. A floating major tag can be retargeted to any commit by the action maintainer, so a supply-chain compromise or breaking change in the action would immediately affect adman's CI without a code change on this side. For a security-sensitive admin tool whose CI gates code-signing trust, the action should be pinned to a specific SHA-256 commit hash and verified before updates.
-**Fix:** Pin to a commit hash and add a comment with the human-readable version:
-```yaml
-- name: Install PowerShell 7.6 LTS
-  if: matrix.edition == 'core'
-  uses: mchave3/setup-pwsh@<commit-sha>  # v1.2.3
-  with:
-    version: '7.6.4'
-```
+**File:** `Private/Config/Initialize-AdmanConfig.ps1:41-46`
+**Issue:** The array branch returns `,$arr` (unary comma). When the caller captures the return value in a variable, PowerShell does not unwrap it; the result is a one-element array whose single element is the intended array. Config arrays such as `ManagedOUs`, `DenyList`, and `BaselineGroups` therefore become `@(@(...))` after cleaning.
 
-### CR-02: Unguarded `[datetime]::ParseExact` can crash audit rotation
-
-**File:** `Private/Audit/Rotation.ps1:219-221`
-**Issue:** The file-name regex `^audit-(\d{8})\.jsonl$` only guarantees eight digits, not a valid calendar date. A file named `audit-20231301.jsonl` (month 13) or `audit-20230230.jsonl` will pass the regex and then cause `[datetime]::ParseExact` to throw an unhandled `FormatException`, aborting the entire rotation run and leaving old logs in the live directory past the retention cutoff.
-**Fix:** Wrap `ParseExact` in a try/catch and skip invalid date filenames:
+For an empty `ManagedOUs` array, the downstream scope-count check `@($config.ManagedOUs | Where-Object { ... }).Count` sees one element (the inner empty array), `Where-Object` filters it to `$null`, and `@($null).Count` evaluates to `1`, causing the fail-closed scope gate to pass when it should throw. For non-empty arrays, `Test-AdmanConfigValid` iterates the wrapped outer array once and throws because the inner array lacks expected object properties, breaking existing config loads.
+**Fix:** Return the array directly; use `Write-Output -NoEnumerate` only if pipeline semantics are required. Remove the unary comma.
 ```powershell
-$dateString = $Matches[1]
-try {
-    $fileDate = [datetime]::ParseExact($dateString, 'yyyyMMdd', [System.Globalization.CultureInfo]::InvariantCulture)
-} catch {
-    Write-Warning "Skipping audit file '$($file.Name)': embedded date '$dateString' is not a valid calendar date."
-    continue
+if ($Node -is [array]) {
+    $arr = @()
+    foreach ($item in $Node) { $arr += (ConvertTo-AdmanCleanConfig -Node $item) }
+    return $arr
 }
 ```
 
-### CR-03: Config validator lacks type guard for `security.passwordGeneration.length`
+### CR-02: Start-Adman treats "B" at CSV/HTML path prompt as "Quit"
 
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:200-204`
-**Issue:** `Test-AdmanConfigValid` checks that `passwordGeneration.length` is not null and then immediately casts it with `[int]$Config.security.passwordGeneration.length -lt 8`. If the value is a non-numeric string (e.g. `"twenty"` or `""` coerced from a typo), the cast throws a raw `InvalidCastException` or `FormatException` instead of the intended clean validation message. Config load is supposed to be fail-closed with clear diagnostics; an unhandled cast leaks a low-level runtime error.
-**Fix:** Add the same numeric-or-string-digits guard used for `audit.retentionDays` at lines 184-186:
+**File:** `Public/Start-Adman.ps1:228, 253`
+**Issue:** Inside the CSV and HTML output-path prompts, if the operator types `B` (back), the code executes `break menuLoop`, which exits the entire `:menuLoop` and therefore terminates `Start-Adman`. The top-level format prompt handles `B` correctly (returns to the menu), so the path prompt behavior is inconsistent and surprising.
+**Fix:** Make `B` return to the format-choice loop instead of breaking the outer menu.
 ```powershell
-$length = $Config.security.passwordGeneration.length
-if ($length -isnot [int] -and $length -isnot [long] -and -not ($length -is [string] -and $length -match '^\d+$')) {
-    throw "Config validation failed: 'security.passwordGeneration.length' must be an integer >= 8."
-}
-if ([int]$length -lt 8) {
-    throw "Config validation failed: 'security.passwordGeneration.length' must be >= 8."
-}
+if ($outPath -match '^[Bb]$') { continue formatLoop }   # or equivalent
 ```
 
 ## Warnings
 
-### WR-01: Relative config paths are not normalized consistently with absolute paths
+### WR-01: Null-result enumeration can pass `$null` into `ConvertTo-AdmanResult`
 
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:372-386`
-**Issue:** Relative `AuditDir`/`ReportDir` values are joined directly to the module root, but absolute paths are passed through `$ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath`. Relative paths containing `..` or PowerShell drives are therefore not normalized the same way as absolute paths, so two config files can end up pointing at different physical directories even when they describe the same intent. This also means relative paths are not validated to exist.
-**Fix:** Normalize both branches through the same resolver:
+**Files:**
+- `Public/Find-AdmanUser.ps1:116`
+- `Public/Find-AdmanComputer.ps1:85`
+- `Public/Get-AdmanAccountStateReport.ps1:92`
+- `Public/Get-AdmanInventoryReport.ps1:70`
+- `Public/Get-AdmanStaleReport.ps1:75`
+**Issue:** Each function wraps AD cmdlet output in `@($raw)` and enumerates it. When an AD cmdlet returns no objects, `$raw` is `$null`, `@($null)` has `Count == 1`, and the loop iterates once with `$obj = $null`, passing `$null` to `ConvertTo-AdmanResult`. The downstream behavior with a null input depends on unreviewed code, but the pattern is a known PowerShell pitfall and has produced null-reference errors in similar codebases.
+**Fix:** Filter nulls out of the enumeration, or guard the loop with `if ($raw) { foreach ($obj in $raw) { ... } }`.
 ```powershell
-if ($config.AuditDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.AuditDir)) {
-    $joined = if ([System.IO.Path]::IsPathRooted($config.AuditDir)) {
-        $config.AuditDir
-    } else {
-        Join-Path $moduleRoot $config.AuditDir
-    }
-    $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
-}
+foreach ($obj in ($raw | Where-Object { $null -ne $_ })) { ... }
 ```
 
-### WR-02: CI imports self-signed certificate into the machine Root store
+### WR-02: Protected-group removal may proceed if group resolution fails
 
-**File:** `.github/workflows/ci.yml:52`
-**Issue:** The AllSigned smoke test imports the ephemeral CI certificate into `Cert:\LocalMachine\Root`. This is a privileged trust-store mutation for a temporary, unaudited certificate. While the runner is disposable, the pattern is risky to copy into production runbooks and requires admin elevation that may not be available in all CI environments. The module's own `Sign-AdmanModule.ps1` does not need a Root-trusted cert for signing; only execution policy verification needs it in the TrustedPublisher store.
-**Fix:** Remove the `Cert:\LocalMachine\Root` import and rely on `Cert:\LocalMachine\TrustedPublisher` for the AllSigned smoke, or document that the CI step is runner-scoped only and must never be used with a production signing certificate.
+**File:** `Public/Start-AdmanUserOffboarding.ps1:99-150`
+**Issue:** The classification loop marks a group as protected only when it can be resolved and matched against `ProtectedSIDs`/`DenyRids`/`ProtectedGroupDns`, or when the raw identity string is itself a protected SID/DN. If a protected group is referenced by name (e.g., `Domain Admins`) and `Resolve-AdmanGroup` fails due to a transient ADWS error, the catch block does not retry by name and the group is added to `$groupsToRemove`. This creates a low-probability but real path where a protected group is stripped during offboarding.
+**Fix:** In the catch fallback, also check whether `$g` matches any entry in `ProtectedGroupDns` by resolved displayName/RDN, or refuse to remove any group that could not be classified rather than defaulting to removal.
 
-### WR-03: Generated passwords are captured by `Start-Transcript`
+### WR-03: Generated password is displayed (or throws) after the AD/local account already exists
 
-**File:** `Public/New-AdmanUser.ps1:220`, `Public/Set-AdmanUserPassword.ps1:245`, `Public/Set-AdmanLocalUser.ps1:223`
-**Issue:** The display-once hygiene uses `[Console]::WriteLine` to show the generated password. The comment in each file correctly notes that `Start-Transcript` captures console output to disk, but the code does not detect or block that scenario. An operator running under `Start-Transcript` will persist the plaintext password to the transcript file, violating the project's "secrets encrypted; non-secret config portable" security model.
-**Fix:** Detect an active transcript and refuse to display the password, or redirect to a secure one-time display path. A minimal fix:
+**Files:**
+- `Public/New-AdmanUser.ps1:216-235`
+- `Public/Set-AdmanUserPassword.ps1:241-257`
+- `Public/Set-AdmanLocalUser.ps1:219-234`
+**Issue:** The transcript check and password display run **after** `Invoke-AdmanMutation` has already mutated the account. If a transcript is active, the verb throws at this point, leaving the account with an unknown generated password. This is a UX/operational hazard: a freshly created account can be stranded with a password the operator never sees.
+**Fix:** Move the transcript probe and password-source decision earlier, or ensure that when a transcript blocks display the generated password is securely re-offered rather than leaving the operator locked out.
+
+### WR-04: `Invoke-AdmanBulkAction` passes `-Force` to `Confirm-AdmanAction` without checking its parameter set
+
+**File:** `Public/Invoke-AdmanBulkAction.ps1:241-252`
+**Issue:** The `$confirmArgs` hashtable unconditionally includes `Force = $Force` before splatting to `Confirm-AdmanAction`. If `Confirm-AdmanAction` does not declare a `-Force` switch, this splat will throw a parameter-binding error at confirmation time.
+**Fix:** Confirm that `Confirm-AdmanAction` accepts `-Force`; if not, remove the key from `$confirmArgs`.
+
+### WR-05: `Invoke-AdmanAuditRotation` default parameter values depend on unloaded config
+
+**File:** `Private/Audit/Rotation.ps1:207-210`
+**Issue:** The default values for `-AuditDir` and `-RetentionDays` reference `$script:Config`. If the function is called before `Initialize-AdmanConfig` has run, these evaluate to `$null`, causing `Test-Path -LiteralPath $AuditDir` to evaluate against the current directory and rotation to behave unexpectedly.
+**Fix:** Make the parameters mandatory when called directly, or validate that `$script:Config` is loaded and throw a clear "not initialized" error.
+
+### WR-06: Audit schema test source-hygiene regex differs from its documented banned-token list
+
+**File:** `tests/Audit.Schema.Tests.ps1:63, 255`
+**Issue:** The test comment and the `$script:SecretNameRegex` variable include `key` and `token` as banned tokens, but the actual source-code scan at line 255 only checks for `password|secret|credential|apiKey|privateKey`. The test therefore does not enforce the documented invariant for `key`/`token` and could miss source comments or parameter names that contain those tokens.
+**Fix:** Align the source scan regex with `$script:SecretNameRegex`, or update the test comment to reflect the actual banned-token list.
+
+### WR-07: `Restore-AdmanQuarantinedUser` uses original `-Identity` for offboarding-state lookup
+
+**File:** `Public/Restore-AdmanQuarantinedUser.ps1:99`
+**Issue:** The function computes a stable `sAMAccountName`-based identity on line 85 for the composed verbs, but calls `Get-AdmanOffboardingState -Identity $Identity` using the original caller input. If the caller supplied the user's original DN and the account has since been moved to the quarantine OU, `Get-AdmanOffboardingState` may fail to resolve the stale DN and the restore cannot proceed.
+**Fix:** Use the stable identity for the state lookup:
 ```powershell
-if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
-    throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
-}
-```
-Alternatively, write the password to a temporary file with restrictive ACLs and display only the file path.
-
-### WR-04: Bulk engine resolves each group twice
-
-**File:** `Public/Invoke-AdmanBulkAction.ps1:185-191` and `218-222`
-**Issue:** Distinct groups are resolved and validated before the cap/confirmation, then every allowed record resolves the same group again. This is inefficient and creates a TOCTOU window: a group's properties could change between the two resolutions, so the pre-confirmation policy decision may no longer match the object used during execution. The mutation gate re-resolves the target, but the bulk engine's own audit and skip-detection rely on the second resolution.
-**Fix:** Cache the resolved group object from the pre-confirmation loop in a hashtable keyed by identity, then reuse the cached object when attaching `ResolvedGroup` to each record:
-```powershell
-$groupCache = @{}
-foreach ($gid in $distinctGroupIds) {
-    $groupCache[$gid] = Resolve-AdmanGroup -Identity $gid
-    # ... validation ...
-}
-# later ...
-$rec | Add-Member -MemberType NoteProperty -Name 'ResolvedGroup' -Value $groupCache[$gid] -Force
-```
-
-### WR-05: Rotation regex only validates digit count, not calendar date
-
-**File:** `Private/Audit/Rotation.ps1:219`
-**Issue:** The regex `^audit-(\d{8})\.jsonl$` accepts impossible dates such as `audit-00000000.jsonl` or `audit-20239999.jsonl`. Even after CR-02 is fixed, the regex itself remains overly permissive and could mask misnamed files or manual audit copies.
-**Fix:** Tighten the regex to reject impossible month/day combinations, or combine the regex with the `ParseExact` validation so that only files whose embedded date parses successfully are considered for rotation (see CR-02 fix).
-
-### WR-06: `ManagedOUs` element types are not validated
-
-**File:** `Private/Config/Initialize-AdmanConfig.ps1:102-104`
-**Issue:** The validator confirms that `ManagedOUs` is an array but never checks that each element is a non-empty string. A config with `"ManagedOUs": [123, {}]` passes validation and later causes cryptic DN-normalization errors when scope checks run.
-**Fix:** Iterate the array and reject non-string or empty elements:
-```powershell
-if ($null -ne $Config.ManagedOUs) {
-    foreach ($ou in $Config.ManagedOUs) {
-        if (-not ($ou -is [string]) -or [string]::IsNullOrWhiteSpace($ou)) {
-            throw "Config validation failed: every 'ManagedOUs' entry must be a non-empty DN string."
-        }
-    }
-}
-```
-
-### WR-07: `Start-Adman` path prompt `B` returns to format selection, not the top-level menu
-
-**File:** `Public/Start-Adman.ps1:228, 253`
-**Issue:** After a report verb returns, the operator can choose output format `2` (CSV) or `3` (HTML). If the operator then types `B` at the path prompt, control returns to the format-selection loop (line 206), not the top-level menu. The comment-based help says `B` is reserved inside action prompts and resumes the top-level loop, but the path prompt is nested one level deeper and behaves differently. This is inconsistent and can trap an operator in a loop they expected to exit.
-**Fix:** Treat `B` at the CSV/HTML path prompt as a request to return to the top-level menu, matching the behavior documented for action prompts:
-```powershell
-if ($outPath -match '^[Bb]$') { $formatResolved = $true; break menuLoop }
-```
-
-### WR-08: Onboarding sAMAccountName pre-flight validation is incomplete
-
-**File:** `Public/Start-AdmanUserOnboarding.ps1:116-124`
-**Issue:** The generated sAMAccountName is checked for emptiness, length <= 20, and wildcard characters, but not for leading/trailing whitespace or other characters invalid in AD sAMAccountName values (e.g. `"[]:|<>+=;?*"`). A `NamePattern` like `'{0} {1}'` could produce a value with spaces that `New-ADUser` will reject after confirmation.
-**Fix:** Reject leading/trailing whitespace and known invalid characters before confirmation:
-```powershell
-if ($sam -match '^\s|\s$') {
-    throw "Generated sAMAccountName '$sam' has leading or trailing whitespace."
-}
-if ($sam -match '["\\[\\]:|<>+=;]') {
-    throw "Generated sAMAccountName '$sam' contains characters not allowed in AD sAMAccountName."
-}
+$state = Get-AdmanOffboardingState -Identity $stableIdentity
 ```
 
 ## Info
 
-### IN-01: Password sourcing logic is duplicated across three public verbs
+### IN-01: `Move-AdmanUser` and `Move-AdmanComputer` duplicate destination-scope validation
 
-**File:** `Public/New-AdmanUser.ps1:131-184`, `Public/Set-AdmanUserPassword.ps1:124-174`, `Public/Set-AdmanLocalUser.ps1:150-200`
-**Issue:** The per-call password source resolution, Generate/Prompt switch, BSTR comparison, complexity check, and display-once hygiene are copy-pasted with only parameter-name differences. This makes future changes (e.g. adding a new source, changing complexity rules) error-prone and increases the chance that one verb diverges from the others.
-**Fix:** Extract a private helper such as `Resolve-AdmanPasswordInput` that returns a `[pscustomobject]@{ Password = $secureString; Source = 'Generate'|'Prompt' }`, then call it from each verb. Keep the display-once code in one place as well.
+**Files:**
+- `Public/Move-AdmanUser.ps1:72-81`
+- `Public/Move-AdmanComputer.ps1:72-81`
+**Issue:** The component-boundary scope check for `-TargetPath` is implemented identically in both public verbs and again inside the mutation gate. This duplication increases maintenance cost if the normalization or anchoring rules ever change.
+**Fix:** Centralize the destination-scope check in a shared helper (e.g., `Test-AdmanTargetPathInScope`) and call it from both the public verbs and the gate.
+
+### IN-02: CI runs `Help.Coverage.Tests.ps1` twice
+
+**File:** `.github/workflows/ci.yml:112-113`
+**Issue:** The workflow explicitly invokes `tests/Help.Coverage.Tests.ps1` and then runs the full Pester configuration, which also includes that file. The redundant run adds CI time without adding coverage.
+**Fix:** Remove the explicit `Invoke-Pester -Path tests/Help.Coverage.Tests.ps1` line; the configuration-driven run is sufficient.
+
+### IN-03: Multiple public verbs use `@()` and `+=` to build collections
+
+**Files:**
+- `Public/Export-AdmanReportCsv.ps1:81-92`
+- `Public/Invoke-AdmanBulkAction.ps1:93-107, 198-200`
+- `Public/Write-AdmanAudit.ps1:90-136`
+**Issue:** Using `@(); $list += $item` causes array reallocation on every addition. For small collections this is harmless, but for bulk/report workloads it is a maintainability/performance smell. Performance is out of scope for v1, but switching to `System.Collections.Generic.List[object]` would make the intent clearer and avoid accidental unrolling.
+**Fix:** Replace `@()` builders with `New-Object System.Collections.Generic.List[object]` and `.Add()`.
 
 ---
 
-_Reviewed: 2026-07-22T04:00:00Z_
+_Reviewed: 2026-07-22_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
