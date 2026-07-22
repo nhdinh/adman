@@ -147,6 +147,14 @@ function New-AdmanLocalUser {
         ComputerName = $ComputerName
     }
 
+    # WR-02 pre-mutation transcript guard: do not create an account with a generated
+    # password if we would be unable to display it safely.
+    if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $Password) {
+        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+            throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
+        }
+    }
+
     $result = Invoke-AdmanLocalMutation -Verb 'New-LocalUser' -Targets @($Name) `
         -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 
