@@ -60,7 +60,7 @@ function Get-AdmanStaleReport {
     if ($script:Config -and $script:Config.PSObject.Properties['LogonSyncGraceDays'] -and $script:Config.LogonSyncGraceDays) {
         $graceDays = [int]$script:Config.LogonSyncGraceDays
     }
-    $staleCutoff = (Get-Date).AddDays(-$graceDays)
+    $staleCutoff = (Get-Date).ToUniversalTime().AddDays(-$graceDays)
 
     $results = [System.Collections.Generic.List[object]]::new()
     foreach ($root in @($script:Config.ManagedOUs)) {
