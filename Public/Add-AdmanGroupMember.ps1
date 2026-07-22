@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Add-AdmanGroupMember {
@@ -16,7 +16,7 @@ function Add-AdmanGroupMember {
         and checked by Test-AdmanGroupAllowed.
 
         Group-side checks on Add (D-04):
-          (i)   the group's own objectSid is NOT in $script:ProtectedSIDs — direct SID
+          (i)   the group's own objectSid is NOT in $script:ProtectedSIDs â€” direct SID
                 equality, NOT IN_CHAIN (GRP-03 is identity, not membership). Adding any
                 principal to a protected group is REFUSED.
           (ii)  the group's SID RID is NOT in $script:DenyRids.
@@ -57,7 +57,12 @@ function Add-AdmanGroupMember {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     $params = @{ GroupIdentity = $GroupIdentity }
 

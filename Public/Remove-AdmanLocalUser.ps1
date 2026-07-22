@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Remove-AdmanLocalUser {
@@ -51,7 +51,12 @@ function Remove-AdmanLocalUser {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Phase 2 localhost validation (D-02).
     if (-not [string]::IsNullOrWhiteSpace($ComputerName) -and

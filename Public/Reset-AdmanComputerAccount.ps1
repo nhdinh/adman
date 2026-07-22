@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Reset-AdmanComputerAccount {
@@ -10,7 +10,7 @@ function Reset-AdmanComputerAccount {
     .DESCRIPTION
         Thin prompt-and-dispatch Public verb. Routes through Invoke-AdmanMutation with
         -Verb 'Set-ADAccountPassword' and $Parameters['Reset']=$true. This is the
-        AD-side "Reset Account" semantics — the ADUC equivalent.
+        AD-side "Reset Account" semantics â€” the ADUC equivalent.
 
         Two methods exist for recovering a broken computer-account / secure-channel
         state; this verb implements the FIRST and documents the SECOND:
@@ -24,11 +24,11 @@ function Reset-AdmanComputerAccount {
              Test-ComputerSecureChannel -Repair -Credential (Get-Credential)
              runs ON the affected machine and requires local admin rights there.
              Use this when the machine is otherwise healthy and only the channel
-             is broken — it preserves the domain membership and avoids a rejoin.
+             is broken â€” it preserves the domain membership and avoids a rejoin.
 
         After the gate call returns (and NOT under -WhatIf), the verb emits the
         guidance text via Write-PSFMessage -Level Host (the established diagnostic
-        pattern — Write-Host would trip the lint gate; the CLAUDE.md
+        pattern â€” Write-Host would trip the lint gate; the CLAUDE.md
         PSAvoidUsingWriteHost suppression covers ONLY the TUI-rendering module)
         AND attaches it to the return object's Guidance property so pipeline
         callers can surface it.
@@ -62,7 +62,12 @@ function Reset-AdmanComputerAccount {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Build the gate $Parameters. Reset=$true is the AD-side "Reset Account"
     # semantics (ADUC equivalent).

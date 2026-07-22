@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Start-AdmanUserOffboarding {
@@ -50,7 +50,12 @@ function Start-AdmanUserOffboarding {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Validate the offboarding template is present and carries the required keys (D-19).
     if (-not $script:Config.PSObject.Properties['templates'] -or

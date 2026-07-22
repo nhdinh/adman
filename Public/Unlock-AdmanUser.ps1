@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 Set-StrictMode -Version Latest
 
 function Unlock-AdmanUser {
@@ -30,7 +30,7 @@ function Unlock-AdmanUser {
         lockoutTime) is PDCe-authoritative, and that state is read explicitly on the
         PDCe by the Get-ADUser call above BEFORE the gate runs. Extending
         Resolve-AdmanTarget with a -Server pass-through would add complexity for no
-        safety benefit — the resolver's output (the ADObject identity) is identical
+        safety benefit â€” the resolver's output (the ADObject identity) is identical
         regardless of which DC answers.
 
         This state-changing verb routes through the mutation gate, which writes a PENDING/OUTCOME
@@ -61,7 +61,12 @@ function Unlock-AdmanUser {
         [switch]$Force
     )
 
-    Assert-AdmanInitialized
+    # WR-01: fail with a clear message when Initialize-Adman has not run.
+    if (-not $script:Config -or
+        -not $script:Config.PSObject.Properties['ManagedOUs'] -or
+        -not $script:Config.ManagedOUs) {
+        throw 'adman is not initialized. Run Initialize-Adman first.'
+    }
 
     # Resolve the PDC emulator. Lockout state is PDCe-authoritative (Pitfall 2).
     # WR-03 fix: under -WhatIf, skip the LockedOut pre-read entirely. The pre-read is a
