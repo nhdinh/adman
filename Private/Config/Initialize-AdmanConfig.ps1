@@ -257,12 +257,20 @@ function Initialize-AdmanConfig {
     # From Private/Config -> repo root (two parents up): home of config/adman.{schema,defaults}.json.
     $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
+    # Load shipped defaults once (WR-04) and reuse for all seed/merge operations below.
+    $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
+    $defaults = $null
+    if (Test-Path -LiteralPath $defaultsPath) {
+        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
+        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
+    }
+
     # Bootstrap a truly fresh file from the shipped defaults (the ONLY place the deny-list seed is
     # written, D-05). A present-but-malformed file is NOT overwritten - it must throw below.
     if (-not (Test-Path -LiteralPath $path)) {
-        $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
-        $defaults = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
-        $defaults = ConvertTo-AdmanCleanConfig -Node $defaults
+        if ($null -eq $defaults) {
+            throw "Shipped defaults not found at '$defaultsPath'; cannot bootstrap a fresh config."
+        }
         Save-AdmanConfig -Config $defaults -Path $path -Confirm:$false
     }
 
@@ -280,31 +288,24 @@ function Initialize-AdmanConfig {
     # Phase 3 additive timeout defaults (D-02): on every load, seed any missing
     # transport.timeouts keys from shipped defaults without overwriting user values.
     # This keeps existing configs valid when new timeout keys ship.
-    $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
-    if (Test-Path -LiteralPath $defaultsPath) {
-        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
-        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
-        if ($null -ne $defaults.transport -and $null -ne $defaults.transport.timeouts) {
-            if ($null -eq $config.transport) {
-                $config | Add-Member -MemberType NoteProperty -Name transport -Value ([pscustomobject]@{}) -Force
-            }
-            if ($null -eq $config.transport.timeouts) {
-                $config.transport | Add-Member -MemberType NoteProperty -Name timeouts -Value ([pscustomobject]@{}) -Force
-            }
-            foreach ($prop in $defaults.transport.timeouts.PSObject.Properties) {
-                $existing = $config.transport.timeouts.PSObject.Properties.Name
-                if (-not ($existing -contains $prop.Name)) {
-                    $config.transport.timeouts | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
-                }
+    if ($null -ne $defaults -and $null -ne $defaults.transport -and $null -ne $defaults.transport.timeouts) {
+        if ($null -eq $config.transport) {
+            $config | Add-Member -MemberType NoteProperty -Name transport -Value ([pscustomobject]@{}) -Force
+        }
+        if ($null -eq $config.transport.timeouts) {
+            $config.transport | Add-Member -MemberType NoteProperty -Name timeouts -Value ([pscustomobject]@{}) -Force
+        }
+        foreach ($prop in $defaults.transport.timeouts.PSObject.Properties) {
+            $existing = $config.transport.timeouts.PSObject.Properties.Name
+            if (-not ($existing -contains $prop.Name)) {
+                $config.transport.timeouts | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
             }
         }
     }
 
     # Phase 4 additive domain/templates defaults (D-08/D-11/D-19): seed missing keys from
     # shipped defaults without overwriting user values, preserving existing configs.
-    if (Test-Path -LiteralPath $defaultsPath) {
-        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
-        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
+    if ($null -ne $defaults) {
         foreach ($topKey in @('domain', 'templates')) {
             if ($null -ne $defaults.$topKey) {
                 $existing = $config.PSObject.Properties.Name
@@ -317,21 +318,17 @@ function Initialize-AdmanConfig {
 
     # Phase 5 additive audit defaults (D-05): seed missing audit.retentionDays from
     # shipped defaults without overwriting an existing user value.
-    if (Test-Path -LiteralPath $defaultsPath) {
-        $defaultsRaw = Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json
-        $defaults = ConvertTo-AdmanCleanConfig -Node $defaultsRaw
-        if ($null -ne $defaults.audit) {
-            $existing = $config.PSObject.Properties.Name
-            if (-not ($existing -contains 'audit') -or $null -eq $config.audit) {
-                # Audit block is absent: copy the whole default block so it validates.
-                $config | Add-Member -MemberType NoteProperty -Name audit -Value $defaults.audit -Force
-            } else {
-                # Audit block exists: merge only missing keys.
-                $auditKeys = @($config.audit | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
-                foreach ($prop in $defaults.audit.PSObject.Properties) {
-                    if (-not ($auditKeys -contains $prop.Name) -or $null -eq $config.audit.$($prop.Name)) {
-                        $config.audit | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
-                    }
+    if ($null -ne $defaults -and $null -ne $defaults.audit) {
+        $existing = $config.PSObject.Properties.Name
+        if (-not ($existing -contains 'audit') -or $null -eq $config.audit) {
+            # Audit block is absent: copy the whole default block so it validates.
+            $config | Add-Member -MemberType NoteProperty -Name audit -Value $defaults.audit -Force
+        } else {
+            # Audit block exists: merge only missing keys.
+            $auditKeys = @($config.audit | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name)
+            foreach ($prop in $defaults.audit.PSObject.Properties) {
+                if (-not ($auditKeys -contains $prop.Name) -or $null -eq $config.audit.$($prop.Name)) {
+                    $config.audit | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
                 }
             }
         }
@@ -341,9 +338,10 @@ function Initialize-AdmanConfig {
     # source of truth thereafter. Membership-tested (not property-accessed) so Set-StrictMode
     # does not throw on a NoDenyList file.
     if (-not ($config.PSObject.Properties.Name -contains 'DenyList') -or $null -eq $config.DenyList) {
-        $defaultsPath = Join-Path $moduleRoot 'config\adman.defaults.json'
-        $seed = (Get-Content -LiteralPath $defaultsPath -Raw | ConvertFrom-Json).DenyList
-        $seed = ConvertTo-AdmanCleanConfig -Node $seed
+        if ($null -eq $defaults -or $null -eq $defaults.DenyList) {
+            throw "Shipped defaults not found at '$defaultsPath'; cannot seed DenyList."
+        }
+        $seed = $defaults.DenyList
         $config | Add-Member -MemberType NoteProperty -Name DenyList -Value $seed -Force
     }
 
