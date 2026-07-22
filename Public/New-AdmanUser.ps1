@@ -204,6 +204,14 @@ function New-AdmanUser {
         ChangePasswordAtLogon  = $mustChange
     }
 
+    # WR-02: fail before mutating if a generated password would have to be displayed while a
+    # transcript is recording. This prevents stranding an account with an unknown password.
+    if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $AccountPassword) {
+        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+            throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
+        }
+    }
+
     $result = Invoke-AdmanMutation -Verb 'New-ADUser' -Targets @($SamAccountName) `
         -Parameters $params -Force:$Force -WhatIf:$WhatIfPreference
 

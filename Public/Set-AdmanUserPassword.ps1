@@ -188,6 +188,14 @@ function Set-AdmanUserPassword {
         $cfgVal
     }
 
+    # WR-02: fail before mutating if a generated password would have to be displayed while a
+    # transcript is recording. This prevents stranding an account with an unknown password.
+    if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
+        if ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.InitialSessionState.Transcripts.Count -gt 0) {
+            throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
+        }
+    }
+
     # CR-01 fix: invoke the gate once per sub-operation so each gets its own PENDING/OUTCOME
     # audit pair and its own confirmation. Capture ALL three results and aggregate failures
     # so a follow-up throw does not surface as an unhandled exception with no correlation
