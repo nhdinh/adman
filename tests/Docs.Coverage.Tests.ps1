@@ -183,7 +183,7 @@ Describe 'docs/USAGE.md exported-function coverage contract' -Tag 'Unit' {
     }
 
     It 'every exported function section documents its non-common parameters' {
-        $common = @('Verbose','Debug','ErrorAction','WarningAction','InformationAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable','WhatIf','Confirm')
+        $common = @('Verbose','Debug','ErrorAction','WarningAction','InformationAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable','ProgressAction','WhatIf','Confirm')
         $raw = Get-Content -LiteralPath $script:UsagePath -Raw
         $sectionMatch = [regex]::Match($raw, '#{1,2} Exported functions.*?(?=\n## |\z)', [System.Text.RegularExpressions.RegexOptions]::Singleline)
         $sectionMatch.Success | Should -BeTrue
