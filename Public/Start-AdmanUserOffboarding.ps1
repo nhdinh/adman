@@ -96,6 +96,9 @@ function Start-AdmanUserOffboarding {
     # Classify memberOf groups. Resolve each group and test SID/RID/DN against the
     # protected sets. If resolution fails, fall back to DN-string membership in
     # $script:ProtectedGroupDns (covers unresolved-SID entries stored there).
+    if (-not $script:ProtectedSIDs -or -not $script:DenyRids -or -not $script:ProtectedGroupDns) {
+        throw 'Protected identity caches are not initialized. Run Initialize-Adman first.'
+    }
     $groupsToRemove = [System.Collections.Generic.List[string]]::new()
     foreach ($g in @($user.memberOf | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
         $isProtected = $false
