@@ -163,3 +163,12 @@ None - no external service configuration required.
 ---
 *Phase: 05-hardening-portability*
 *Completed: 2026-07-22*
+
+## Self-Check: PASSED
+
+- [x] `05-01a1-SUMMARY.md` exists at `.planning/phases/05-hardening-portability/05-01a1-SUMMARY.md`
+- [x] Commit `c6d40f8` found in git log
+- [x] Commit `bb9658a` found in git log
+- [x] Commit `182d206` found in git log
+- [x] `ROADMAP.md` Phase 5 progress updated to 3/6
+- [x] `REQUIREMENTS.md` DOC-03 marked Complete
