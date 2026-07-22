@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [desktop, core]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The 7.6.x pin is bumped to the latest PowerShell 7.6 LTS patch release during routine
+      # maintenance; patch bumps are not feature work and must be validated by the same
+      # dual-edition CI matrix before merging.
+      - name: Install PowerShell 7.6 LTS
+        if: matrix.edition == 'core'
+        uses: mchave3/setup-pwsh@v1
+        with:
+          version: '7.6.4'
+
+      - name: Install dependencies
+        shell: "${{ matrix.edition == 'desktop' && 'powershell' || 'pwsh' }}"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command Install-PSResource -ErrorAction SilentlyContinue)) {
+              Install-Module Microsoft.PowerShell.PSResourceGet -RequiredVersion 1.2.0 -Scope CurrentUser -Force -AllowClobber
+          }
+          Install-PSResource -Name Pester -RequiredVersion 6.0.0 -Scope CurrentUser -TrustRepository
+          Install-PSResource -Name PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -TrustRepository
+          Install-PSResource -Name PSFramework -RequiredVersion 1.14.457 -Scope CurrentUser -TrustRepository
+
+      - name: AllSigned smoke import
+        shell: "${{ matrix.edition == 'desktop' && 'powershell' || 'pwsh' }}"
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $cert = New-SelfSignedCertificate `
+              -Subject 'CN=adman CI Code Signing' `
+              -Type CodeSigning `
+              -CertStoreLocation Cert:\CurrentUser\My `
+              -HashAlgorithm sha256 `
+              -NotAfter (Get-Date).AddHours(1)
+          $cer = Join-Path $env:TEMP 'adman-ci.cer'
+          Export-Certificate -Cert $cert -FilePath $cer -Force | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+
+          # Build a signed CI-only PSFramework stub so RequiredModules resolves under AllSigned.
+          $stubRoot = Join-Path $env:TEMP 'adman-psframework-stub'
+          $stubDir = Join-Path $stubRoot 'PSFramework'
+          New-Item -ItemType Directory -Path $stubDir -Force | Out-Null
+          @'
+          @{
+              RootModule        = 'PSFramework.psm1'
+              ModuleVersion     = '1.14.457'
+              GUID              = 'b0000000-0000-0000-0000-0000000000ca'
+              FunctionsToExport = @('Set-PSFConfig','Get-PSFConfig','Register-PSFConfigValidation','Export-PSFConfig','Import-PSFConfig','Write-PSFMessage')
+          }
+          '@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psd1') -Encoding UTF8
+          @'
+          function Set-PSFConfig { [CmdletBinding()] param($Value, [switch]$Initialize, $Name, $Module) }
+          function Get-PSFConfig { [CmdletBinding()] param($Name, $Module) }
+          function Register-PSFConfigValidation { [CmdletBinding()] param() }
+          function Export-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
+          function Import-PSFConfig { [CmdletBinding()] param($Path, $Module, $Name) }
+          function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
+          '@ | Set-Content -LiteralPath (Join-Path $stubDir 'PSFramework.psm1') -Encoding UTF8
+
+          Set-AuthenticodeSignature -FilePath (Join-Path $stubDir 'PSFramework.psd1') -Certificate $cert -HashAlgorithm SHA256 | Out-Null
+          Set-AuthenticodeSignature -FilePath (Join-Path $stubDir 'PSFramework.psm1') -Certificate $cert -HashAlgorithm SHA256 | Out-Null
+
+          # Sign the adman module files.
+          .\build\Sign-AdmanModule.ps1 -Certificate $cert
+
+          # Verify every module script/manifest is validly signed.
+          $moduleRoot = (Resolve-Path .).Path
+          $files = Get-ChildItem -Path $moduleRoot -Include '*.psd1','*.psm1','*.ps1' -Recurse -File |
+              Where-Object { $_.FullName -notmatch '\\(tests|\.github|\.githooks)\\' }
+          foreach ($file in $files) {
+              $sig = Get-AuthenticodeSignature -LiteralPath $file.FullName
+              if ($sig.Status -ne 'Valid') {
+                  throw "Signature invalid for $($file.FullName): $($sig.Status) - $($sig.StatusMessage)"
+              }
+          }
+
+          # Prepend the signed stub to the module path so adman.psd1 can satisfy RequiredModules.
+          $env:PSModulePath = "$stubRoot$([System.IO.Path]::PathSeparator)$env:PSModulePath"
+
+          Set-ExecutionPolicy -ExecutionPolicy AllSigned -Scope Process -Force
+          Import-Module .\adman.psd1 -Force -ErrorAction Stop
+          $cmd = Get-Command -Module adman | Select-Object -First 1
+          if (-not $cmd) { throw 'No commands exported from adman under AllSigned' }
+          Write-Host "AllSigned smoke OK: $($cmd.Name)"
+
+      - name: Revert execution policy before tests
+        shell: "${{ matrix.edition == 'desktop' && 'powershell' || 'pwsh' }}"
+        run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+
+      - name: Lint and unit tests
+        shell: "${{ matrix.edition == 'desktop' && 'powershell' || 'pwsh' }}"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-ScriptAnalyzer -Path . -Settings ./PSScriptAnalyzerSettings.psd1 -Recurse
+          Invoke-Pester -Path tests/Help.Coverage.Tests.ps1 -Tag Unit
+          Invoke-Pester -Configuration (Import-PowerShellDataFile ./tests/PesterConfiguration.psd1)
+
+      - name: Verify .store/ is not tracked or staged
+        shell: "${{ matrix.edition == 'desktop' && 'powershell' || 'pwsh' }}"
+        run: |
+          $tracked = git ls-files .store
+          $staged = git diff --cached --name-only -- .store
+          if ($tracked -or $staged) {
+              throw ".store/ paths found in tracked files or staged changes: $(($tracked + $staged) -join ', ')"
+          }
