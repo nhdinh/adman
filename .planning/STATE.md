@@ -4,16 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Hardening & Portability
+current_plan: 05-03 (complete)
 status: executing
-stopped_at: context exhaustion at 79% (2026-07-21)
-last_updated: "2026-07-21T03:36:45.625Z"
-last_activity: 2026-07-20
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-07-22T04:17:32.613Z"
+last_activity: 2026-07-22
+last_activity_desc: Completed 05-03 audit hardening
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 27
+  completed_plans: 29
 ---
 
 # Project State
@@ -23,16 +24,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-14)
 
 **Core value:** Any admin on the team can perform common AD/local-user & computer tasks correctly and safely — every destructive action is previewed (`-WhatIf`), confirmed, scoped to a managed OU, blocked from protected accounts, and written to an audit log.
-**Current focus:** Phase 04 — bulk-workflows-highest-blast-radius-last
+**Current focus:** Phase 05 — Hardening & Portability
 
 ## Current Position
 
-Phase: 5 — Hardening & Portability
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-20 — Phase 04 complete, transitioned to Phase 5
+**Phase:** 5 — Hardening & Portability
+**Current Plan:** 05-03 (complete)
+**Status:** Ready for next plan
+**Last Activity:** 2026-07-22 — Completed 05-03 audit hardening
 
-Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 plans executed)
+**Progress:** [█████████░] 88% (Phase 5 of 6, 29 of 33 plans executed)
 
 ## Performance Metrics
 
@@ -89,6 +90,8 @@ Progress: [██████████] 100% (Phase 1 of 6, 4 of 4 Phase 1 pl
 | Phase 04-bulk-workflows-highest-blast-radius-last P04-02 | 5m | 2 tasks | 3 files |
 | Phase 04 P03 | 45min | 3 tasks | 6 files |
 | Phase 04 P04 | 35min | 3 tasks | 5 files |
+| Phase 05-hardening-portability P01b | 35 | 1 tasks | 5 files |
+| Phase 05-hardening-portability P03 | 45min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -168,6 +171,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase ?]: Bulk action in the TUI is CSV-only in v1; search-based bulk remains a direct PowerShell pipeline workflow.
 - [Phase ?]: SkipOutputPrompt is explicit only on workflow entries; absent/null is tolerated on pre-Phase 4 entries.
 - [Phase ?]: Hard-delete source scan is repo-wide over Public/ and Private/, not scoped to new Phase 4 files.
+- [Phase ?]: Represented menu PromptSpec fields as a table so the contract test can verify Name/Prompt/Required coverage deterministically.
+- [Phase ?]: Grouped exported-function examples by operational category rather than strict manifest order to keep the guide readable while still covering every function.
+- [Phase ?]: Hash chain is tamper-evident, not tamper-proof; filesystem-level rewrites are detectable but not preventable.
+- [Phase ?]: Canonical JSON for hashing excludes only the hash field; prevHash remains in the serialized record so the chain is stable.
+- [Phase ?]: Get-AdmanAuditIntegrity verifies the prevHash chain before self-hash so that mutating a record's hash is reported at the next link.
+- [Phase ?]: Rotation archive folders live under .store/audit/archive/YYYYMM/ so the same OS ACL boundary covers live and archived audit files.
 
 ### Pending Todos
 
@@ -197,7 +206,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-21T03:34:07.055Z
-Stopped at: context exhaustion at 79% (2026-07-21)
-Resume file: .planning/phases/05-hardening-portability/05-CONTEXT.md
+Last session: 2026-07-22T04:17:32.593Z
+Stopped at: Completed 05-03-PLAN.md
+Resume file: None
 Next action (when user approves): /gsd-execute-phase 01 — execute plan 01-04 (renderer dispatch).
