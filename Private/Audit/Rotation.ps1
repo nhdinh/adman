@@ -216,6 +216,9 @@ function Invoke-AdmanAuditRotation {
     $cutoff = (Get-Date).Date.AddDays(-$RetentionDays)
 
     foreach ($file in (Get-ChildItem -LiteralPath $AuditDir -Filter 'audit-*.jsonl' -File -ErrorAction Stop)) {
+        # WR-05: the regex intentionally checks only the 8-digit date shape; calendar
+        # validity (month/day ranges) is enforced by the ParseExact call below, which
+        # skips any file whose embedded date is not a real calendar date.
         if ($file.Name -notmatch '^audit-(\d{8})\.jsonl$') { continue }
         $dateString = $Matches[1]
         try {
