@@ -171,19 +171,21 @@ function Invoke-AdmanBulkAction {
 
         # Group destination policy: resolve and validate every distinct group
         # BEFORE cap/confirm so a protected destination fails the whole job.
-        $distinctGroupIds = [System.Collections.Generic.List[string]]::new()
+        # WR-04: cache resolved group objects so the per-record loop and execution
+        # phase reuse the same object instead of resolving the same group twice.
+        $groupCache = @{}
         if ($Action -in @('AddGroup', 'RemoveGroup')) {
             foreach ($rec in $records) {
                 $gid = if ($rec.GroupIdentity) { $rec.GroupIdentity } else { $GroupIdentity }
                 if ([string]::IsNullOrWhiteSpace($gid)) {
                     throw "Group operation requires -GroupIdentity or a GroupIdentity value on every CSV row."
                 }
-                if (-not ($distinctGroupIds -contains $gid)) {
-                    $distinctGroupIds.Add($gid)
+                if (-not ($groupCache.ContainsKey($gid))) {
+                    $groupCache[$gid] = Resolve-AdmanGroup -Identity $gid
                 }
             }
-            foreach ($gid in $distinctGroupIds) {
-                $groupObj = Resolve-AdmanGroup -Identity $gid
+            foreach ($gid in $groupCache.Keys) {
+                $groupObj = $groupCache[$gid]
                 $groupDecision = Test-AdmanGroupAllowed -Object $groupObj -Operation $gateVerb
                 if (-not $groupDecision.Allowed) {
                     throw "Bulk group destination '$gid' refused: $($groupDecision.Reason)"
@@ -205,9 +207,8 @@ function Invoke-AdmanBulkAction {
                 if (-not $decision.Allowed) {
                     if ($Action -in @('AddGroup', 'RemoveGroup')) {
                         $gid = if ($rec.GroupIdentity) { $rec.GroupIdentity } else { $GroupIdentity }
-                        $groupObj = Resolve-AdmanGroup -Identity $gid
                         Write-AdmanAudit -Verb $rec.GateVerb -Target $targetObj -Result 'Refused' `
-                            -Reason $decision.Reason -Group $groupObj.DistinguishedName -WhatIf:$WhatIfPreference
+                            -Reason $decision.Reason -Group $groupCache[$gid].DistinguishedName -WhatIf:$WhatIfPreference
                     } else {
                         Write-AdmanAudit -Verb $rec.GateVerb -Target $targetObj -Result 'Refused' `
                             -Reason $decision.Reason -WhatIf:$WhatIfPreference
@@ -218,8 +219,7 @@ function Invoke-AdmanBulkAction {
                     $rec | Add-Member -MemberType NoteProperty -Name 'ResolvedTarget' -Value $targetObj -Force
                     if ($Action -in @('AddGroup', 'RemoveGroup')) {
                         $gid = if ($rec.GroupIdentity) { $rec.GroupIdentity } else { $GroupIdentity }
-                        $groupObj = Resolve-AdmanGroup -Identity $gid
-                        $rec | Add-Member -MemberType NoteProperty -Name 'ResolvedGroup' -Value $groupObj -Force
+                        $rec | Add-Member -MemberType NoteProperty -Name 'ResolvedGroup' -Value $groupCache[$gid] -Force
                     }
                     $allowed.Add($rec)
                 }
