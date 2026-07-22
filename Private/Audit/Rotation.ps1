@@ -231,16 +231,17 @@ function Invoke-AdmanAuditRotation {
         if ($fileDate -lt $cutoff) {
             $archiveMonth = $fileDate.ToString('yyyyMM')
             $archiveDir = Join-Path (Join-Path $AuditDir 'archive') $archiveMonth
-            if (-not (Test-Path -LiteralPath $archiveDir)) {
-                $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
-            }
-
-            $marker = Join-Path $archiveDir ('archive-{0}.marker' -f $archiveMonth)
-            if (-not (Test-Path -LiteralPath $marker)) {
-                ('{0:yyyy-MM-ddTHH:mm:ssZ}' -f (Get-Date).ToUniversalTime()) | Set-Content -LiteralPath $marker -Encoding UTF8 -ErrorAction Stop
-            }
-
             $destination = Join-Path $archiveDir $file.Name
+
+            if ($PSCmdlet.ShouldProcess($archiveDir, 'Create archive directory and marker')) {
+                if (-not (Test-Path -LiteralPath $archiveDir)) {
+                    $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
+                }
+                $marker = Join-Path $archiveDir ('archive-{0}.marker' -f $archiveMonth)
+                if (-not (Test-Path -LiteralPath $marker)) {
+                    ('{0:yyyy-MM-ddTHH:mm:ssZ}' -f (Get-Date).ToUniversalTime()) | Set-Content -LiteralPath $marker -Encoding UTF8 -ErrorAction Stop
+                }
+            }
             if ($PSCmdlet.ShouldProcess($file.FullName, 'Move to archive')) {
                 Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
             }
