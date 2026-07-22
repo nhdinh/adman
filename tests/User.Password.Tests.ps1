@@ -63,7 +63,12 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     Import-Module $script:ManifestPath -Force -ErrorAction Stop
 
     # Seed $script:Config with the security block the D-05 password sourcing reads.
+    # CR-01: also seed the protected-identity caches so the gate's init guard passes.
     & (Get-Module adman) {
+        $script:Initialized = $true
+        $script:ProtectedSIDs = @()
+        $script:DenyRids = @()
+        $script:ProtectedGroupDns = @()
         $script:Config = [pscustomobject]@{
             ManagedOUs = @('OU=Managed,DC=mock,DC=local')
             DC         = 'dc.mock.local'
