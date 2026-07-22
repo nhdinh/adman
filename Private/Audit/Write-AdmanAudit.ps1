@@ -135,6 +135,11 @@ function Write-AdmanAudit {
             }
         }
 
+        # WR-01: resolve version from the function's own module context; fall back to 'unknown'
+        # when dot-sourced or loaded under an alias.
+        $module = $ExecutionContext.SessionState.Module
+        $moduleVersion = if ($module) { $module.Version.ToString() } else { 'unknown' }
+
         $rec = [ordered]@{
             tsUtc         = $nowUtc.ToString('o')
             who           = "$env:USERDOMAIN\$env:USERNAME"
@@ -150,7 +155,7 @@ function Write-AdmanAudit {
             correlationId = $CorrelationId
             host          = $env:COMPUTERNAME
             psEdition     = $PSEdition
-            moduleVersion = (Get-Module adman).Version.ToString()
+            moduleVersion = $moduleVersion
         }
         # D-04: emit the group field ONLY when -Group is supplied (preserves the exact-key-set
         # Test 1 invariant for non-group records).
