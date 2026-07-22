@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Hardening & Portability
-current_plan: 05-01a3
+current_plan: 05-02
 status: complete
-stopped_at: Completed 05-01a3-PLAN.md
-last_updated: "2026-07-22T05:07:00.949Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-07-22T12:55:00Z"
 last_activity: 2026-07-22
-last_activity_desc: Completed 05-01a3 local/group/bulk/workflow help coverage
+last_activity_desc: Completed 05-02 dual-edition signing and CI matrix
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 33
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 ## Current Position
 
 **Phase:** 5 — Hardening & Portability
-**Current Plan:** 05-01a3
+**Current Plan:** 05-02
 **Status:** Complete
-**Last Activity:** 2026-07-22 — Completed 05-01a3 local/group/bulk/workflow help coverage
+**Last Activity:** 2026-07-22 — Completed 05-02 dual-edition signing and CI matrix
 
-**Progress:** [██████████] 97% (Phase 5 of 6, 32 of 33 plans executed)
+**Progress:** [██████████] 100% (Phase 5 of 6, 33 of 33 plans executed)
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ See: .planning/PROJECT.md (updated 2026-07-14)
 | Phase 05-hardening-portability P01a1 | 35min | 2 tasks | 17 files |
 | Phase 05-hardening-portability P01a3 | 20min | 1 tasks | 10 files |
 | Phase 05-hardening-portability P01a2 | 7min | 1 tasks | 11 files |
+| Phase 05-hardening-portability P02 | ~25min | 4 tasks | 4 files |
 
 ## Accumulated Context
 
