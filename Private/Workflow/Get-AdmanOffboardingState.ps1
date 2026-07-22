@@ -57,6 +57,13 @@ function Get-AdmanOffboardingState {
     }
 
     foreach ($file in $auditFiles) {
+        # CR-02: verify audit file integrity before consuming any records from it.
+        # A tampered audit file must not drive a restore.
+        $integrity = Get-AdmanAuditIntegrity -Path $file.FullName
+        if (-not $integrity.Valid) {
+            throw "Audit integrity check failed for '$($file.FullName)': $($integrity.Reason)"
+        }
+
         foreach ($line in (Get-Content -LiteralPath $file.FullName -ErrorAction Stop)) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try {

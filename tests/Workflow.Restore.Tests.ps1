@@ -98,6 +98,21 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
             [Parameter(Mandatory)][string]$Path,
             [Parameter(Mandatory)][hashtable]$Record
         )
+        # Build a valid hash chain for the test record (CR-02).
+        $lines = @(Get-Content -LiteralPath $Path -ErrorAction SilentlyContinue | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $prevHash = '0' * 64
+        if ($lines.Count -gt 0) {
+            try {
+                $lastRec = $lines[-1] | ConvertFrom-Json -ErrorAction Stop
+                if ($lastRec.PSObject.Properties['hash']) { $prevHash = ([string]$lastRec.hash).ToLower() }
+            } catch { }
+        }
+        $Record['prevHash'] = $prevHash
+        $Record.Remove('hash')
+        $canonicalJson = $Record | ConvertTo-Json -Compress -Depth 5
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($canonicalJson)
+        $sha = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+        $Record['hash'] = -join ($sha | ForEach-Object { $_.ToString('x2') })
         $line = $Record | ConvertTo-Json -Compress -Depth 5
         Add-Content -LiteralPath $Path -Value $line -Encoding UTF8
     }
@@ -229,6 +244,29 @@ Describe 'Get-AdmanOffboardingState: exact-match state reader (FLOW-03)' -Tag 'U
         $state = Get-OffboardingStateForTest -Id 'jdoe'
         $state | Should -Not -BeNullOrEmpty
         $state.Groups | Should -Contain 'CN=OldGroup,OU=Groups,DC=mock,DC=local'
+    }
+
+    It 'throws when an audit file fails the integrity check (CR-02)' {
+        $userDn = 'CN=jdoe,OU=Users,OU=Managed,DC=mock,DC=local'
+        $userSid = "$script:DomainSid-1000"
+        $path = Join-Path $script:AuditDir ('audit-{0}.jsonl' -f (Get-Date -Format 'yyyyMMdd'))
+
+        # Write a record with an invalid self-hash so integrity verification fails.
+        @{
+            tsUtc      = '2026-07-20T10:00:00.0000000Z'
+            what       = 'Start-AdmanUserOffboarding'
+            result     = 'Success'
+            whatIf     = $false
+            targets    = @(@{ dn = $userDn; sid = $userSid; objectClass = 'user' })
+            originalOU = 'OU=Users,OU=Managed,DC=mock,DC=local'
+            groups     = @('CN=G1,OU=Groups,DC=mock,DC=local')
+            hash       = '0' * 64
+            prevHash   = '0' * 64
+        } | ConvertTo-Json -Compress -Depth 5 | Set-Content -LiteralPath $path -Encoding UTF8
+
+        Mock -ModuleName adman Resolve-AdmanTarget { New-MockUser -Dn $userDn -Sid $userSid }
+
+        { Get-OffboardingStateForTest -Id 'jdoe' } | Should -Throw '*Audit integrity check failed*'
     }
 }
 

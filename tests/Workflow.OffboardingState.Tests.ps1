@@ -68,10 +68,14 @@ Describe 'FLOW-03 / D-05: Get-AdmanOffboardingState searches archived audit file
             moduleVersion = '0.1.0'
             originalOU    = $originalOu
             groups        = $groups
-            hash          = '0' * 64
             prevHash      = '0' * 64
-        } | ConvertTo-Json -Compress -Depth 5
-        $rec | Set-Content -LiteralPath (Join-Path $archiveDir 'audit-20260701.jsonl') -Encoding UTF8
+        }
+        $canonicalJson = $rec | ConvertTo-Json -Compress -Depth 5
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($canonicalJson)
+        $sha = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+        $hash = -join ($sha | ForEach-Object { $_.ToString('x2') })
+        $rec['hash'] = $hash
+        $rec | ConvertTo-Json -Compress -Depth 5 | Set-Content -LiteralPath (Join-Path $archiveDir 'audit-20260701.jsonl') -Encoding UTF8
 
         Mock Resolve-AdmanTarget -ModuleName adman {
             [pscustomobject]@{
