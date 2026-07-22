@@ -63,6 +63,26 @@ function ConvertTo-AdmanCleanConfig {
     return $Node
 }
 
+function ConvertTo-AdmanAbsolutePath {
+    <#
+    .SYNOPSIS
+        Resolve a config path against the module root so it is independent of the process CWD.
+    .DESCRIPTION
+        Preserves rooted paths unchanged. For relative paths, joins the value to the module root
+        and resolves it through the PowerShell provider. Empty/whitespace values are returned as-is.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Path,
+        [Parameter(Mandatory)][string]$ModuleRoot
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
+    $joined = if ([System.IO.Path]::IsPathRooted($Path)) { $Path } else { Join-Path $ModuleRoot $Path }
+    return $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
+}
+
 function Test-AdmanConfigValid {
     <#
     .SYNOPSIS
@@ -370,30 +390,16 @@ function Initialize-AdmanConfig {
     }
 
     # Absolutize relative paths ONCE at load (AuditDir/ReportDir ship as '.store/audit' / 'reports').
-    # WR-03 fix: resolve relative paths against the MODULE ROOT, not the process CWD. The
-    # previous implementation used GetUnresolvedProviderPathFromPSPath which resolves against
-    # $PWD; when the operator launches adman from a different directory (e.g. runas /netonly
-    # from C:\Windows\System32) the audit dir would resolve to <CWD>\.store\audit instead of
-    # <module-root>\.store\audit. Resolve against the module root so every downstream
-    # consumer agrees on the intended base regardless of where the operator launched from.
-    # The on-disk file keeps its portable relative values (this mutates only the in-memory copy).
-    # Module root = parent of parent of this file (this file lives at <root>/Private/Config/).
+    # WR-03 fix: resolve relative paths against the MODULE ROOT, not the process CWD. Resolve against
+    # the module root so every downstream consumer agrees on the intended base regardless of where
+    # the operator launched from. The on-disk file keeps its portable relative values (this mutates
+    # only the in-memory copy).
     $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    if ($config.AuditDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.AuditDir)) {
-        $joined = if ([System.IO.Path]::IsPathRooted($config.AuditDir)) {
-            $config.AuditDir
-        } else {
-            Join-Path $moduleRoot $config.AuditDir
-        }
-        $config.AuditDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
+    if ($config.AuditDir -is [string]) {
+        $config.AuditDir = ConvertTo-AdmanAbsolutePath -Path $config.AuditDir -ModuleRoot $moduleRoot
     }
-    if ($config.ReportDir -is [string] -and -not [string]::IsNullOrWhiteSpace($config.ReportDir)) {
-        $joined = if ([System.IO.Path]::IsPathRooted($config.ReportDir)) {
-            $config.ReportDir
-        } else {
-            Join-Path $moduleRoot $config.ReportDir
-        }
-        $config.ReportDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($joined)
+    if ($config.ReportDir -is [string]) {
+        $config.ReportDir = ConvertTo-AdmanAbsolutePath -Path $config.ReportDir -ModuleRoot $moduleRoot
     }
 
     # PSFramework config backbone (D-01): pinned with -Path, never the auto-import persistence. The

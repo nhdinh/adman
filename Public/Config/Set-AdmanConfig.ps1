@@ -72,6 +72,14 @@ function Set-AdmanConfig {
         throw "FAIL-CLOSED: managed-OU scope (ManagedOUs) is empty; Set-AdmanConfig cannot remove the last managed-OU root."
     }
 
+    # BL-02: re-absolutize path keys before publishing so relative values resolve to module root.
+    if ($proposed.AuditDir -is [string]) {
+        $proposed.AuditDir = ConvertTo-AdmanAbsolutePath -Path $proposed.AuditDir -ModuleRoot $moduleRoot
+    }
+    if ($proposed.ReportDir -is [string]) {
+        $proposed.ReportDir = ConvertTo-AdmanAbsolutePath -Path $proposed.ReportDir -ModuleRoot $moduleRoot
+    }
+
     if ($PSCmdlet.ShouldProcess("$Key on $Path", 'Set adman config value')) {
         Save-AdmanConfig -Config $proposed -Path $Path -Confirm:$false
         $script:Config = $proposed

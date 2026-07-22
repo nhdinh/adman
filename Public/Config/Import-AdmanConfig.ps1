@@ -54,6 +54,14 @@ function Import-AdmanConfig {
         }
     }
 
+    # BL-02: absolutize path keys before publishing so imported relative values resolve to module root.
+    if ($config.AuditDir -is [string]) {
+        $config.AuditDir = ConvertTo-AdmanAbsolutePath -Path $config.AuditDir -ModuleRoot $moduleRoot
+    }
+    if ($config.ReportDir -is [string]) {
+        $config.ReportDir = ConvertTo-AdmanAbsolutePath -Path $config.ReportDir -ModuleRoot $moduleRoot
+    }
+
     if ($PSCmdlet.ShouldProcess($Path, 'Import adman config')) {
         if (-not $script:StorePath) { $script:StorePath = '.store' }
         $target = Join-Path $script:StorePath 'config.json'
