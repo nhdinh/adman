@@ -104,8 +104,8 @@ function Test-AdmanConfigValid {
     }
     if ($null -ne $Config.ManagedOUs) {
         foreach ($ou in $Config.ManagedOUs) {
-            if (-not ($ou -is [string]) -or [string]::IsNullOrWhiteSpace($ou)) {
-                throw "Config validation failed: every 'ManagedOUs' entry must be a non-empty DN string."
+            if (-not ($ou -is [string])) {
+                throw "Config validation failed: every 'ManagedOUs' entry must be a string."
             }
         }
     }
