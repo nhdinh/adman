@@ -76,8 +76,21 @@ function Test-AdmanLocalTargetAllowed {
     }
     $adminSids = @()
     $enumFailed = $false
+    # WR-05: resolve the well-known Administrators SID to the localized group name so the
+    # check works on non-English Windows installations.
+    $adminGroupName = 'Administrators'
     try {
-        $members = @(Get-LocalGroupMember -Name 'Administrators' -ErrorAction Stop)
+        $adminSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+        $adminNtAccount = $adminSid.Translate([System.Security.Principal.NTAccount])
+        if ($adminNtAccount -and $adminNtAccount.Value) {
+            $adminGroupName = ($adminNtAccount.Value -replace '^.*\\', '')
+        }
+    } catch {
+        # SID-to-name translation can fail in constrained language mode; fall back to the
+        # English default. The catch below will record an enumeration failure if needed.
+    }
+    try {
+        $members = @(Get-LocalGroupMember -Name $adminGroupName -ErrorAction Stop)
         foreach ($m in $members) {
             if ($m.SID) { $adminSids += ([System.Security.Principal.SecurityIdentifier]$m.SID).Value }
         }
@@ -95,10 +108,10 @@ function Test-AdmanLocalTargetAllowed {
         }
         $isOrphanedSid = ($hr -eq -2147023564) -or ($hr -eq 2147943732) -or ($native -eq 1332)
         if ($isOrphanedSid) {
-            # Orphaned-SID fallback: WMI Win32_GroupUser.
+            # Orphaned-SID fallback: WMI Win32_GroupUser using the localized group name.
             try {
                 $wmiMembers = @(Get-CimInstance -ClassName Win32_GroupUser -ErrorAction Stop |
-                    Where-Object { $_.GroupComponent.Name -eq 'Administrators' })
+                    Where-Object { $_.GroupComponent.Name -eq $adminGroupName })
                 foreach ($wm in $wmiMembers) {
                     # Win32_GroupUser PartComponent is a Win32_UserAccount/Win32_SystemAccount
                     # reference; extract the SID via the associated CIM instance when present.
