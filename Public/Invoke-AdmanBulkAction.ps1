@@ -244,7 +244,7 @@ function Invoke-AdmanBulkAction {
                     RequireTypedCount = $true
                     Force             = $Force
                 }
-                if ($Action -in @('AddGroup', 'RemoveGroup') -and $allowed.Count -gt 0) {
+                if ($Action -in @('AddGroup', 'RemoveGroup')) {
                     $groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)
                     if ($groupDns.Count -eq 1) { $confirmArgs['Group'] = $groupDns[0] }
                     else { $confirmArgs['Group'] = "$($groupDns.Count) distinct groups" }
