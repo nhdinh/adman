@@ -230,7 +230,7 @@ function Invoke-AdmanAuditRotation {
 
         if ($fileDate -lt $cutoff) {
             $archiveMonth = $fileDate.ToString('yyyyMM')
-            $archiveDir = Join-Path $AuditDir ('archive\{0}' -f $archiveMonth)
+            $archiveDir = Join-Path (Join-Path $AuditDir 'archive') $archiveMonth
             if (-not (Test-Path -LiteralPath $archiveDir)) {
                 $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
             }
