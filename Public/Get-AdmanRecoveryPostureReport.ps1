@@ -53,9 +53,9 @@ function Get-AdmanRecoveryPostureReport {
     $freshness = 'lastLogonTimestamp fresh to within {0} days (sync interval = {1})' -f $graceDays, $intervalDays
 
     [pscustomobject]@{
-        RecycleBinEnabled     = $posture.RecycleBinEnabled
-        ForestFunctionalLevel = $posture.ForestFunctionalLevel
-        TombstoneLifetime     = $posture.TombstoneLifetime
+        RecycleBinEnabled     = if ($posture) { $posture.RecycleBinEnabled } else { $null }
+        ForestFunctionalLevel = if ($posture) { $posture.ForestFunctionalLevel } else { $null }
+        TombstoneLifetime     = if ($posture) { $posture.TombstoneLifetime } else { $null }
         Generated             = [datetime]::UtcNow
         Freshness             = $freshness
     }
