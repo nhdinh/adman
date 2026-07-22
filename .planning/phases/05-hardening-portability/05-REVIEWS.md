@@ -1,8 +1,8 @@
 ---
 phase: 5
-cycle: 4
+cycle: 5
 reviewers: [codex]
-reviewed_at: 2026-07-22T02:31:45.743Z
+reviewed_at: 2026-07-22T07:00:00Z
 plans_reviewed:
   - 05-01a1-PLAN.md
   - 05-01a2-PLAN.md
@@ -16,152 +16,138 @@ plans_reviewed:
 
 ## Codex Review
 
-### Summary
+## Summary
 
-Phase 5 is directionally strong: it targets the right operational-readiness work without adding AD capability scope. The best parts are the manifest-derived docs/help gates, dual-edition CI proof before changing `CompatiblePSEditions`, and audit hardening tied back to restore workflows. The main problems are executable-plan consistency: some global tests are expected to pass before all globally-covered functions are fixed, one docs test calls a private function as if it were exported, and the audit integrity verifier needs to prove each record’s own hash, not only the link to the next record.
+Overall, the six Phase 5 plans are coherent and mostly well-scoped: they harden the already-implemented functional spine rather than adding AD capability. The strongest parts are the incremental help slices, the manifest/menu-driven docs coverage, and the audit hardening plan. The main risks are around CI/AllSigned proving too little or failing for dependency reasons, documentation tests not proving parameter coverage, and audit hash/rotation edge cases needing sharper contracts.
 
-### 05-01a1: Help Scaffold + Read/Report Help
+## 05-01a1: Help Scaffold + Config/Read/Report Help
 
 **Strengths**
 
-- Correctly derives help coverage from `FunctionsToExport`, which is the real public contract: [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:53).
-- Correctly identifies existing help-placement risk. Current files place help above `Set-StrictMode`, not adjacent to the function, so `Get-Help` will not associate it reliably: [Public/Disable-AdmanUser.ps1](C:/Users/nhdinh/dev/adman/Public/Disable-AdmanUser.ps1:2), [Public/Disable-AdmanUser.ps1](C:/Users/nhdinh/dev/adman/Public/Disable-AdmanUser.ps1:23), [Public/Disable-AdmanUser.ps1](C:/Users/nhdinh/dev/adman/Public/Disable-AdmanUser.ps1:25).
+- The plan correctly targets the explicit export boundary in `adman.psd1:53`, which currently lists 38 public functions.
+- Category-scoped help coverage is a good fit because the public help work is split across three slices.
+- The "inside/adjacent to function, not above `Set-StrictMode`" requirement is important. Current files place help before `Set-StrictMode`, e.g. `Public/Find-AdmanUser.ps1:2`, `Public/Find-AdmanUser.ps1:46`, `Public/Find-AdmanUser.ps1:48`, so the plan addresses a real binding risk.
 
 **Concerns**
 
-- **HIGH:** The plan’s test is global, but Task 2a acceptance expects `Invoke-Pester` to exit with 0 failures before 05-01a2/05-01a3 complete. Since the manifest exports lifecycle, local, group, bulk, and workflow functions too, the test cannot pass after only config/startup/read/report help is fixed: [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:53).
-- **MEDIUM:** Existing public write functions omit `.PARAMETER Force` despite declaring it, so the first global RED will include categories outside this plan: [Public/Disable-AdmanUser.ps1](C:/Users/nhdinh/dev/adman/Public/Disable-AdmanUser.ps1:27).
+- **MEDIUM**: Current public files mostly have `.SYNOPSIS`, `.DESCRIPTION`, and examples, but almost none have `.PARAMETER` blocks. For example, `Public/Find-AdmanUser.ps1:50-56` declares three parameters, while the help block has no `.PARAMETER` entries at `Public/Find-AdmanUser.ps1:2-44`. The plan should frame this as parameter-help completion and relocation, not wholesale help creation.
+- **LOW**: Standalone `Invoke-Pester` for the new help test may fail on a clean dev box unless PSFramework is installed or stubbed. Existing tests often create a PSFramework stub before importing the manifest, e.g. `tests/Module.Manifest.Tests.ps1:12-32`.
 
 **Suggestions**
 
-- Split the test into two modes: a global contract that is allowed to stay red until 05-01a3, plus category-scoped assertions for each slice.
-- Change 05-01a1 acceptance from “0 failures” to “0 failures for the 01a1 command subset; known failures remain for 01a2/01a3.”
+- Parse parameters from `Get-Command` after module import and exclude common/ShouldProcess parameters explicitly.
+- Use a helper in the test for PSFramework stubbing or document that this test assumes the CI bootstrap has installed PSFramework.
 
 **Risk Assessment: MEDIUM**
 
-The implementation goal is good, but the acceptance criteria are internally inconsistent and could block wave completion.
+Mostly straightforward, but comment-based help placement and parameter comparison need careful implementation to avoid false positives/negatives.
 
-### 05-01a2: AD Lifecycle Help
+## 05-01a2: AD User/Computer Lifecycle Help
 
 **Strengths**
 
-- Targets the correct exported AD lifecycle verbs from the manifest: [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:53).
-- Safety-language requirement is appropriate for gate-routed write verbs. Current write help already describes the gate/audit path, so this is polishing rather than inventing new behavior: [Public/Disable-AdmanUser.ps1](C:/Users/nhdinh/dev/adman/Public/Disable-AdmanUser.ps1:6).
+- The slice targets the right lifecycle surface: the manifest exports AD user/computer verbs at `adman.psd1:53`.
+- The help content requirement is aligned with behavior. For example, `Disable-AdmanUser` routes through `Invoke-AdmanMutation` and propagates `-WhatIf` via `$WhatIfPreference` at `Public/Disable-AdmanUser.ps1:42-43`.
 
 **Concerns**
 
-- **HIGH:** The plan says to extend `tests/Help.Coverage.Tests.ps1`, but does not list that file in `files_modified`. Since 05-01a2 and 05-01a3 are both wave 2, this creates a hidden cross-plan conflict.
-- **MEDIUM:** If 05-01a2 adds a global SupportsShouldProcess description assertion, it may fail on 05-01a3 functions before that sibling plan has run.
+- **LOW**: Requiring the words `WhatIf`, `confirm`, and `audit` in `.DESCRIPTION` is useful but brittle. It can pass even if the help omits important parameter-specific behavior like `-Force`, declared at `Public/Disable-AdmanUser.ps1:32`.
 
 **Suggestions**
 
-- Make 05-01a2 depend on 05-01a3 for the global SupportsShouldProcess assertion, or move that assertion into 05-01a1 as a known-red global test.
-- Add `tests/Help.Coverage.Tests.ps1` to `files_modified` if this plan edits it.
+- Keep the keyword assertion, but also require `.PARAMETER Force` for functions declaring `Force`.
+- Add one negative assertion that state-changing help must not claim `-Force` bypasses safety/audit gates.
+
+**Risk Assessment: LOW**
+
+Good scope and dependency ordering. Main risk is test brittleness, not implementation complexity.
+
+## 05-01a3: Local/Group/Bulk/Workflow Help
+
+**Strengths**
+
+- The dependency on `05-03` is correct because restore help must describe rotated audit/archive lookup.
+- Bulk help has concrete behavior to document: cap enforcement happens after filtering at `Public/Invoke-AdmanBulkAction.ps1:209-210`, and typed confirmation is built at `Public/Invoke-AdmanBulkAction.ps1:212-229`.
+
+**Concerns**
+
+- **MEDIUM**: The restore plan depends on archive lookup that does not exist today. Current restore state search only reads live top-level `audit-*.jsonl` files under `AuditDir` at `Private/Workflow/Get-AdmanOffboardingState.ps1:45-47`.
+
+**Suggestions**
+
+- Gate the restore-help assertion on the actual helper/function added by `05-03`, not just text mentioning archives.
+- Include examples for both direct calls and TUI-driven workflows where applicable.
 
 **Risk Assessment: MEDIUM**
 
-Low functional risk, but medium execution risk from parallel test edits and global assertions.
+Good plan, but it is coupled to `05-03`; if archive discovery changes shape, this slice must adapt.
 
-### 05-01a3: Local/Group/Bulk/Workflow Help
-
-**Strengths**
-
-- Covers the remaining exported write surface, including bulk/workflow verbs: [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:53).
-- Correctly calls out restore-state documentation, which matters because restore reads audit records: [Public/Restore-AdmanQuarantinedUser.ps1](C:/Users/nhdinh/dev/adman/Public/Restore-AdmanQuarantinedUser.ps1:88).
-
-**Concerns**
-
-- **MEDIUM:** Restore help is required to describe archive search behavior implemented in 05-03, but this plan depends only on 05-01a1. Wave ordering may cover it, but explicit `depends_on: 05-03` would better reflect the code dependency.
-- **LOW:** Bulk examples should avoid live-looking OU paths. Current example uses `OU=Leavers,OU=Managed,DC=contoso,DC=local`, which is a placeholder but can still look deployable: [Public/Invoke-AdmanBulkAction.ps1](C:/Users/nhdinh/dev/adman/Public/Invoke-AdmanBulkAction.ps1:31).
-
-**Suggestions**
-
-- Add explicit dependency on 05-03, or phrase restore archive help as “after Phase 5 audit rotation is installed.”
-- Standardize examples on obviously fake `contoso.local` values and no realistic secrets.
-
-**Risk Assessment: LOW-MEDIUM**
-
-The slice is straightforward, with only coordination risk around 05-03 behavior.
-
-### 05-01b: README, Usage, Recovery Runbook
+## 05-01b: README, Usage Guide, Recovery Runbook
 
 **Strengths**
 
-- Accurately targets stale README content. The current README still says Phase 0 only and `Start-Adman` is a stub: [README.md](C:/Users/nhdinh/dev/adman/README.md:5), [README.md](C:/Users/nhdinh/dev/adman/README.md:71).
-- Good source-of-truth choices: menu docs from `Get-AdmanMenuDefinition`, exported function docs from `adman.psd1`.
+- The plan uses the right sources of truth: menu labels and verbs live in `Private/Menu/Get-AdmanMenuDefinition.ps1:105-420`, and exported functions live in `adman.psd1:53`.
+- The README is clearly stale today: it says only Phase 0 works at `README.md:27-39`, while the project context says Phases 1-4 are validated.
 
 **Concerns**
 
-- **HIGH:** `Get-AdmanMenuDefinition` is private, and the plan’s docs test says to import the manifest and call it. The module exports Public files only: [adman.psm1](C:/Users/nhdinh/dev/adman/adman.psm1:48). Existing tests dot-source the private menu file before calling it: [tests/Menu.Tests.ps1](C:/Users/nhdinh/dev/adman/tests/Menu.Tests.ps1:115).
-- **MEDIUM:** The docs coverage test requirement “every PromptSpec field represented” may be brittle unless it serializes menu entries deterministically. PromptSpec has optional fields like `Type`, `Choices`, and `Kind`: [Private/Menu/Get-AdmanMenuDefinition.ps1](C:/Users/nhdinh/dev/adman/Private/Menu/Get-AdmanMenuDefinition.ps1:18).
+- **MEDIUM**: The proposed `Docs.Coverage.Tests.ps1` only asserts menu labels and exported function names appear. DOC-02 requires coverage of parameterized functions with examples, and parameters are real contracts, e.g. `Find-AdmanUser` declares `Name`, `SamAccountName`, and `DisplayName` at `Public/Find-AdmanUser.ps1:50-56`.
+- **LOW**: Accessing private `Get-AdmanMenuDefinition` through module scope is viable, but the plan should use the established pattern shown in tests like `tests/Audit.Schema.Tests.ps1:80-84`.
 
 **Suggestions**
 
-- In `tests/Docs.Coverage.Tests.ps1`, dot-source `Private/Menu/Get-AdmanMenuDefinition.ps1` like `tests/Menu.Tests.ps1` does.
-- Generate or embed a normalized markdown table from the menu definition to reduce drift and test fragility.
+- Extend docs coverage to assert every non-common public parameter name appears near that function's section in `docs/USAGE.md`.
+- Assert `.store/` portability and DPAPI-bound credential limitations separately, since `.gitignore` only blocks `.store/` by convention today at `.gitignore:1-2`.
 
 **Risk Assessment: MEDIUM**
 
-The docs goals are solid, but the planned test will fail unless it handles private function visibility.
+The docs work is necessary and well-targeted, but the tests as described under-prove DOC-02.
 
-### 05-02: Dual Edition + Signing
+## 05-02: Dual Edition + Signing + CI
 
 **Strengths**
 
-- Correctly keeps `CompatiblePSEditions` Desktop-only until CI proof exists: [adman.psd1](C:/Users/nhdinh/dev/adman/adman.psd1:37).
-- Correctly updates stale Pester config comments; current file says 5.1 should use the quick run: [tests/PesterConfiguration.psd1](C:/Users/nhdinh/dev/adman/tests/PesterConfiguration.psd1:8).
-- Good `.store` CI scan choice. The repo can have ignored local `.store/` present without it being tracked: `.gitignore` ignores it at [.gitignore](C:/Users/nhdinh/dev/adman/.gitignore:2).
+- The plan correctly preserves the "honest Core claim" rule. Today the manifest is Desktop-only at `adman.psd1:18-19`.
+- The AllSigned approach matches the loader: `adman.psm1` dot-sources every private/public `.ps1` file at `adman.psm1:40-45`, so signing all module `.ps1/.psm1/.psd1` files is necessary.
+- Removing the stale Pester comment is valid; `tests/PesterConfiguration.psd1:6-8` currently says 5.1 should use the quick run.
 
 **Concerns**
 
-- **MEDIUM:** `build/Sign-AdmanModule.ps1` excludes tests, but the full Pester configuration includes code coverage over `Public/*.ps1` and `Private/*.ps1`: [tests/PesterConfiguration.psd1](C:/Users/nhdinh/dev/adman/tests/PesterConfiguration.psd1:21). Reverting execution policy before Pester is correct and should be kept non-negotiable.
-- **LOW:** The workflow pins `7.6.4`. That is good for reproducibility, but the plan should say how/when the patch pin is updated.
+- **MEDIUM**: The AllSigned smoke test may be affected by external required modules. `adman.psd1:43-48` requires PSFramework 1.14.457, but the signing plan signs files under this module root, not PSFramework. CI should explicitly prove the dependency import path is signed/trusted or handle it intentionally.
+- **MEDIUM**: The plan says the workflow runs "identical lint/help/unit suite" in both legs, but AllSigned must be reverted before unsigned tests run. That sequencing needs to be explicit in the workflow because tests are excluded from signing.
 
 **Suggestions**
 
-- Add a CI syntax validation step for the workflow if available, or at least make the YAML shell selection explicit per step.
-- Add a short note that PS 7.6 patch bumps are maintenance changes, not feature work.
+- Add a CI assertion that `Import-Module ./adman.psd1` under AllSigned imports both adman and PSFramework successfully.
+- Keep `CompatiblePSEditions=@('Desktop','Core')` as the final file edit in the slice, after workflow/signing script validation.
 
 **Risk Assessment: MEDIUM**
 
-CI/signing has natural environment risk, but the plan is mostly well-scoped and technically coherent.
+This is the most environment-sensitive plan. It can achieve the phase goal, but CI/signing details need exact sequencing.
 
-### 05-03: Audit Hardening + Commit Guard
+## 05-03: Audit Hardening + Commit Guard
 
 **Strengths**
 
-- Correctly integrates with the existing mutex-protected audit writer. Current append path already holds the mutex across path selection, record creation, stream open, write, and flush: [Private/Audit/Write-AdmanAudit.ps1](C:/Users/nhdinh/dev/adman/Private/Audit/Write-AdmanAudit.ps1:59), [Private/Audit/Write-AdmanAudit.ps1](C:/Users/nhdinh/dev/adman/Private/Audit/Write-AdmanAudit.ps1:168).
-- Good migration plan: existing config validation is schema-required-key driven, so seeding `audit.retentionDays` before validation is necessary: [Private/Config/Initialize-AdmanConfig.ps1](C:/Users/nhdinh/dev/adman/Private/Config/Initialize-AdmanConfig.ps1:116).
-- Correctly extends restore lookup; current implementation only searches top-level `audit-*.jsonl`, not archives: [Private/Workflow/Get-AdmanOffboardingState.ps1](C:/Users/nhdinh/dev/adman/Private/Workflow/Get-AdmanOffboardingState.ps1:45).
+- The plan builds on a solid audit writer: writes already occur under the `Global\adman-audit` mutex at `Private/Audit/Write-AdmanAudit.ps1:59-76`, record construction is centralized at `Private/Audit/Write-AdmanAudit.ps1:138-168`, and durable flush happens at `Private/Audit/Write-AdmanAudit.ps1:176-178`.
+- Event Log escalation already exists for OUTCOME write failure at `Private/Audit/Write-AdmanAudit.ps1:207-211`, and current tests prove that path via mocking at `tests/Audit.FailClosed.Tests.ps1:178-196`.
+- The `.store/` pre-commit guard addresses a real bypass gap: `.gitignore` ignores `.store/` at `.gitignore:1-2`, but forced adds are still possible.
 
 **Concerns**
 
-- **HIGH:** The integrity plan verifies `prevHash` links, but does not clearly verify that each record’s own `hash` matches that record’s current canonical bytes. A tamper of the last record would not be detected by a “next record prevHash” check. The current writer serializes one full JSON record per line, so the verifier should check each line’s self-hash directly: [Private/Audit/Write-AdmanAudit.ps1](C:/Users/nhdinh/dev/adman/Private/Audit/Write-AdmanAudit.ps1:168).
-- **MEDIUM:** The plan text is inconsistent about canonical JSON: one section says exclude `hash` and `prevHash`; another says exclude only `hash`. Pick one invariant. Best invariant: `hash = SHA256(record excluding hash)`, which includes `prevHash`, and verifier checks both `record.hash` and chain linkage.
-- **LOW:** Existing schema tests enforce an exact key set and must be updated carefully. Current expected D-03 keys exclude `hash` and `prevHash`: [tests/Audit.Schema.Tests.ps1](C:/Users/nhdinh/dev/adman/tests/Audit.Schema.Tests.ps1:55).
+- **HIGH**: Archive restore behavior is a real implementation dependency. Current `Get-AdmanOffboardingState` only scans live audit files directly under `AuditDir` and does not recurse into archives at `Private/Workflow/Get-AdmanOffboardingState.ps1:45-47`. The plan covers this, but it should specify the exact archive search helper/path ordering to avoid restore regressions.
+- **MEDIUM**: Adding `audit.retentionDays` requires schema/default/config migration changes in three places. Today defaults have no `audit` block at `config/adman.defaults.json:29-30`, schema has no `audit` property at `config/adman.schema.json:107-116`, and validation has no retention check at `Private/Config/Initialize-AdmanConfig.ps1:131-188`.
+- **MEDIUM**: Hash canonicalization must be nailed down. Current records are `[ordered]` before `ConvertTo-Json -Compress -Depth 5` at `Private/Audit/Write-AdmanAudit.ps1:138` and `Private/Audit/Write-AdmanAudit.ps1:168`; integrity verification must use the same canonicalization rule or valid records may fail verification.
 
 **Suggestions**
 
-- Define two explicit verifier checks:
-  - `record.hash == SHA256(canonical(record without hash))`
-  - `record.prevHash == previousRecord.hash`, with zero sentinel on first record
-- Add a test that tampers only the final line and expects `Valid = $false`.
-- Make archive search deterministic by sorting live and archived audit files before scanning.
+- Define one private helper that returns audit search roots: live `AuditDir` plus `AuditDir/archive/*`, and use it from both integrity and offboarding-state code.
+- Add tests for empty file, first record of day, corrupt line in archive, and tampered `prevHash`.
+- Make `.githooks/pre-commit` check `git diff --cached --name-only -- .store/` so it catches forced staged paths.
 
 **Risk Assessment: HIGH**
 
-This is the highest-risk plan because audit tamper-evidence is a core safety claim. The plan is close, but the verifier must detect last-record tampering.
-
-### Overall Suggestions
-
-- Fix the help-plan dependency model before execution: global contract tests should be either known-red until all slices finish or category-scoped per slice.
-- Make private-function test access explicit anywhere tests use `Get-AdmanMenuDefinition`.
-- Strengthen audit integrity semantics and tests before implementation.
-- Keep phase scope as-is. Do not add AD features in Phase 5.
-
-### Overall Risk Assessment: MEDIUM
-
-The phase goals are achievable and well-aligned with operational readiness. Risk is not from scope creep; it is from a few plan mechanics that would cause false failures or weaker-than-claimed audit verification. The audit verifier issue should be fixed before implementation.
+This touches safety-critical audit records and restore behavior. The plan is directionally right, but correctness depends on precise canonicalization, migration, and archive discovery semantics.
 
 ---
 
@@ -179,17 +165,17 @@ Only Codex was invoked for this cycle. Its findings stand as the consensus.
 
 ### Agreed Concerns
 
-- **HIGH — 05-01a1:** Global help-coverage test is expected to pass in Task 2a before 05-01a2/05-01a3 have fixed the rest of the exported surface. Acceptance criteria should allow the test to remain red until all help slices complete, or the test should be category-scoped per slice.
-- **HIGH — 05-01a2:** The plan edits `tests/Help.Coverage.Tests.ps1` but does not list it in `files_modified`, creating a hidden cross-plan conflict with 05-01a3.
-- **HIGH — 05-01b:** `tests/Docs.Coverage.Tests.ps1` is planned to call `Get-AdmanMenuDefinition` after a plain manifest import, but the function is private. The test must dot-source the private file or access it through module scope.
-- **HIGH — 05-03:** `Get-AdmanAuditIntegrity` must verify each record’s own `hash` against the canonical record bytes, not only the `prevHash` chain. Otherwise tampering the last record of the day goes undetected.
-- **MEDIUM — 05-01a2:** A global SupportsShouldProcess description assertion added here could fail on 05-01a3 functions before that sibling plan runs. Coordinate the assertion scope or dependency ordering.
-- **MEDIUM — 05-01a3:** Restore help depends on archive-search behavior implemented in 05-03, but `depends_on` only lists 05-01a1. Add 05-03 to the dependency list or qualify the help text.
-- **MEDIUM — 05-01b:** Requiring every PromptSpec field to be represented in the docs test may be brittle because PromptSpec has optional fields (`Type`, `Choices`, `Kind`). Define a deterministic serialization rule or relax the assertion.
-- **MEDIUM — 05-03:** The plan text gives two different rules for canonical JSON used in hash computation (exclude `hash` only vs. exclude `hash` and `prevHash`). Pick one invariant and use a shared helper for writer and verifier.
-- **LOW — 05-01a3:** Bulk/workflow help examples should use obviously fake placeholders; the current `OU=Leavers,OU=Managed,DC=contoso,DC=local` example can look deployable.
-- **LOW — 05-02:** The CI workflow pins PowerShell 7.6.4 but does not document the update cadence for patch bumps.
+- **HIGH — 05-03:** `Get-AdmanAuditIntegrity` must verify each record's own `hash` against the canonical record bytes, not only the `prevHash` chain. Otherwise tampering the last record of the day goes undetected. *(Plan 05-03 already requires self-hash verification and a final-line tampering test; the concern is acknowledged and the plan should ensure the verifier contract is implemented exactly as specified.)*
+- **MEDIUM — 05-01b:** The proposed `Docs.Coverage.Tests.ps1` only asserts menu labels and exported function names appear. DOC-02 requires parameterized functions to be documented with examples, and the test should also verify that every non-common public parameter name appears near that function's section in `docs/USAGE.md`.
+- **MEDIUM — 05-01a3:** Restore help depends on archive-search behavior implemented in `05-03`. The plan already lists `05-03` as a dependency, but the exact archive search helper/path ordering should be spelled out to avoid restore regressions.
+- **MEDIUM — 05-02:** AllSigned smoke testing must explicitly handle the unsigned/trusted status of the `PSFramework` required module, and the workflow must clearly sequence the AllSigned smoke step before reverting execution policy for unsigned Pester tests. *(Plan 05-02 already addresses both with a signed CI stub and explicit policy revert; confirm during implementation.)*
+- **LOW — 05-01a2:** The `.DESCRIPTION` keyword assertion (`WhatIf`, `confirm`, `audit`) is useful but brittle; consider also requiring `.PARAMETER Force` help for functions that declare `Force`, and add a negative assertion that help text must not claim `-Force` bypasses safety or audit gates.
+- **LOW — 05-01b:** Accessing private `Get-AdmanMenuDefinition` through module scope is viable; ensure the test uses the same `& (Get-Module adman) { ... }` pattern already used elsewhere in the test suite.
 
 ### Divergent Views
 
 None — only Codex provided a review in this cycle.
+
+### Verification coverage
+
+Reviewer had read-only sandbox access to `C:/Users/nhdinh/dev/adman` and cited specific file/line evidence.
