@@ -86,7 +86,12 @@ if (-not $files) {
 
 foreach ($file in $files) {
     if ($PSCmdlet.ShouldProcess($file.FullName, 'Set-AuthenticodeSignature')) {
-        $result = Set-AuthenticodeSignature -FilePath $file.FullName -Certificate $cert -HashAlgorithm SHA256
+        # WR-01 fix: timestamp the signature so it remains valid after the signing cert expires.
+        $result = Set-AuthenticodeSignature `
+            -FilePath $file.FullName `
+            -Certificate $cert `
+            -HashAlgorithm SHA256 `
+            -TimestampServer 'http://timestamp.digicert.com'
         if ($result.Status -ne 'Valid') {
             throw "Signing failed for $($file.FullName): $($result.StatusMessage)"
         }
