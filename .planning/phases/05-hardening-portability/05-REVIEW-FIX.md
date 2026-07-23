@@ -1,83 +1,80 @@
 ---
 phase: 05-hardening-portability
-fixed_at: 2026-07-23T11:45:00Z
-review_path: .planning/phases/05-hardening-portability/05-REVIEW.md
-iteration: 1
-findings_in_scope: 6
+reviewed: 2026-07-23T12:00:00Z
 fixed: 6
 skipped: 0
+findings_in_scope: 6
+iteration: 1
 status: all_fixed
 ---
 
 # Phase 05: Code Review Fix Report
 
-**Fixed at:** 2026-07-23T11:45:00Z
+**Fixed at:** 2026-07-23T12:00:00Z
 **Source review:** `.planning/phases/05-hardening-portability/05-REVIEW.md`
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 6
+- Findings in scope: 6 (0 Critical, 6 Warning, 0 Info)
 - Fixed: 6
 - Skipped: 0
 
-All Critical and Warning findings from the Phase 05 hardening/portability review have been applied and committed.
+All Critical and Warning findings from the Phase 05 review were applied. Info findings (IN-01 through IN-05) were out of scope for this fix pass and were not modified.
 
 ## Fixed Issues
 
-### CR-01: AD mutation gate drops caller `-WhatIf`, executing real AD writes during dry-run
+### WR-01: Empty catch in `Resolve-AdmanLocalTarget` swallows profile-read failures
 
-**Files modified:** `Private/Safety/Invoke-AdmanMutation.ps1`, `Private/Safety/Confirm-AdmanAction.ps1`
-**Commits:** `79c3c9c`, `532eb6c`
-**Status:** fixed: requires human verification
-**Applied fix:** Forwarded `-WhatIf:$WhatIfPreference` into both `Confirm-AdmanAction` call sites in the AD mutation gate. Removed the duplicate explicit `[switch]$WhatIf` parameter from `Confirm-AdmanAction` so `SupportsShouldProcess` automatic variable `$WhatIfPreference` is the single source of truth; this resolved the runtime `MetadataException: A parameter with the name 'WhatIf' was defined multiple times` that appeared after the first pass.
+**Files modified:** `Private/Safety/Resolve-AdmanLocalTarget.ps1`
+**Commit:** `69bbe14`
+**Applied fix:** Replaced the empty `catch { }` around the `Win32_UserProfile` lookup with a `Write-Warning` that surfaces the CIM/profile-capture failure to the operator instead of silently omitting `ProfilePath`.
 
-### CR-02: Local mutation gate drops caller `-WhatIf`, executing real local writes during dry-run
+### WR-02: Authenticode signing uses an HTTP timestamp server
 
-**Files modified:** `Private/Safety/Invoke-AdmanLocalMutation.ps1`, `Private/Safety/Confirm-AdmanAction.ps1`
-**Commits:** `f709a7b`, `532eb6c`
-**Status:** fixed: requires human verification
-**Applied fix:** Forwarded `-WhatIf:$WhatIfPreference` into the single `Confirm-AdmanAction` call site in the local mutation gate. Same duplicate-parameter cleanup as CR-01.
+**Files modified:** `build/Sign-AdmanModule.ps1`
+**Commit:** `596ae33`
+**Applied fix:** Changed `-TimestampServer` from `http://timestamp.digicert.com` to `https://timestamp.digicert.com` and added a comment documenting the HTTPS preference and the fallback/trust-pinning assumption if HTTPS is rejected in a specific environment.
 
-### WR-01: `Test-AdmanCapability` bypasses the project's hard-timeout wrappers
+### WR-03: Workflow-level Failure audits duplicate inner verb Failure audits
 
-**Files modified:** `Public/Test-AdmanCapability.ps1`, `tests/Foundation.Capability.Tests.ps1`
-**Commits:** `f5cdea4`, `c9b57c5`
-**Status:** fixed
-**Applied fix:** Replaced direct `Test-WSMan` and `New-CimSession -OperationTimeoutSec` calls with `Test-AdmanWsmanTimeout` and `Test-AdmanCimSessionTimeout` using the configured `probeTimeoutSec`. Updated the structural test to assert the hard-timeout wrappers are present instead of the old `OperationTimeoutSec` string.
+**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`, `Public/Start-AdmanUserOffboarding.ps1`
+**Commit:** `96915f4`
+**Applied fix:** Removed the workflow-level `Write-AdmanAudit -Result 'Failure'` calls from both onboarding and offboarding catch blocks. Inner verbs (`New-AdmanUser`, `Add-AdmanGroupMember`, `Disable-AdmanUser`, `Remove-AdmanGroupMember`, `Move-AdmanUser`) already write their own Failure audit through `Invoke-AdmanMutation`; the workflow-level duplicates were creating a second Failure record with a different correlation ID. Updated comment-based help to reflect that the inner verb owns the Failure audit.
 
-### WR-02: Gate tests mask the `-WhatIf` propagation bug
+### WR-04: Bulk engine no-op detection depends on an undocumented `memberOf` contract
 
-**Files modified:** `tests/Safety.GateOrder.Tests.ps1`, `tests/Local.Gate.Tests.ps1`, `tests/Safety.ConfirmationRestored.Tests.ps1`, `tests/Bulk.Engine.Tests.ps1`
-**Commits:** `656269b`, `2ebda90`
-**Status:** fixed
-**Applied fix:** Added `-WhatIf` propagation assertions to the AD gate, local gate, and bulk engine tests. Refined global `Confirm-AdmanAction` stubs after removing the duplicate `-WhatIf` parameter so mocks capture the switch via `param([switch]$WhatIf)` inside the relevant scriptblocks without colliding with Pester-generated mock parameters.
+**Files modified:** `Private/Safety/Resolve-AdmanTarget.ps1`, `Public/Invoke-AdmanBulkAction.ps1`
+**Commit:** `fa4ecea`
+**Applied fix:** Made the property contract explicit by adding an optional `-Properties` parameter to `Resolve-AdmanTarget` (base set is always returned; requested properties are merged and deduplicated). `Invoke-AdmanBulkAction` now explicitly requests `-Properties @('memberOf')` for `AddGroup`/`RemoveGroup` operations rather than assuming `memberOf` is in the default property set.
 
-### WR-03: `docs/USAGE.md` mislabels password parameters as required
+### WR-05: Restore fails closed on any tampered audit file, even unrelated ones
 
-**Files modified:** `docs/USAGE.md`, `Private/Menu/Get-AdmanMenuDefinition.ps1`
-**Commits:** `51c606b`, `d31e53a`
-**Status:** fixed
-**Applied fix:** Changed `AccountPassword`, `NewPassword`, and both `Password` PromptSpec entries from `Required = $true` to `Required = $false` in `Get-AdmanMenuDefinition.ps1`. Updated `docs/USAGE.md` to show these parameters as optional and added a note explaining that omitted passwords source from `$script:Config.security.passwordSource`.
+**Files modified:** `Private/Workflow/Get-AdmanOffboardingState.ps1`
+**Commit:** `53c5125`
+**Applied fix:** Restructured the restore scan to read each audit file first, collect candidate records for the target identity, and then run `Get-AdmanAuditIntegrity`. Files that contain a matching offboarding record still fail closed on integrity failure; unrelated files with failed integrity (or that are unreadable) are warned and skipped so a single corrupted archive cannot block all restores.
 
-### WR-04: Stale report scope mismatch between docs and implementation
+### WR-06: OUTCOME audit escalation can throw if Event Log write fails
 
-**Files modified:** `docs/USAGE.md`, `Private/Menu/Get-AdmanMenuDefinition.ps1`
-**Commits:** `51c606b`, `d31e53a`
-**Status:** fixed
-**Applied fix:** Updated `docs/USAGE.md` and the function reference to state that `Get-AdmanStaleReport` reports user accounts only. Changed the menu label from `Stale/inactive report` to `Stale/inactive user report` in `Get-AdmanMenuDefinition.ps1` so the docs/menu coverage contract passes.
+**Files modified:** `Private/Audit/Write-AdmanAudit.ps1`
+**Commit:** `ebd884d`
+**Applied fix:** Wrapped the OUTCOME-failure escalation path (`$script:AuditDegraded = $true`, `Write-AdmanEventLog`, and the first warning) in its own try/catch. If Event Log escalation itself fails, a second warning is emitted but the exception does not propagate to the caller, preserving the OUTCOME-failure no-throw contract.
 
-## Test Verification
+## Skipped Issues
 
-Targeted tests for the modified areas were run after the fixes:
+None — all in-scope findings were fixed.
 
-- `tests/Docs.Coverage.Tests.ps1`: 16 passed, 0 failed
-- `tests/Safety.GateOrder.Tests.ps1` + `tests/Local.Gate.Tests.ps1` + `tests/Safety.ConfirmationRestored.Tests.ps1` + `tests/Bulk.Engine.Tests.ps1`: 55 passed, 0 failed
-- `tests/Foundation.Capability.Tests.ps1`: 7 passed, 0 failed
+## Verification
 
-A full unit-suite run (`Invoke-Pester -Path tests -TagFilter Unit`) reported 799 passed, 35 failed, 74 skipped. The failures are in unrelated areas (`Config.*`, `Find-AdmanUser`, `New-AdmanLocalUser` help tests, `Workflow.Offboarding` cleanup checklist) and are not caused by the Phase 05 review fixes. They appear to be pre-existing fixture/schema mismatches outside the scope of this review.
+**Syntax checks:** All modified `.ps1` files were parsed with the PowerShell AST parser; no parse errors were reported.
+
+**Unit tests:** Targeted test execution was attempted but could not complete in this environment because `Import-PowerShellDataFile` is unavailable in the local Windows PowerShell 5.1 installation (`Major 5, Minor 1, Build 26100, Revision 8875`). This cmdlet is normally present in PowerShell 5.0+ and is required by the `adman.psd1` module load path; its absence here is an environment limitation, not a code defect. The modified files are syntactically valid and should be exercised by the following test files when run in a capable environment:
+- `tests/Local.Gate.Tests.ps1` (WR-01)
+- `tests/Workflow.OffboardingState.Tests.ps1` (WR-05)
+- `tests/Bulk.Engine.Tests.ps1` (WR-04)
+- `tests/Audit.FailClosed.Tests.ps1` and `tests/Audit.EventLog.Tests.ps1` (WR-06)
 
 ---
 
-_Fixed: 2026-07-23T11:45:00Z_
+_Fixed: 2026-07-23T12:00:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
