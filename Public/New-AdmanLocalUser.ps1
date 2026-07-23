@@ -61,7 +61,7 @@ function New-AdmanLocalUser {
         # Read-AdmanActionParams; Start-Adman splats it into this parameter. Without
         # the declared parameter the splat throws "parameter cannot be found".
         [Parameter()]
-        [ValidateSet('Generate', 'Prompt')]
+        [ValidateSet('Generate', 'Prompt', 'Ask')]
         [string]$PasswordSource,
 
         [string]$ComputerName,
