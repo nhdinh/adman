@@ -155,7 +155,7 @@ function Start-AdmanUserOffboarding {
     }
 
     # Single outer confirmation for the whole workflow (FLOW-02).
-    $confirm = Confirm-AdmanAction -Verb 'Start-AdmanUserOffboarding' -Targets @($user) -Force:$Force
+    $confirm = Confirm-AdmanAction -Verb 'Start-AdmanUserOffboarding' -Targets @($user) -Force:$Force -WhatIf:$WhatIfPreference
     if ($confirm.Outcome -eq 'Declined') {
         throw 'Operator declined.'
     }

@@ -243,6 +243,7 @@ function Invoke-AdmanBulkAction {
                     Targets           = $allowed.ToArray()
                     RequireTypedCount = $true
                     Force             = $Force
+                    WhatIf            = $WhatIfPreference
                 }
                 if ($Action -in @('AddGroup', 'RemoveGroup')) {
                     $groupDns = @($allowed | ForEach-Object { $_.ResolvedGroup.DistinguishedName } | Select-Object -Unique)

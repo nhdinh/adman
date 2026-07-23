@@ -140,7 +140,7 @@ function Start-AdmanUserOnboarding {
     }
 
     # Single outer confirmation for the whole workflow (FLOW-01).
-    $confirm = Confirm-AdmanAction -Verb 'Start-AdmanUserOnboarding' -Targets @($sam) -Force:$Force
+    $confirm = Confirm-AdmanAction -Verb 'Start-AdmanUserOnboarding' -Targets @($sam) -Force:$Force -WhatIf:$WhatIfPreference
     if ($confirm.Outcome -eq 'Declined') {
         throw 'Operator declined.'
     }

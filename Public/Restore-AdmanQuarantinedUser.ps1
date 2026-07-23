@@ -114,7 +114,7 @@ function Restore-AdmanQuarantinedUser {
     }
 
     # Single outer confirmation for the whole workflow (FLOW-03).
-    $confirm = Confirm-AdmanAction -Verb 'Restore-AdmanQuarantinedUser' -Targets @($user) -Force:$Force
+    $confirm = Confirm-AdmanAction -Verb 'Restore-AdmanQuarantinedUser' -Targets @($user) -Force:$Force -WhatIf:$WhatIfPreference
     if ($confirm.Outcome -eq 'Declined') {
         throw 'Operator declined.'
     }
