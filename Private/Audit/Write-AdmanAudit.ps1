@@ -53,28 +53,29 @@ function Write-AdmanAudit {
     )
 
     # Acquire the named mutex via the seam (the cross-writer serialization point).
-    # CR-04 fix: New-AdmanAuditMutex may itself throw (returning $null); guard the
-    # WaitOne/ReleaseMutex/Dispose calls against $null so a mutex-acquisition failure
-    # surfaces the original error rather than a secondary NullReferenceException.
-    $mutex = New-AdmanAuditMutex
-    if ($null -eq $mutex) {
-        throw "AUDIT FAIL-CLOSED: cannot acquire audit mutex; refusing $Verb."
-    }
-    # WR-02 fix: bound the WaitOne with a 30-second timeout so a hung/zombie peer process
-    # cannot block all subsequent audit writes indefinitely. Fail-closed on timeout so the
-    # mutation never executes without its audit record.
-    $acquired = $false
+    # CR-01 fix: the entire acquisition sequence (seam creation, null check, WaitOne) is
+    # inside the same try block as the record write so a mutex-acquisition failure is
+    # caught by the SAFE-04 fail-closed handler instead of propagating as a raw seam error.
+    $mutex = $null
     try {
-        $acquired = $mutex.WaitOne([timespan]::FromSeconds(30))
-    } catch [System.Threading.AbandonedMutexException] {
-        # Abandoned by a crashed peer - we now own it; treat as acquired.
-        $acquired = $true
-    }
-    if (-not $acquired) {
-        try { $mutex.Dispose() } catch { }
-        throw "AUDIT FAIL-CLOSED: timed out acquiring audit mutex after 30s; refusing $Verb."
-    }
-    try {
+        $mutex = New-AdmanAuditMutex
+        if ($null -eq $mutex) {
+            throw "AUDIT FAIL-CLOSED: cannot acquire audit mutex; refusing $Verb."
+        }
+        # WR-02 fix: bound the WaitOne with a 30-second timeout so a hung/zombie peer process
+        # cannot block all subsequent audit writes indefinitely. Fail-closed on timeout so the
+        # mutation never executes without its audit record.
+        $acquired = $false
+        try {
+            $acquired = $mutex.WaitOne([timespan]::FromSeconds(30))
+        } catch [System.Threading.AbandonedMutexException] {
+            # Abandoned by a crashed peer - we now own it; treat as acquired.
+            $acquired = $true
+        }
+        if (-not $acquired) {
+            try { $mutex.Dispose() } catch { }
+            throw "AUDIT FAIL-CLOSED: timed out acquiring audit mutex after 30s; refusing $Verb."
+        }
         $nowUtc = (Get-Date).ToUniversalTime()
         $path = Join-Path $script:Config.AuditDir ("audit-{0:yyyyMMdd}.jsonl" -f $nowUtc)
         if (-not (Test-Path -LiteralPath $script:Config.AuditDir)) {
