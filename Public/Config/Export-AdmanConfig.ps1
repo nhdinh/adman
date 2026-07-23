@@ -39,8 +39,21 @@ function Export-AdmanConfig {
         if ($parent -and -not (Test-Path -LiteralPath $parent)) {
             New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null
         }
+
+        # WR-04 fix: the in-memory config has had its paths absolutized against the module root
+        # during load. For a portable export, relativize AuditDir and ReportDir back to the
+        # module root before serialization so the backup can be imported on another host.
+        $exportCfg = $script:Config | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+        $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        foreach ($key in @('AuditDir', 'ReportDir')) {
+            $p = $exportCfg.$key
+            if ($p -is [string] -and $p.StartsWith($moduleRoot)) {
+                $exportCfg.$key = $p.Substring($moduleRoot.Length).TrimStart('\', '/')
+            }
+        }
+
         # Authoritative CONF-03 plain-JSON write (the loader parses THIS file).
-        $json = ConvertTo-Json -InputObject $script:Config -Depth 5
+        $json = ConvertTo-Json -InputObject $exportCfg -Depth 5
         Set-Content -LiteralPath $Path -Value $json -Encoding UTF8 -ErrorAction Stop
 
         # D-01 backbone mirror (best-effort; sibling extension, never the safety file).
