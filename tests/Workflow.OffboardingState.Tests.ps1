@@ -38,6 +38,10 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
 }
 
+AfterAll {
+    Remove-Item -Path Function:\Resolve-AdmanTarget -ErrorAction SilentlyContinue
+}
+
 Describe 'FLOW-03 / D-05: Get-AdmanOffboardingState searches archived audit files' -Tag 'Unit' {
 
     It 'finds an offboarding record that has been rotated into archive\YYYYMM' {
