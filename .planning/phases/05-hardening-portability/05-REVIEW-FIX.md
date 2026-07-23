@@ -1,80 +1,103 @@
 ---
 phase: 05-hardening-portability
-reviewed: 2026-07-23T12:00:00Z
-fixed: 6
-skipped: 0
-findings_in_scope: 6
+fixed_at: 2026-07-23T18:25:00Z
+review_path: .planning/phases/05-hardening-portability/05-REVIEW.md
 iteration: 1
-status: all_fixed
+findings_in_scope: 12
+fixed: 11
+skipped: 1
+status: partial
 ---
 
 # Phase 05: Code Review Fix Report
 
-**Fixed at:** 2026-07-23T12:00:00Z
-**Source review:** `.planning/phases/05-hardening-portability/05-REVIEW.md`
+**Fixed at:** 2026-07-23T18:25:00Z
+**Source review:** .planning/phases/05-hardening-portability/05-REVIEW.md
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 6 (0 Critical, 6 Warning, 0 Info)
-- Fixed: 6
-- Skipped: 0
-
-All Critical and Warning findings from the Phase 05 review were applied. Info findings (IN-01 through IN-05) were out of scope for this fix pass and were not modified.
+- Findings in scope: 12
+- Fixed: 11
+- Skipped: 1
 
 ## Fixed Issues
 
-### WR-01: Empty catch in `Resolve-AdmanLocalTarget` swallows profile-read failures
+### CR-01: `Set-AdmanUserPassword` can lose the generated password on partial success
 
-**Files modified:** `Private/Safety/Resolve-AdmanLocalTarget.ps1`
-**Commit:** `69bbe14`
-**Applied fix:** Replaced the empty `catch { }` around the `Win32_UserProfile` lookup with a `Write-Warning` that surfaces the CIM/profile-capture failure to the operator instead of silently omitting `ProfilePath`.
+**Files modified:** `Public/Set-AdmanUserPassword.ps1`
+**Commit:** `ea7e6de`
+**Applied fix:** Moved the generated-password display block to immediately after the successful `Set-ADAccountPassword` gate call, before the `Set-ADUser` and optional `Unlock-ADAccount` sub-operations can fail. The transcript guard remains before the first mutation.
 
-### WR-02: Authenticode signing uses an HTTP timestamp server
+### WR-01: `ValidateSet` on password-source parameters still blocks the documented `'Ask'` value
 
-**Files modified:** `build/Sign-AdmanModule.ps1`
-**Commit:** `596ae33`
-**Applied fix:** Changed `-TimestampServer` from `http://timestamp.digicert.com` to `https://timestamp.digicert.com` and added a comment documenting the HTTPS preference and the fallback/trust-pinning assumption if HTTPS is rejected in a specific environment.
+**Files modified:** `Public/New-AdmanUser.ps1`, `Public/Set-AdmanUserPassword.ps1`, `Public/Set-AdmanLocalUser.ps1`
+**Commit:** `3d1e763`
+**Applied fix:** Added `'Ask'` to each `[ValidateSet]` and updated the matching `.PARAMETER` help text for `AccountPasswordSource`, `NewPasswordSource`, and `PasswordSource`.
 
-### WR-03: Workflow-level Failure audits duplicate inner verb Failure audits
-
-**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`, `Public/Start-AdmanUserOffboarding.ps1`
-**Commit:** `96915f4`
-**Applied fix:** Removed the workflow-level `Write-AdmanAudit -Result 'Failure'` calls from both onboarding and offboarding catch blocks. Inner verbs (`New-AdmanUser`, `Add-AdmanGroupMember`, `Disable-AdmanUser`, `Remove-AdmanGroupMember`, `Move-AdmanUser`) already write their own Failure audit through `Invoke-AdmanMutation`; the workflow-level duplicates were creating a second Failure record with a different correlation ID. Updated comment-based help to reflect that the inner verb owns the Failure audit.
-
-### WR-04: Bulk engine no-op detection depends on an undocumented `memberOf` contract
-
-**Files modified:** `Private/Safety/Resolve-AdmanTarget.ps1`, `Public/Invoke-AdmanBulkAction.ps1`
-**Commit:** `fa4ecea`
-**Applied fix:** Made the property contract explicit by adding an optional `-Properties` parameter to `Resolve-AdmanTarget` (base set is always returned; requested properties are merged and deduplicated). `Invoke-AdmanBulkAction` now explicitly requests `-Properties @('memberOf')` for `AddGroup`/`RemoveGroup` operations rather than assuming `memberOf` is in the default property set.
-
-### WR-05: Restore fails closed on any tampered audit file, even unrelated ones
+### WR-02: `Get-AdmanOffboardingState` crashes on malformed `tsUtc`
 
 **Files modified:** `Private/Workflow/Get-AdmanOffboardingState.ps1`
-**Commit:** `53c5125`
-**Applied fix:** Restructured the restore scan to read each audit file first, collect candidate records for the target identity, and then run `Get-AdmanAuditIntegrity`. Files that contain a matching offboarding record still fail closed on integrity failure; unrelated files with failed integrity (or that are unreadable) are warned and skipped so a single corrupted archive cannot block all restores.
+**Commit:** `9d635c3`
+**Applied fix:** Replaced the unguarded `[datetime]$_.tsUtc` cast with a `try/catch` fallback to `[datetime]::MinValue` in the `Sort-Object` script block.
 
-### WR-06: OUTCOME audit escalation can throw if Event Log write fails
+### WR-03: `Start-AdmanUserOnboarding` preflight allows AD-invalid `sAMAccountName` characters
 
-**Files modified:** `Private/Audit/Write-AdmanAudit.ps1`
-**Commit:** `ebd884d`
-**Applied fix:** Wrapped the OUTCOME-failure escalation path (`$script:AuditDegraded = $true`, `Write-AdmanEventLog`, and the first warning) in its own try/catch. If Event Log escalation itself fails, a second warning is emitted but the exception does not propagate to the caller, preserving the OUTCOME-failure no-throw contract.
+**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`
+**Commit:** `022c3a3`
+**Applied fix:** Expanded the invalid-character regex to also reject `@`, backslash, slash, and comma.
+
+### WR-04: `Export-AdmanConfig` writes absolute paths, breaking cross-machine import
+
+**Files modified:** `Public/Config/Export-AdmanConfig.ps1`
+**Commit:** `70df737`
+**Applied fix:** Cloned the in-memory config before serialization and relativized `AuditDir` and `ReportDir` against the module root so exported backups remain portable.
+
+### WR-05: `tests/Workflow.OffboardingState.Tests.ps1` pollutes the global function table
+
+**Files modified:** `tests/Workflow.OffboardingState.Tests.ps1`
+**Commit:** `ef925f5`
+**Applied fix:** Added an `AfterAll` block that removes the global `Resolve-AdmanTarget` stub after the test file runs.
+
+### WR-06: `Export-AdmanConfig` does not mirror the PSFramework config round-trip
+
+**Files modified:** `Public/Config/Export-AdmanConfig.ps1`
+**Commit:** `ea09539`
+**Applied fix:** Removed the best-effort `.psf.json` mirror write and updated the help text to document that the export surface is plain-JSON only, eliminating stale framework mirrors.
+
+### WR-07: `Start-Adman.ps1` output-path prompt loops forever on `B` (Back)
+
+**Files modified:** `Public/Start-Adman.ps1`
+**Commit:** `2f16ee7`
+**Applied fix:** Set `$pathResolved = $true` when the operator chooses `B` in the CSV and HTML path-prompt loops so the inner loop exits and rendering is skipped.
+
+### WR-09: `build/Sign-AdmanModule.ps1` uses HTTPS timestamp URL that `Set-AuthenticodeSignature` may reject
+
+**Files modified:** `build/Sign-AdmanModule.ps1`
+**Commit:** `e15180b`
+**Applied fix:** Switched the timestamp server to `http://timestamp.digicert.com`, matching the runbook and README examples and the cmdlet's traditional RFC 3161 expectation.
+
+### WR-10: CI AllSigned smoke test may fail to establish code-signing trust
+
+**Files modified:** `.github/workflows/ci.yml`
+**Commit:** `7834ee5`
+**Applied fix:** Changed `New-SelfSignedCertificate -Type` from `CodeSigning` to `CodeSigningCert` and imported the self-signed `.cer` into both `TrustedPublisher` and `Root`.
+
+### WR-11: `Start-AdmanUserOnboarding` does not validate `ParentOuDn` is inside managed scope before confirmation
+
+**Files modified:** `Public/Start-AdmanUserOnboarding.ps1`
+**Commit:** `54c5d43`
+**Applied fix:** Added a boundary-anchored scope check for `templates.onboarding.ParentOuDn` before the workflow confirmation prompt, mirroring the offboarding quarantine-OU check.
 
 ## Skipped Issues
 
-None — all in-scope findings were fixed.
+### WR-08: `Get-AdmanAccountStateReport` does not pin queries to the configured DC
 
-## Verification
-
-**Syntax checks:** All modified `.ps1` files were parsed with the PowerShell AST parser; no parse errors were reported.
-
-**Unit tests:** Targeted test execution was attempted but could not complete in this environment because `Import-PowerShellDataFile` is unavailable in the local Windows PowerShell 5.1 installation (`Major 5, Minor 1, Build 26100, Revision 8875`). This cmdlet is normally present in PowerShell 5.0+ and is required by the `adman.psd1` module load path; its absence here is an environment limitation, not a code defect. The modified files are syntactically valid and should be exercised by the following test files when run in a capable environment:
-- `tests/Local.Gate.Tests.ps1` (WR-01)
-- `tests/Workflow.OffboardingState.Tests.ps1` (WR-05)
-- `tests/Bulk.Engine.Tests.ps1` (WR-04)
-- `tests/Audit.FailClosed.Tests.ps1` and `tests/Audit.EventLog.Tests.ps1` (WR-06)
+**File:** `Public/Get-AdmanAccountStateReport.ps1:59-80`
+**Reason:** Already fixed in current source. The shared `$splat` already includes `Server = $script:Config.DC` at the cited location.
+**Original issue:** The `$splat` passed to `Search-ADAccount` included `-SearchBase`, `-SearchScope`, `-ResultPageSize`, and `-ErrorAction`, but omitted `-Server $script:Config.DC`.
 
 ---
 
-_Fixed: 2026-07-23T12:00:00Z_
+_Fixed: 2026-07-23T18:25:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
