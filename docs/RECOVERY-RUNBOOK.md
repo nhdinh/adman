@@ -77,7 +77,11 @@ Export-Certificate -Cert $newCert -FilePath 'C:\adman-certs\adman-signing-v2.cer
 
 ```powershell
 $cert = Get-ChildItem Cert:\CurrentUser\My |
-    Where-Object { $_.Subject -eq 'CN=adman Internal Code Signing v2' }
+    Where-Object {
+        $_.Subject -eq 'CN=adman Internal Code Signing v2' -and
+        $_.NotAfter -gt (Get-Date) -and
+        $_.Thumbprint -eq 'A1B2C3D4E5F6...'  # Replace with the real thumbprint
+    } | Select-Object -First 1
 
 Get-ChildItem -Path 'C:\adman-build\adman' -Include '*.psd1','*.psm1','*.ps1' -Recurse -File |
     Where-Object FullName -notmatch '\\(tests|\.github|\.githooks)\\' |
