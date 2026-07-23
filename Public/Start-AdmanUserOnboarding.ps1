@@ -140,6 +140,21 @@ function Start-AdmanUserOnboarding {
         }
     }
 
+    # WR-11 fix: validate the onboarding destination OU is inside a managed-OU root before
+    # asking the operator to confirm the workflow, mirroring the offboarding quarantine-OU
+    # scope check.
+    $parent = [string]$template.ParentOuDn
+    $normParent = ConvertTo-AdmanNormalizedDn -Dn $parent
+    $inScope = $false
+    foreach ($root in @($script:Config.ManagedOUs)) {
+        $r = ConvertTo-AdmanNormalizedDn -Dn ([string]$root)
+        if ([string]::IsNullOrEmpty($r)) { continue }
+        if ($normParent -eq $r -or $normParent.EndsWith(',' + $r)) { $inScope = $true; break }
+    }
+    if (-not $inScope) {
+        throw "Onboarding ParentOuDn '$parent' is outside managed OU scope."
+    }
+
     # Single outer confirmation for the whole workflow (FLOW-01).
     $confirm = Confirm-AdmanAction -Verb 'Start-AdmanUserOnboarding' -Targets @($sam) -Force:$Force -WhatIf:$WhatIfPreference
     if ($confirm.Outcome -eq 'Declined') {
