@@ -103,7 +103,8 @@ function Invoke-AdmanLocalMutation {
     Assert-AdmanBulkPolicy -Count $allowed.Count | Out-Null
 
     # SAFE-02: scaled confirmation. Returns @{ Outcome; WhatIf }.
-    $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() -Force:$Force
+    $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() `
+        -Force:$Force -WhatIf:$WhatIfPreference
 
     # Genuine decline: write NOTHING and never mutate.
     if ($confirm.Outcome -eq 'Declined') {
