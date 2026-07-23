@@ -42,7 +42,6 @@ function Start-AdmanUserOffboarding {
         Start-AdmanUserOffboarding -Identity 'jdoe-fake' -WhatIf
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification='Cleanup checklist is intentionally console-only TUI output.')]
     param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
@@ -183,10 +182,13 @@ function Start-AdmanUserOffboarding {
     }
 
     # Cleanup checklist: surfaced as plain text only; no automation (FLOW-02 / T-04-13).
+    # WR-02 fix: use Write-PSFMessage -Level Host instead of Write-Host so the cleanup
+    # checklist respects PSFramework log sinks and stays out of the TUI-only Write-Host
+    # suppression (the suppression belongs only in Start-Adman).
     if (-not $WhatIfPreference) {
-        Write-Host "Offboarding complete for '$Identity'. Manual cleanup checklist:"
-        Write-Host "  - Mailbox: archive or convert to shared mailbox (manual only)"
-        Write-Host "  - Home directory: review, archive, or delete per retention policy (manual only)"
-        Write-Host "  - GPO / profile: remove mapped drives, printers, and profile data (manual only)"
+        Write-PSFMessage -Level Host -Message "Offboarding complete for '$Identity'. Manual cleanup checklist:"
+        Write-PSFMessage -Level Host -Message '  - Mailbox: archive or convert to shared mailbox (manual only)'
+        Write-PSFMessage -Level Host -Message '  - Home directory: review, archive, or delete per retention policy (manual only)'
+        Write-PSFMessage -Level Host -Message '  - GPO / profile: remove mapped drives, printers, and profile data (manual only)'
     }
 }
