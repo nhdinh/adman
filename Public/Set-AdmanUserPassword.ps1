@@ -210,6 +210,21 @@ function Set-AdmanUserPassword {
             -Parameters $resetParams -Force:$Force -WhatIf:$WhatIfPreference
     } catch { $errors += $_ }
 
+    # CR-01 fix: display the generated password immediately after the successful reset so
+    # the operator can record it before any follow-up sub-operation can fail and abort.
+    if ($errors.Count -eq 0 -and -not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
+        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword)
+        try {
+            $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+            [Console]::WriteLine("Generated password for ${Identity}: $plain")
+            Read-Host -Prompt 'Press Enter when recorded' | Out-Null
+            # Best-effort: [Console]::Clear() throws IOException in headless hosts.
+            try { [Console]::Clear() } catch [System.IO.IOException] { }
+        } finally {
+            if ($bstr -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+        }
+    }
+
     # Sub-operation 2: apply ChangePasswordAtLogon via Set-ADUser. Set-ADAccountPassword does
     # NOT accept -ChangePasswordAtLogon (HIGH #4); it belongs on Set-ADUser. Running this as
     # its own gate invocation means a Set-ADUser failure does NOT mislabel the (already
@@ -240,26 +255,6 @@ function Set-AdmanUserPassword {
     # the gate returned $null (e.g. a mocked gate in tests) - in that case $results may be
     # empty and indexing [0] would throw IndexOutOfRangeException.
     $result = if ($results.Count -gt 0) { $results[0] } else { $null }
-
-    # D-05 display-once hygiene: ONLY when the per-call source is Generate AND the gate
-    # returned successfully AND NOT under -WhatIf. Plaintext never touches the Success/
-    # Error/Warning/Verbose/Information streams or any audit field; it is written directly
-    # to the console via [Console]::WriteLine (WR-08 fix), bypassing the Information
-    # stream that Write-Host would use. Caveat: when Start-Transcript is running, the
-    # console display buffer is captured to the transcript file on disk - operators
-    # should NOT run password-generating verbs under Start-Transcript.
-    if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
-        $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword)
-        try {
-            $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-            [Console]::WriteLine("Generated password for ${Identity}: $plain")
-            Read-Host -Prompt 'Press Enter when recorded' | Out-Null
-            # Best-effort: [Console]::Clear() throws IOException in headless hosts.
-            try { [Console]::Clear() } catch [System.IO.IOException] { }
-        } finally {
-            if ($bstr -ne [IntPtr]::Zero) { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-        }
-    }
 
     return $result
 }
