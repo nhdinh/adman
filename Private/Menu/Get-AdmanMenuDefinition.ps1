@@ -123,7 +123,7 @@ function Get-AdmanMenuDefinition {
             FixedParameters = $null
         }
         [pscustomobject]@{
-            Label           = 'Stale/inactive report'
+            Label           = 'Stale/inactive user report'
             Verb            = 'Get-AdmanStaleReport'
             PromptSpec      = @()
             Properties      = $userReportProperties
@@ -164,7 +164,7 @@ function Get-AdmanMenuDefinition {
                 @{
                     Name     = 'AccountPassword'
                     Prompt   = 'Password source'
-                    Required = $true
+                    Required = $false
                     Type     = 'GeneratedPassword'
                     Choices  = @('Generate (recommended)', 'Prompt')
                 }
@@ -198,7 +198,7 @@ function Get-AdmanMenuDefinition {
                 @{
                     Name     = 'NewPassword'
                     Prompt   = 'Password source'
-                    Required = $true
+                    Required = $false
                     Type     = 'GeneratedPassword'
                     Choices  = @('Generate (recommended)', 'Prompt')
                 }
@@ -276,7 +276,7 @@ function Get-AdmanMenuDefinition {
                 @{
                     Name     = 'Password'
                     Prompt   = 'Password source'
-                    Required = $true
+                    Required = $false
                     Type     = 'GeneratedPassword'
                     Choices  = @('Generate (recommended)', 'Prompt')
                 }
@@ -292,7 +292,7 @@ function Get-AdmanMenuDefinition {
                 @{
                     Name     = 'Password'
                     Prompt   = 'Password source'
-                    Required = $true
+                    Required = $false
                     Type     = 'GeneratedPassword'
                     Choices  = @('Generate (recommended)', 'Prompt')
                 }
