@@ -86,16 +86,15 @@ if (-not $files) {
 
 foreach ($file in $files) {
     if ($PSCmdlet.ShouldProcess($file.FullName, 'Set-AuthenticodeSignature')) {
-        # WR-02 fix: use HTTPS timestamp server to reduce MITM risk. If the
-        # HTTPS endpoint is rejected by Set-AuthenticodeSignature in a specific
-        # environment, pin the timestamp server certificate thumbprint in CI/
-        # runbook notes and fall back to HTTP only after documenting the trust
-        # assumption.
+        # WR-09 fix: use the standard HTTP RFC 3161 timestamp endpoint. The HTTPS URL is
+        # not reliably accepted by Set-AuthenticodeSignature in all environments, while
+        # the HTTP endpoint is the documented default and matches the runbook/README
+        # examples. The timestamp response itself is still signed by the timestamp CA.
         $result = Set-AuthenticodeSignature `
             -FilePath $file.FullName `
             -Certificate $cert `
             -HashAlgorithm SHA256 `
-            -TimestampServer 'https://timestamp.digicert.com'
+            -TimestampServer 'http://timestamp.digicert.com'
         if ($result.Status -ne 'Valid') {
             throw "Signing failed for $($file.FullName): $($result.StatusMessage)"
         }
