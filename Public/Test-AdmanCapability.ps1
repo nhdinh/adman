@@ -82,29 +82,12 @@ function Test-AdmanCapability {
     # Rights hint (READ-ONLY): read the managed OU + whoami /groups for delegatedAdminGroup.
     $rights = [bool](Test-AdmanRightsSufficient)
 
-    # Transport: WinRM first; optional CIM/DCOM fallback only when WinRM is unavailable.
-    $winrm = $false
-    try {
-        $null = Test-WSMan -ComputerName $dc -ErrorAction Stop
-        $winrm = $true
-    } catch {
-        $winrm = $false
-    }
+    # Transport: WinRM first (hard-timeout wrapper); optional CIM/DCOM fallback only when WinRM is unavailable.
+    $winrm = [bool](Test-AdmanWsmanTimeout -ComputerName $dc -TimeoutSeconds $probeTimeoutSec)
 
     $cimDcom = $false
     if (-not $winrm) {
-        $session = $null
-        try {
-            $opt = New-CimSessionOption -Protocol Dcom
-            $session = New-CimSession -ComputerName $dc -SessionOption $opt -OperationTimeoutSec $probeTimeoutSec -ErrorAction Stop
-            $cimDcom = $true
-        } catch {
-            $cimDcom = $false
-        } finally {
-            if ($null -ne $session) {
-                Remove-CimSession -CimSession $session -ErrorAction SilentlyContinue
-            }
-        }
+        $cimDcom = Test-AdmanCimSessionTimeout -ComputerName $dc -Protocol Dcom -TimeoutSeconds $probeTimeoutSec
     }
 
     $flags = [pscustomobject]@{
