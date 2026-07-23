@@ -106,7 +106,9 @@ function Resolve-AdmanLocalTarget {
                 $profile = Get-CimInstance -ClassName Win32_UserProfile `
                     -Filter "SID='$sidValue'" -ErrorAction SilentlyContinue
                 if ($profile) { $profilePath = $profile.LocalPath }
-            } catch { }
+            } catch {
+                Write-Warning "Could not capture Win32_UserProfile for '$sidValue': $($_.Exception.Message)"
+            }
             $obj | Add-Member -NotePropertyName PreDeleteState -NotePropertyValue @{
                 GroupMemberships = $memberships
                 ProfilePath      = $profilePath
