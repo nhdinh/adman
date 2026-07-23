@@ -64,11 +64,12 @@ function New-AdmanUser {
 
     .PARAMETER AccountPassword
         Optional secure-string password. If omitted, the password is sourced from
-        $script:Config.security.passwordSource ('Generate' or 'Prompt').
+        $script:Config.security.passwordSource ('Generate', 'Prompt', or 'Ask').
 
     .PARAMETER AccountPasswordSource
-        Optional per-call override for password sourcing: 'Generate' or 'Prompt'.
-        Used by the menu path; direct callers usually omit this and use -AccountPassword.
+        Optional per-call override for password sourcing: 'Generate', 'Prompt', or 'Ask'.
+        'Ask' defaults to 'Generate' for direct callers; the menu path resolves the
+        sub-choice before splatting. Direct callers usually omit this and use -AccountPassword.
 
     .PARAMETER Force
         Bypasses the confirmation prompt when set. -WhatIf still previews the action.
@@ -110,7 +111,7 @@ function New-AdmanUser {
         # Read-AdmanActionParams; Start-Adman splats it into this parameter. Without the
         # declared parameter the splat throws "parameter cannot be found".
         [Parameter()]
-        [ValidateSet('Generate', 'Prompt')]
+        [ValidateSet('Generate', 'Prompt', 'Ask')]
         [string]$AccountPasswordSource,
 
         [switch]$Force

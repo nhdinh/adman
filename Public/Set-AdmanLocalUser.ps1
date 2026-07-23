@@ -49,7 +49,8 @@ function Set-AdmanLocalUser {
 
     .PARAMETER PasswordSource
         Optional per-call override for the configured password source, valid only with
-        the 'Reset' parameter set: 'Generate' or 'Prompt'.
+        the 'Reset' parameter set: 'Generate', 'Prompt', or 'Ask'. 'Ask' defaults to
+        'Generate' for direct callers; the menu path resolves the sub-choice before splatting.
 
     .PARAMETER Enable
         Enable the local user. Cannot be combined with -Password or -Disable.
@@ -90,7 +91,7 @@ function Set-AdmanLocalUser {
         # Read-AdmanActionParams; Start-Adman splats it into this parameter. Bound to
         # the 'Reset' set because the marker only applies to password operations.
         [Parameter(ParameterSetName = 'Reset')]
-        [ValidateSet('Generate', 'Prompt')]
+        [ValidateSet('Generate', 'Prompt', 'Ask')]
         [string]$PasswordSource,
 
         [Parameter(ParameterSetName = 'Enable')]

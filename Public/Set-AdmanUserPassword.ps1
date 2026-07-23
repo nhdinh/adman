@@ -63,8 +63,9 @@ function Set-AdmanUserPassword {
         $script:Config.security.passwordSource ('Generate' or 'Prompt').
 
     .PARAMETER NewPasswordSource
-        Optional per-call override for password sourcing: 'Generate' or 'Prompt'.
-        Used by the menu path; direct callers usually omit this and use -NewPassword.
+        Optional per-call override for password sourcing: 'Generate', 'Prompt', or 'Ask'.
+        'Ask' defaults to 'Generate' for direct callers; the menu path resolves the
+        sub-choice before splatting. Direct callers usually omit this and use -NewPassword.
 
     .PARAMETER ChangePasswordAtLogon
         Optional nullable boolean. If supplied, forces the value; otherwise the config
@@ -100,7 +101,7 @@ function Set-AdmanUserPassword {
         # Read-AdmanActionParams; Start-Adman splats it into this parameter. Without
         # the declared parameter the splat throws "parameter cannot be found".
         [Parameter()]
-        [ValidateSet('Generate', 'Prompt')]
+        [ValidateSet('Generate', 'Prompt', 'Ask')]
         [string]$NewPasswordSource,
 
         # NO DEFAULT — caller intent must be detectable via $PSBoundParameters.
