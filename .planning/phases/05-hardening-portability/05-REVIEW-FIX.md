@@ -1,83 +1,63 @@
 ---
 phase: 05-hardening-portability
-fixed_at: 2026-07-22T23:55:00Z
+fixed_at: 2026-07-23T00:00:00Z
 review_path: C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
-iteration: 2
-findings_in_scope: 9
-fixed: 9
+iteration: 1
+findings_in_scope: 5
+fixed: 5
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 05: Code Review Fix Report
 
-**Fixed at:** 2026-07-22T23:55:00Z
+**Fixed at:** 2026-07-23T00:00:00Z
 **Source review:** C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
-**Iteration:** 2
+**Iteration:** 1
 
 **Summary:**
-- Findings in scope: 9
-- Fixed: 9
+- Findings in scope: 5
+- Fixed: 5
 - Skipped: 0
 
 ## Fixed Issues
 
-### CR-01: Public verbs accept a half-initialized session and silently bypass protected-account checks
+### CR-01: Get-AdmanConfig returns the live config object by reference
 
-**Files modified:** `Private/Foundation/Assert-AdmanInitialized.ps1`, `Private/Safety/Invoke-AdmanMutation.ps1`, `Private/Safety/Invoke-AdmanLocalMutation.ps1`, plus the init check in all public mutation/report verbs.
-**Commits:** a4bf6b2, 5ff82e6, 7779fe9, a1419fe, 697bd2d, 65e99f3
-**Applied fix:** Centralized the initialization guard in `Assert-AdmanInitialized`, which verifies `$script:Initialized`, `$script:Config.ManagedOUs`, and the protected-identity caches (`$script:ProtectedSIDs`, `$script:DenyRids`, `$script:ProtectedGroupDns`) using `Get-Variable` so empty arrays are allowed and `StrictMode` does not throw. The fail-closed guard is invoked at the top of both mutation gates (`Invoke-AdmanMutation` and `Invoke-AdmanLocalMutation`), so no write path can run with null caches. Public verbs retain a UX-only `$script:Config.ManagedOUs` fail-fast check so callers get the original clear error message. Unit tests were updated to seed the full init state so the gate guard passes.
+**Files modified:** `Public/Config/Get-AdmanConfig.ps1`
+**Commit:** 8c68617
+**Applied fix:** Changed the no-key code path to return a deep clone via `ConvertTo-Json -Depth 10 | ConvertFrom-Json` instead of the live `$script:Config` reference. Updated comment-based help to describe the returned object as a read-only snapshot.
 
-### CR-02: DN normalization corrupts uppercase hex escapes and can break the managed-OU scope boundary
+### WR-01: Dead duplicated transcript guards in password verbs
 
-**Files modified:** `Private/Utility/ConvertTo-AdmanNormalizedDn.ps1`, `tests/Utility.NormalizedDn.Tests.ps1`
-**Commit:** 49ef029
-**Applied fix:** Made the hex-unescape regex case-insensitive (`[0-9a-fA-F]{2}`) and added a negative lookbehind so `\\` is treated as a literal backslash rather than an escape prefix. Added unit tests covering lowercase, uppercase, and mixed hex escapes (`\2C`, `\2c`, `\5C`, `CN=A\2CB\2CC`).
+**Files modified:** `Public/New-AdmanUser.ps1`, `Public/Set-AdmanUserPassword.ps1`, `Public/Set-AdmanLocalUser.ps1`
+**Commit:** 0fdcc2c
+**Applied fix:** Removed the unreachable post-mutation transcript checks in the three password display blocks, relying on the single pre-mutation guard.
 
-### WR-01: `Write-AdmanAudit` hard-codes the module name and crashes when the module is not loaded as `adman`
+### WR-02: Write-Host suppression is global, and offboarding checklist uses Write-Host
 
-**Files modified:** `Private/Audit/Write-AdmanAudit.ps1`
-**Commit:** f63f225
-**Applied fix:** Replaced `Get-Module adman` with `$ExecutionContext.SessionState.Module` and degrades to `'unknown'` when no module context exists, preventing null-reference failures during dot-sourced or test-harness execution.
+**Files modified:** `PSScriptAnalyzerSettings.psd1`, `Public/Start-AdmanUserOffboarding.ps1`
+**Commit:** 4d81753
+**Applied fix:** Removed the global `PSAvoidUsingWriteHost` suppression in `PSScriptAnalyzerSettings.psd1` and added a documented per-file `[Diagnostics.CodeAnalysis.SuppressMessageAttribute]` on `Start-AdmanUserOffboarding` for the intentionally console-only cleanup checklist.
 
-### WR-02: `Set-AdmanLocalUser` rejects password resets that rely on the configured password source
+### WR-03: Empty catch blocks swallow PSFramework mirror failures
 
-**Files modified:** `Public/Set-AdmanLocalUser.ps1`, `tests/Local.User.Tests.ps1`
-**Commits:** 673aa46, 6f4725e
-**Applied fix:** Removed the throw block that rejected the `Reset` parameter set when neither `-Password` nor `-PasswordSource` was supplied, allowing the existing D-05 config fallback (`security.passwordSource`) to generate or prompt for a password. Updated the Local.User tests to assert the fallback path.
+**Files modified:** `Public/Config/Set-AdmanConfig.ps1`, `Public/Config/Import-AdmanConfig.ps1`, `Public/Config/Export-AdmanConfig.ps1`
+**Commit:** b87b195
+**Applied fix:** Replaced empty `catch { }` blocks with `Write-Verbose` diagnostics so PSFramework mirror failures are visible without blocking authoritative config operations.
 
-### WR-03: Bulk no-op skip misses already-disabled/enabled accounts because `Resolve-AdmanTarget` does not fetch `Enabled`
+### WR-04: Confirm-AdmanAction relies on implicit $WhatIfPreference inheritance
 
-**Files modified:** `Private/Safety/Resolve-AdmanTarget.ps1`
-**Commit:** dcdf1ef
-**Applied fix:** Added `Enabled` to the `-Properties` list passed to `Get-ADObject` so the bulk engine can detect already-disabled/enabled accounts and skip redundant writes.
+**Files modified:** `Private/Safety/Confirm-AdmanAction.ps1`, `Public/Start-AdmanUserOnboarding.ps1`, `Public/Start-AdmanUserOffboarding.ps1`, `Public/Restore-AdmanQuarantinedUser.ps1`, `Public/Invoke-AdmanBulkAction.ps1`
+**Commit:** 1beb507
+**Applied fix:** Added an explicit `[switch]$WhatIf` parameter to `Confirm-AdmanAction` and switched the internal check from `[bool]$WhatIfPreference` to `[bool]$WhatIf`. Updated all workflow/bulk call sites to pass `-WhatIf:$WhatIfPreference` (or add `WhatIf = $WhatIfPreference` to the bulk-action splat).
 
-### WR-04: `Resolve-AdmanIdentity` AdComputer branch can return a user object
+## Skipped Issues
 
-**Files modified:** `Private/Safety/Resolve-AdmanIdentity.ps1`
-**Commit:** 4e048d9
-**Applied fix:** Added a `Where-Object { $_.objectClass -contains 'computer' }` filter to the exact-match branch of the `AdComputer` resolver, so a user account with a matching `sAMAccountName` cannot be returned.
-
-### WR-05: Local Administrator detection relies on the English group name "Administrators"
-
-**Files modified:** `Private/Safety/Test-AdmanLocalTargetAllowed.ps1`
-**Commit:** caa1af1
-**Applied fix:** Resolved the well-known SID `S-1-5-32-544` to its localized NT account name and stripped the domain prefix before calling `Get-LocalGroupMember` and the WMI fallback, so the admin-group check works on non-English Windows installations.
-
-### WR-06: Generated-password transcript guard can throw on Windows PowerShell 5.1 or non-interactive runspaces
-
-**Files modified:** `Private/Foundation/Get-AdmanTranscriptCount.ps1` (created), `Public/New-AdmanUser.ps1`, `Public/Set-AdmanUserPassword.ps1`, `Public/New-AdmanLocalUser.ps1`, `Public/Set-AdmanLocalUser.ps1`
-**Commit:** 673aa46
-**Applied fix:** Added a guarded helper `Get-AdmanTranscriptCount` that returns `0` when `InitialSessionState` or `Transcripts` is unavailable, and replaced all direct `Transcripts.Count` probes in the password verbs with calls to the helper.
-
-### WR-07: `Invoke-AdmanBulkAction` resolves targets twice per allowed item
-
-**Files modified:** `Private/Safety/Invoke-AdmanMutation.ps1`, `Public/Invoke-AdmanBulkAction.ps1`
-**Commit:** a60cbe9
-**Applied fix:** Added an optional `[object[]]$ResolvedObjects` parameter to `Invoke-AdmanMutation` so the bulk engine can pass the already-resolved AD object snapshot through to the gate, eliminating the second `Resolve-AdmanTarget` call and preventing race conditions between preview and execution.
+None — all in-scope findings were fixed.
 
 ---
 
-_Fixed: 2026-07-22T23:55:00Z_
+_Fixed: 2026-07-23T00:00:00Z_
 _Fixer: Claude (gsd-code-fixer)_
-_Iteration: 2_
+_Iteration: 1_
