@@ -219,7 +219,7 @@ Describe 'Test-AdmanCapability probe + startup SID/deny resolution (MENU-05, D-0
         Mock Get-ADOptionalFeature -ModuleName adman { [pscustomobject]@{ EnabledScopes = @(1) } }
         Mock Get-ADOrganizationalUnit -ModuleName adman { [pscustomobject]@{ DistinguishedName = 'OU=Managed,DC=mock,DC=local' } }
         Mock Test-WSMan -ModuleName adman { throw 'WinRM refused' }
-        Mock New-CimSession -ModuleName adman { throw 'DCOM refused' }
+        Mock Test-AdmanCimSessionTimeout -ModuleName adman { $false }
 
         $cap = $null
         { $cap = & (Get-Module adman) { Test-AdmanCapability } } | Should -Not -Throw -Because 'probe failures must become flags, never throw (fail-closed throws excepted)'
@@ -227,7 +227,8 @@ Describe 'Test-AdmanCapability probe + startup SID/deny resolution (MENU-05, D-0
 
         Test-Path -LiteralPath $script:CapPath | Should -BeTrue
         $src = Get-Content -LiteralPath $script:CapPath -Raw
-        $src | Should -Match '(?i)OperationTimeoutSec' -Because 'the CIM/DCOM probe must carry a short operation timeout'
+        $src | Should -Match '(?i)Test-AdmanWsmanTimeout' -Because 'the WinRM probe uses the hard-timeout wrapper'
+        $src | Should -Match '(?i)Test-AdmanCimSessionTimeout' -Because 'the CIM/DCOM fallback uses the hard-timeout wrapper'
         $src | Should -Match '(?i)probeTimeoutSec\s*=\s*(1[0-5]|[1-9])\b' -Because 'the probe timeout is short (<= 30s) so the menu never hangs'
     }
 
