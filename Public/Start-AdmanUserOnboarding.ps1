@@ -123,7 +123,7 @@ function Start-AdmanUserOnboarding {
     if ($sam -match '^\s|\s$') {
         throw "Generated sAMAccountName '$sam' has leading or trailing whitespace."
     }
-    if ($sam -match '["\[\]:|<>+=;]') {
+    if ($sam -match '["\[\]:|<>+=;@\\/,]') {
         throw "Generated sAMAccountName '$sam' contains characters not allowed in AD sAMAccountName."
     }
     if ($sam -match '[\*\?]') {
