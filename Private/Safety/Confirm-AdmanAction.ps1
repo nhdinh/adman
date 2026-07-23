@@ -40,8 +40,7 @@ function Confirm-AdmanAction {
         $Targets,
         [string]$Group,
         [switch]$RequireTypedCount,
-        [switch]$Force,
-        [switch]$WhatIf
+        [switch]$Force
     )
 
     $count = @($Targets).Count
@@ -71,7 +70,7 @@ function Confirm-AdmanAction {
     #     SwitchParameter $true). It is NEVER a string comparison against the literal word
     #     'Simulate' - the engine never produces that string, so such a comparison is $false in
     #     every state and would misclassify every dry-run as a decline (C3-H1).
-    $isWhatIf = [bool]$WhatIf
+    $isWhatIf = [bool]$WhatIfPreference
     if ($isWhatIf) {
         # Under -WhatIf this ShouldProcess returns $false by design - that $false is the
         # simulation, NOT a refusal. Emit the what-if line once and return DryRun.
