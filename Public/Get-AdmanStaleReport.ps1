@@ -81,9 +81,10 @@ function Get-AdmanStaleReport {
 
             if ($null -eq $llt -or $llt -eq 0) {
                 # Never logged on: only bucket if whenCreated is older than the grace window.
+                # CR-02 fix: normalize whenCreated to UTC before comparing with the UTC cutoff.
                 $created = $null
                 if ($obj.PSObject.Properties['whenCreated']) { $created = $obj.whenCreated }
-                if ($null -ne $created -and $created -is [datetime] -and $created -lt $staleCutoff) {
+                if ($null -ne $created -and $created -is [datetime] -and $created.ToUniversalTime() -lt $staleCutoff) {
                     $bucket = 'NeverLoggedOn'
                 }
             }
