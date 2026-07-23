@@ -157,11 +157,26 @@ function Test-AdmanConfigValid {
     if ($null -eq $Config.safety -or $null -eq $Config.safety.bulkConfirmThreshold) {
         throw "Config validation failed: 'safety.bulkConfirmThreshold' is required."
     }
-    if ([int]$Config.safety.bulkConfirmThreshold -lt 1) {
+    # WR-04 fix: type-guard integer keys before casting so non-numeric strings produce the
+    # intended validation message instead of a generic conversion error.
+    $bulkConfirmThreshold = $Config.safety.bulkConfirmThreshold
+    if ($bulkConfirmThreshold -isnot [int] -and $bulkConfirmThreshold -isnot [long] -and
+        -not ($bulkConfirmThreshold -is [string] -and $bulkConfirmThreshold -match '^\d+$')) {
+        throw "Config validation failed: 'safety.bulkConfirmThreshold' must be an integer >= 1."
+    }
+    if ([int]$bulkConfirmThreshold -lt 1) {
         throw "Config validation failed: 'safety.bulkConfirmThreshold' must be >= 1."
     }
     if ($null -eq $Config.bulk -or $null -eq $Config.bulk.maxCount) {
         throw "Config validation failed: 'bulk.maxCount' is required (placeholder; enforced in Phase 4)."
+    }
+    $bulkMaxCount = $Config.bulk.maxCount
+    if ($bulkMaxCount -isnot [int] -and $bulkMaxCount -isnot [long] -and
+        -not ($bulkMaxCount -is [string] -and $bulkMaxCount -match '^\d+$')) {
+        throw "Config validation failed: 'bulk.maxCount' must be an integer >= 1."
+    }
+    if ([int]$bulkMaxCount -lt 1) {
+        throw "Config validation failed: 'bulk.maxCount' must be >= 1."
     }
     if ($null -eq $Config.transport -or $null -eq $Config.transport.order -or $null -eq $Config.transport.timeouts) {
         throw "Config validation failed: 'transport.order' and 'transport.timeouts' are required."
@@ -172,13 +187,23 @@ function Test-AdmanConfigValid {
     if ($null -eq $Config.transport.timeouts.perHostProbeCap) {
         throw "Config validation failed: 'transport.timeouts.perHostProbeCap' is required."
     }
-    if ([int]$Config.transport.timeouts.perHostProbeCap -lt 1) {
+    $perHostProbeCap = $Config.transport.timeouts.perHostProbeCap
+    if ($perHostProbeCap -isnot [int] -and $perHostProbeCap -isnot [long] -and
+        -not ($perHostProbeCap -is [string] -and $perHostProbeCap -match '^\d+$')) {
+        throw "Config validation failed: 'transport.timeouts.perHostProbeCap' must be an integer >= 1."
+    }
+    if ([int]$perHostProbeCap -lt 1) {
         throw "Config validation failed: 'transport.timeouts.perHostProbeCap' must be >= 1."
     }
     if ($null -eq $Config.transport.timeouts.totalInventoryRemoteCap) {
         throw "Config validation failed: 'transport.timeouts.totalInventoryRemoteCap' is required."
     }
-    if ([int]$Config.transport.timeouts.totalInventoryRemoteCap -lt 1) {
+    $totalInventoryRemoteCap = $Config.transport.timeouts.totalInventoryRemoteCap
+    if ($totalInventoryRemoteCap -isnot [int] -and $totalInventoryRemoteCap -isnot [long] -and
+        -not ($totalInventoryRemoteCap -is [string] -and $totalInventoryRemoteCap -match '^\d+$')) {
+        throw "Config validation failed: 'transport.timeouts.totalInventoryRemoteCap' must be an integer >= 1."
+    }
+    if ([int]$totalInventoryRemoteCap -lt 1) {
         throw "Config validation failed: 'transport.timeouts.totalInventoryRemoteCap' must be >= 1."
     }
     if ($null -eq $Config.credentialPolicy -or $null -eq $Config.credentialPolicy.allowRememberMe) {
