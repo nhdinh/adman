@@ -86,12 +86,16 @@ if (-not $files) {
 
 foreach ($file in $files) {
     if ($PSCmdlet.ShouldProcess($file.FullName, 'Set-AuthenticodeSignature')) {
-        # WR-01 fix: timestamp the signature so it remains valid after the signing cert expires.
+        # WR-02 fix: use HTTPS timestamp server to reduce MITM risk. If the
+        # HTTPS endpoint is rejected by Set-AuthenticodeSignature in a specific
+        # environment, pin the timestamp server certificate thumbprint in CI/
+        # runbook notes and fall back to HTTP only after documenting the trust
+        # assumption.
         $result = Set-AuthenticodeSignature `
             -FilePath $file.FullName `
             -Certificate $cert `
             -HashAlgorithm SHA256 `
-            -TimestampServer 'http://timestamp.digicert.com'
+            -TimestampServer 'https://timestamp.digicert.com'
         if ($result.Status -ne 'Valid') {
             throw "Signing failed for $($file.FullName): $($result.StatusMessage)"
         }
