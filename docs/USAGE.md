@@ -23,15 +23,15 @@ Read-only report verbs prompt for output format after they run:
 |---|-------|------|--------|
 | 1 | Find user | `Find-AdmanUser` | `SamAccountName` (required): Enter sAMAccountName |
 | 2 | Find computer | `Find-AdmanComputer` | `Name` (required): Enter computer name |
-| 3 | Stale/inactive report | `Get-AdmanStaleReport` | None |
+| 3 | Stale/inactive user report | `Get-AdmanStaleReport` | None |
 | 4 | Account-state report | `Get-AdmanAccountStateReport` | None |
 | 5 | Fleet inventory report (with remote enrichment) | `Get-AdmanInventoryReport` | None |
 | 6 | Recovery posture | `Get-AdmanRecoveryPostureReport` | None |
 | — | --- User writes --- | — | — |
-| 7 | Create user | `New-AdmanUser` | `Name` (required): Enter full name (CN); `SamAccountName` (required): Enter sAMAccountName; `UserPrincipalName` (required): Enter UPN (user@domain); `ParentOuDn` (required): Enter parent OU DN; `AccountPassword` (required): Password source — Generate (recommended) or Prompt |
+| 7 | Create user | `New-AdmanUser` | `Name` (required): Enter full name (CN); `SamAccountName` (required): Enter sAMAccountName; `UserPrincipalName` (required): Enter UPN (user@domain); `ParentOuDn` (required): Enter parent OU DN; `AccountPassword` (optional): Password source — Generate (recommended) or Prompt |
 | 8 | Disable user | `Disable-AdmanUser` | `Identity` (required): Enter user identity (sAMAccountName/DN) |
 | 9 | Enable user | `Enable-AdmanUser` | `Identity` (required): Enter user identity (sAMAccountName/DN) |
-| 10 | Reset user password | `Set-AdmanUserPassword` | `Identity` (required): Enter user identity (sAMAccountName/DN); `NewPassword` (required): Password source — Generate (recommended) or Prompt |
+| 10 | Reset user password | `Set-AdmanUserPassword` | `Identity` (required): Enter user identity (sAMAccountName/DN); `NewPassword` (optional): Password source — Generate (recommended) or Prompt |
 | 11 | Unlock user | `Unlock-AdmanUser` | `Identity` (required): Enter user identity (sAMAccountName/DN) |
 | 12 | Move user to OU | `Move-AdmanUser` | `Identity` (required): Enter user identity (sAMAccountName/DN); `TargetPath` (required): Enter destination OU DN |
 | — | --- Computer writes --- | — | — |
@@ -40,8 +40,8 @@ Read-only report verbs prompt for output format after they run:
 | 15 | Move computer to OU | `Move-AdmanComputer` | `Identity` (required): Enter computer identity (NAME or NAME$); `TargetPath` (required): Enter destination OU DN |
 | 16 | Reset computer account | `Reset-AdmanComputerAccount` | `Identity` (required): Enter computer identity (NAME or NAME$) |
 | — | --- Local writes --- | — | — |
-| 17 | Create local user | `New-AdmanLocalUser` | `Name` (required): Enter local user name; `Password` (required): Password source — Generate (recommended) or Prompt |
-| 18 | Reset local user password | `Set-AdmanLocalUser` | `Name` (required): Enter local user name; `Password` (required): Password source — Generate (recommended) or Prompt |
+| 17 | Create local user | `New-AdmanLocalUser` | `Name` (required): Enter local user name; `Password` (optional): Password source — Generate (recommended) or Prompt |
+| 18 | Reset local user password | `Set-AdmanLocalUser` | `Name` (required): Enter local user name; `Password` (optional): Password source — Generate (recommended) or Prompt |
 | 19 | Enable local user | `Set-AdmanLocalUser` | `Name` (required): Enter local user name |
 | 20 | Disable local user | `Set-AdmanLocalUser` | `Name` (required): Enter local user name |
 | 21 | Remove local user | `Remove-AdmanLocalUser` | `Name` (required): Enter local user name |
@@ -57,6 +57,8 @@ Read-only report verbs prompt for output format after they run:
 | 29 | Restore quarantined user | `Restore-AdmanQuarantinedUser` | `Identity` (required): Enter user identity (sAMAccountName/DN) |
 
 ## Exported functions
+
+When a password parameter (`-AccountPassword`, `-NewPassword`, or `-Password`) is omitted, the verb sources the password from `$script:Config.security.passwordSource` (`Generate` or `Prompt`) per the D-05 password-sourcing design.
 
 Examples use `contoso.local` placeholders. Replace them with your domain values. Never pass plaintext passwords on the command line; use the menu path or prompt for a `SecureString`.
 
@@ -155,7 +157,7 @@ Find-AdmanComputer -Name 'WKSTN-42'
 
 ### `Get-AdmanStaleReport`
 
-Reports stale or inactive user and computer accounts. Output is a D-03 result object with a `Bucket` column.
+Reports stale or inactive **user** accounts. Computer accounts are not included in this report. Output is a D-03 result object with a `Bucket` column.
 
 Parameters: none
 
