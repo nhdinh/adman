@@ -249,11 +249,6 @@ function Set-AdmanUserPassword {
     # console display buffer is captured to the transcript file on disk - operators
     # should NOT run password-generating verbs under Start-Transcript.
     if (-not $WhatIfPreference -and $passwordSource -eq 'Generate' -and $null -ne $NewPassword) {
-        # WR-03: refuse to display generated plaintext while a transcript is recording,
-        # because Start-Transcript captures console output to disk.
-        if ((Get-AdmanTranscriptCount) -gt 0) {
-            throw 'Generated password cannot be displayed while Start-Transcript is active. Stop the transcript and retry.'
-        }
         $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($NewPassword)
         try {
             $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
