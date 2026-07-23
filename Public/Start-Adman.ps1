@@ -225,7 +225,7 @@ function Start-Adman {
                     $pathAttempts = 0
                     while (-not $pathResolved -and $pathAttempts -lt 2) {
                         $outPath = Read-Host 'Enter CSV output path'
-                        if ($outPath -match '^[Bb]$') { $formatResolved = $true; continue }
+                        if ($outPath -match '^[Bb]$') { $formatResolved = $true; $pathResolved = $true; continue }
                         if ($outPath -match '^[Qq]$') { break menuLoop }
                         $parent = Split-Path -Path $outPath -Parent
                         if ([string]::IsNullOrWhiteSpace($parent)) { $parent = (Get-Location).Path }
@@ -250,7 +250,7 @@ function Start-Adman {
                     $pathAttempts = 0
                     while (-not $pathResolved -and $pathAttempts -lt 2) {
                         $outPath = Read-Host 'Enter HTML output path'
-                        if ($outPath -match '^[Bb]$') { $formatResolved = $true; continue }
+                        if ($outPath -match '^[Bb]$') { $formatResolved = $true; $pathResolved = $true; continue }
                         if ($outPath -match '^[Qq]$') { break menuLoop }
                         $parent = Split-Path -Path $outPath -Parent
                         if ([string]::IsNullOrWhiteSpace($parent)) { $parent = (Get-Location).Path }
