@@ -16,11 +16,12 @@ function Get-AdmanConfig {
         never from PSFramework's per-user/per-machine auto-import locations (Pitfall 7 / T-00-07).
     .PARAMETER Key
         Optional config key (supports dotted paths, e.g. 'transport.timeouts.WinRM'). When omitted the
-        whole config object is returned.
+        whole config object is returned as a deep-cloned snapshot; modifications to the returned object
+        do not affect the authoritative in-memory config.
 
     .EXAMPLE
         Get-AdmanConfig
-        Returns the full loaded config object.
+        Returns the full loaded config object as a deep-cloned snapshot.
 
     .EXAMPLE
         Get-AdmanConfig -Key 'safety.bulkConfirmThreshold'
@@ -32,7 +33,7 @@ function Get-AdmanConfig {
 
     if (-not $script:ConfigLoaded) { Initialize-AdmanConfig | Out-Null }
 
-    if (-not $Key) { return $script:Config }
+    if (-not $Key) { return ($script:Config | ConvertTo-Json -Depth 10 | ConvertFrom-Json) }
 
     $cursor = $script:Config
     foreach ($name in ($Key -split '\.')) {
