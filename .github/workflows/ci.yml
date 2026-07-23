@@ -45,13 +45,14 @@ jobs:
 
           $cert = New-SelfSignedCertificate `
               -Subject 'CN=adman CI Code Signing' `
-              -Type CodeSigning `
+              -Type CodeSigningCert `
               -CertStoreLocation Cert:\CurrentUser\My `
               -HashAlgorithm sha256 `
               -NotAfter (Get-Date).AddHours(1)
           $cer = Join-Path $env:TEMP 'adman-ci.cer'
           Export-Certificate -Cert $cert -FilePath $cer -Force | Out-Null
           Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
 
           # Build a signed CI-only PSFramework stub so RequiredModules resolves under AllSigned.
           $stubRoot = Join-Path $env:TEMP 'adman-psframework-stub'
