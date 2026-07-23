@@ -61,7 +61,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
     function global:Test-AdmanTargetAllowed { param($Object) }
     function global:Assert-AdmanBulkPolicy { param($Count, [switch]$EnforceCap) }
-    function global:Confirm-AdmanAction { param($Verb, $Targets, $Group, [switch]$Force) }
+    function global:Confirm-AdmanAction { param($Verb, $Targets, $Group, [switch]$Force, [switch]$WhatIf) }
     function global:Write-AdmanAudit { param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, $Group, [switch]$WhatIf) }
     function global:Adman.Local.Write.New-LocalUser { param($Objects, $Parameters) }
     function global:Adman.Local.Write.Disable-LocalUser { param($Objects, $Parameters) }
@@ -147,6 +147,40 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
 
         $order = Get-AdmanLocalOrder
         $order | Should -Be @('resolve', 'allow', 'bulkpolicy', 'confirm', 'audit-PENDING', 'write', 'audit-Success')
+    }
+
+    It 'Test 1b: caller -WhatIf is forwarded into Confirm-AdmanAction and the local wrapper' {
+        $t1 = New-AdmanLocalTarget -Name 'alice'
+        $script:ConfirmWhatIf = $null
+        $script:WrapperWhatIf = $null
+        Mock Resolve-AdmanLocalTarget -ModuleName adman { $t1 }
+        Mock Test-AdmanLocalTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
+        Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
+        Mock Confirm-AdmanAction -ModuleName adman {
+            param($Verb, $Targets, $Group, [switch]$Force, [switch]$WhatIf)
+            $script:ConfirmWhatIf = [bool]$WhatIf
+            @{ Outcome = 'DryRun'; WhatIf = $true }
+        }
+        Mock Write-AdmanAudit -ModuleName adman { }
+        Mock Adman.Local.Write.Disable-LocalUser -ModuleName adman {
+            param($Objects, $Parameters, [switch]$WhatIf)
+            $script:WrapperWhatIf = [bool]$WhatIf
+        }
+
+        { & (Get-Module adman) {
+            Invoke-AdmanLocalMutation -Verb 'Disable-LocalUser' -Targets @('alice') -WhatIf
+        } } | Should -Not -Throw -Because 'the local gate must accept caller -WhatIf and treat it as a dry-run'
+
+        $script:ConfirmWhatIf | Should -BeTrue `
+            -Because 'the caller -WhatIf must be bound to Confirm-AdmanAction -WhatIf'
+        $script:WrapperWhatIf | Should -BeTrue `
+            -Because 'the local wrapper must receive -WhatIf:$true when Confirm-AdmanAction returns DryRun'
+        Should -Invoke Write-AdmanAudit -ModuleName adman -Times 1 -ParameterFilter {
+            $Result -eq 'PENDING' -and [bool]$WhatIf
+        } -Because 'the PENDING record carries whatIf=$true under a dry-run'
+        Should -Invoke Write-AdmanAudit -ModuleName adman -Times 1 -ParameterFilter {
+            $Result -eq 'Success' -and [bool]$WhatIf
+        } -Because 'the OUTCOME record carries whatIf=$true under a dry-run'
     }
 
     It 'Test 2: Resolve-AdmanLocalTarget throws "Remote targets arrive in Phase 3" when -ComputerName is not localhost' {

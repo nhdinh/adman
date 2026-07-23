@@ -185,7 +185,12 @@ Describe 'Invoke-AdmanBulkAction engine (BULK-01..04)' -Tag 'Unit' {
         }
         Mock -ModuleName adman Test-AdmanTargetAllowed { @{ Allowed = $true; Reason = '' } }
         Mock -ModuleName adman Assert-AdmanBulkPolicy { @{ Cap = 50; Threshold = 5 } }
-        Mock -ModuleName adman Confirm-AdmanAction { @{ Outcome = 'DryRun'; WhatIf = $true } }
+        $script:OuterWhatIf = $null
+        Mock -ModuleName adman Confirm-AdmanAction {
+            param($Verb, $Targets, [switch]$RequireTypedCount, [switch]$Force, [switch]$WhatIf)
+            $script:OuterWhatIf = [bool]$WhatIf
+            @{ Outcome = 'DryRun'; WhatIf = $true }
+        }
         Mock -ModuleName adman Write-AdmanAudit { }
         Mock -ModuleName adman Invoke-AdmanMutation { }
 
@@ -197,6 +202,8 @@ Describe 'Invoke-AdmanBulkAction engine (BULK-01..04)' -Tag 'Unit' {
         )
 
         $result.WhatIf | Should -BeTrue
+        $script:OuterWhatIf | Should -BeTrue `
+            -Because 'the bulk engine must forward caller -WhatIf to the outer Confirm-AdmanAction'
         Should -Invoke -ModuleName adman Invoke-AdmanMutation -Times 1
     }
 

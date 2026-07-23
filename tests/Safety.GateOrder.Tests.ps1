@@ -56,7 +56,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
     function global:Test-AdmanTargetAllowed { param($Object) }
     function global:Assert-AdmanBulkPolicy { param($Count, [switch]$EnforceCap) }
-    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force) }
+    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force, [switch]$WhatIf) }
     function global:Write-AdmanAudit { param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, [switch]$WhatIf) }
     function global:Adman.AD.Write.Disable-ADAccount { param($Objects, $Parameters) }
     function global:Adman.AD.Write.Enable-ADAccount { param($Objects, $Parameters) }
@@ -231,6 +231,39 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
             $Result -eq 'Success' -and [bool]$WhatIf
         } -Because 'the OUTCOME record carries whatIf=$true under a dry-run'
         $script:WrapperWhatIf | Should -BeTrue -Because 'the inner wrapper received -WhatIf:$true (truthful preview, no mutation)'
+    }
+
+    It 'Test 5b: caller -WhatIf is forwarded into Confirm-AdmanAction and the inner wrapper' {
+        $t1 = New-AdmanTarget -Dn 'CN=Alice,OU=Managed,DC=mock,DC=local'
+        $script:ConfirmWhatIf = $null
+        $script:WrapperWhatIf = $null
+        Mock Resolve-AdmanTarget -ModuleName adman { $t1 }
+        Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
+        Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
+        Mock Confirm-AdmanAction -ModuleName adman {
+            param($Verb, $Targets, [switch]$Force, [switch]$WhatIf)
+            $script:ConfirmWhatIf = [bool]$WhatIf
+            @{ Outcome = 'DryRun'; WhatIf = $true }
+        }
+        Mock Write-AdmanAudit -ModuleName adman { }
+        Mock Adman.AD.Write.Disable-ADAccount -ModuleName adman {
+            param($Objects, $Parameters, [switch]$WhatIf)
+            $script:WrapperWhatIf = [bool]$WhatIf
+        }
+
+        { & (Get-Module adman) { Invoke-AdmanMutation -Verb 'Disable-ADAccount' -Targets @('alice') -WhatIf } } |
+            Should -Not -Throw -Because 'the gate must accept caller -WhatIf and treat it as a dry-run'
+
+        $script:ConfirmWhatIf | Should -BeTrue `
+            -Because 'the caller -WhatIf must be bound to Confirm-AdmanAction -WhatIf'
+        $script:WrapperWhatIf | Should -BeTrue `
+            -Because 'the wrapper must receive -WhatIf:$true when Confirm-AdmanAction returns DryRun'
+        Should -Invoke Write-AdmanAudit -ModuleName adman -Times 1 -ParameterFilter {
+            $Result -eq 'PENDING' -and [bool]$WhatIf
+        } -Because 'the PENDING record carries whatIf=$true under a dry-run'
+        Should -Invoke Write-AdmanAudit -ModuleName adman -Times 1 -ParameterFilter {
+            $Result -eq 'Success' -and [bool]$WhatIf
+        } -Because 'the OUTCOME record carries whatIf=$true under a dry-run'
     }
 
     It 'Test 5 (negative): a genuine decline -> gate throws the decline message and writes ZERO audit records' {
