@@ -57,39 +57,61 @@ function Get-AdmanOffboardingState {
     }
 
     foreach ($file in $auditFiles) {
-        # CR-02: verify audit file integrity before consuming any records from it.
-        # A tampered audit file must not drive a restore.
-        $integrity = Get-AdmanAuditIntegrity -Path $file.FullName
-        if (-not $integrity.Valid) {
-            throw "Audit integrity check failed for '$($file.FullName)': $($integrity.Reason)"
+        $fileCandidates = [System.Collections.Generic.List[object]]::new()
+        $fileReadable = $true
+
+        try {
+            foreach ($line in (Get-Content -LiteralPath $file.FullName -ErrorAction Stop)) {
+                if ([string]::IsNullOrWhiteSpace($line)) { continue }
+                try {
+                    $rec = $line | ConvertFrom-Json -ErrorAction Stop
+                    if ($rec.what -ne 'Start-AdmanUserOffboarding' -or
+                        $rec.result -ne 'Success' -or
+                        $rec.whatIf -eq $true) {
+                        continue
+                    }
+                    if (-not $rec.tsUtc) {
+                        Write-Warning "Skipping offboarding audit record without tsUtc in '$($file.FullName)'."
+                        continue
+                    }
+                    foreach ($t in @($rec.targets)) {
+                        if ($null -eq $t) { continue }
+                        $dnMatch = $t.PSObject.Properties['dn'] -and $t.dn -and $t.dn -eq $userDn
+                        $sidMatch = $t.PSObject.Properties['sid'] -and $t.sid -and $t.sid -eq $userSid
+                        if ($dnMatch -or $sidMatch) {
+                            $fileCandidates.Add($rec)
+                            break
+                        }
+                    }
+                } catch {
+                    Write-Warning "Skipping corrupt offboarding audit line in '$($file.FullName)': $_"
+                    continue
+                }
+            }
+        } catch {
+            # WR-05 fix: an unreadable unrelated file must not block restores. If the file
+            # cannot be read at all we cannot tell whether it contains a candidate, so we
+            # warn and continue rather than throwing.
+            $fileReadable = $false
+            Write-Warning "Could not read audit file '$($file.FullName)': $($_.Exception.Message)"
         }
 
-        foreach ($line in (Get-Content -LiteralPath $file.FullName -ErrorAction Stop)) {
-            if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            try {
-                $rec = $line | ConvertFrom-Json -ErrorAction Stop
-                if ($rec.what -ne 'Start-AdmanUserOffboarding' -or
-                    $rec.result -ne 'Success' -or
-                    $rec.whatIf -eq $true) {
-                    continue
-                }
-                if (-not $rec.tsUtc) {
-                    Write-Warning "Skipping offboarding audit record without tsUtc in '$($file.FullName)'."
-                    continue
-                }
-                foreach ($t in @($rec.targets)) {
-                    if ($null -eq $t) { continue }
-                    $dnMatch = $t.PSObject.Properties['dn'] -and $t.dn -and $t.dn -eq $userDn
-                    $sidMatch = $t.PSObject.Properties['sid'] -and $t.sid -and $t.sid -eq $userSid
-                    if ($dnMatch -or $sidMatch) {
-                        $candidates.Add($rec)
-                        break
-                    }
-                }
-            } catch {
-                Write-Warning "Skipping corrupt offboarding audit line in '$($file.FullName)': $_"
-                continue
+        if (-not $fileReadable) { continue }
+
+        # CR-02 / WR-05: verify audit file integrity before consuming any records from it.
+        # Fail closed only when the file actually contains a candidate record; unrelated
+        # files with integrity issues are warned and skipped so one corrupted archive cannot
+        # block all restores.
+        $integrity = Get-AdmanAuditIntegrity -Path $file.FullName
+        if ($fileCandidates.Count -gt 0) {
+            if (-not $integrity.Valid) {
+                throw "Audit integrity check failed for '$($file.FullName)': $($integrity.Reason)"
             }
+            foreach ($c in $fileCandidates) {
+                $candidates.Add($c)
+            }
+        } elseif (-not $integrity.Valid) {
+            Write-Warning "Skipping unrelated audit file with failed integrity check: '$($file.FullName)' ($($integrity.Reason))"
         }
     }
 
