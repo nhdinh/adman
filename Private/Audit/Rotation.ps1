@@ -238,7 +238,9 @@ function Invoke-AdmanAuditRotation {
             $archiveDir = Join-Path (Join-Path $AuditDir 'archive') $archiveMonth
             $destination = Join-Path $archiveDir $file.Name
 
-            if ($PSCmdlet.ShouldProcess($archiveDir, 'Create archive directory and marker')) {
+            # WR-05 fix: fold directory/marker creation and the move under a single
+            # ShouldProcess so confirming the move guarantees the archive directory exists.
+            if ($PSCmdlet.ShouldProcess($file.FullName, 'Move to archive')) {
                 if (-not (Test-Path -LiteralPath $archiveDir)) {
                     $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
                 }
@@ -246,8 +248,6 @@ function Invoke-AdmanAuditRotation {
                 if (-not (Test-Path -LiteralPath $marker)) {
                     ('{0:yyyy-MM-ddTHH:mm:ssZ}' -f (Get-Date).ToUniversalTime()) | Set-Content -LiteralPath $marker -Encoding UTF8 -ErrorAction Stop
                 }
-            }
-            if ($PSCmdlet.ShouldProcess($file.FullName, 'Move to archive')) {
                 Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
             }
         }
