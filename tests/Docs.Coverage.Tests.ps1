@@ -132,7 +132,8 @@ Describe 'docs/USAGE.md menu coverage contract' -Tag 'Unit' {
         foreach ($entry in $script:MenuEntries) {
             foreach ($spec in $entry.PromptSpec) {
                 if ($spec.Required) {
-                    $raw | Should -Match 'required' -Because "required PromptSpec field '$($spec.Name)' for '$($entry.Label)' must be marked"
+                    $rowPattern = '\|\s*\d+\s*\|\s*' + [regex]::Escape($entry.Label) + '\s*\|[^|]*\|[^|]*`?\b' + [regex]::Escape($spec.Name) + '\b`?\s*\(required\)'
+                    $raw | Should -Match $rowPattern -Because "required PromptSpec field '$($spec.Name)' for '$($entry.Label)' must be marked in its row"
                 }
             }
         }
