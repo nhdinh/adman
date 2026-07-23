@@ -47,6 +47,8 @@ function Export-AdmanConfig {
         try {
             $mirror = [System.IO.Path]::ChangeExtension($Path, '.psf.json')
             Export-PSFConfig -Path $mirror -Module adman -ErrorAction SilentlyContinue
-        } catch { }
+        } catch {
+            Write-Verbose "PSFramework mirror export failed for '${Path}': $($_.Exception.Message)"
+        }
     }
 }

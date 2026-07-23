@@ -70,6 +70,10 @@ function Import-AdmanConfig {
         $script:Config = $config
         $script:ConfigLoaded = $true
         # D-01 backbone mirror (best-effort; not the safety source - see Pitfall 7 / T-00-07).
-        try { Import-PSFConfig -Path $target -ErrorAction SilentlyContinue } catch { }
+        try {
+            Import-PSFConfig -Path $target -ErrorAction SilentlyContinue
+        } catch {
+            Write-Verbose "PSFramework mirror import failed for '${target}': $($_.Exception.Message)"
+        }
     }
 }

@@ -89,6 +89,10 @@ function Set-AdmanConfig {
         # value is $script:Config + the plain-JSON file written by Save-AdmanConfig above. No
         # auto-import persistence-registration cmdlet is used, so this can never reach the
         # per-user/per-machine auto-import locations (Pitfall 7 / T-00-07).
-        try { Set-PSFConfig -Module adman -Name $Key -Value $Value -ErrorAction SilentlyContinue } catch { }
+        try {
+            Set-PSFConfig -Module adman -Name $Key -Value $Value -ErrorAction SilentlyContinue
+        } catch {
+            Write-Verbose "PSFramework mirror update failed for '${Key}': $($_.Exception.Message)"
+        }
     }
 }
