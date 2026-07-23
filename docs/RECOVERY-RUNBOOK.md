@@ -81,7 +81,8 @@ $cert = Get-ChildItem Cert:\CurrentUser\My |
 
 Get-ChildItem -Path 'C:\adman-build\adman' -Include '*.psd1','*.psm1','*.ps1' -Recurse -File |
     Where-Object FullName -notmatch '\\(tests|\.github|\.githooks)\\' |
-    Set-AuthenticodeSignature -Certificate $cert -HashAlgorithm SHA256
+    Set-AuthenticodeSignature -Certificate $cert -HashAlgorithm SHA256 `
+        -TimestampServer 'http://timestamp.digicert.com'
 ```
 
 ### 3. Distribute the new public certificate

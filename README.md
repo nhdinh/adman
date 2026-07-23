@@ -166,7 +166,8 @@ Sign the module before distribution:
 $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq 'CN=adman Internal Code Signing' }
 Get-ChildItem -Path . -Include '*.psd1','*.psm1','*.ps1' -Recurse -File |
     Where-Object FullName -notmatch '\\(tests|\.github|\.githooks)\\' |
-    Set-AuthenticodeSignature -Certificate $cert -HashAlgorithm SHA256
+    Set-AuthenticodeSignature -Certificate $cert -HashAlgorithm SHA256 `
+        -TimestampServer 'http://timestamp.digicert.com'
 ```
 
 Deploy the public `.cer` to admin workstations via Group Policy:
