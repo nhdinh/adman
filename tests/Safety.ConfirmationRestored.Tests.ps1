@@ -71,7 +71,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
     function global:Test-AdmanTargetAllowed { param($Object) }
     function global:Assert-AdmanBulkPolicy { param($Count, [switch]$EnforceCap) }
-    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force, [switch]$WhatIf) }
+    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force) }
     function global:Write-AdmanAudit { param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, [switch]$WhatIf) }
     function global:Adman.AD.Write.Disable-ADAccount { param($Objects, $Parameters) }
     function global:Resolve-AdmanLocalTarget { param($Targets, $ComputerName, $Verb, [switch]$Create) }

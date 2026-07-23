@@ -56,7 +56,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
     function global:Test-AdmanTargetAllowed { param($Object) }
     function global:Assert-AdmanBulkPolicy { param($Count, [switch]$EnforceCap) }
-    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force, [switch]$WhatIf) }
+    function global:Confirm-AdmanAction { param($Verb, $Targets, [switch]$Force) }
     function global:Write-AdmanAudit { param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, [switch]$WhatIf) }
     function global:Adman.AD.Write.Disable-ADAccount { param($Objects, $Parameters) }
     function global:Adman.AD.Write.Enable-ADAccount { param($Objects, $Parameters) }
@@ -241,7 +241,7 @@ Describe 'SAFE-08: Invoke-AdmanMutation fixed order + behavior (THE GATE)' -Tag 
         Mock Test-AdmanTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman {
-            param($Verb, $Targets, [switch]$Force, [switch]$WhatIf)
+            param([switch]$WhatIf)
             $script:ConfirmWhatIf = [bool]$WhatIf
             @{ Outcome = 'DryRun'; WhatIf = $true }
         }

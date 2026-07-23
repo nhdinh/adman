@@ -61,7 +61,7 @@ function Write-PSFMessage { [CmdletBinding()] param($Level, $Message) }
     function global:Resolve-AdmanTarget { param($Targets) }
     function global:Test-AdmanTargetAllowed { param($Object) }
     function global:Assert-AdmanBulkPolicy { param($Count, [switch]$EnforceCap) }
-    function global:Confirm-AdmanAction { param($Verb, $Targets, $Group, [switch]$Force, [switch]$WhatIf) }
+    function global:Confirm-AdmanAction { param($Verb, $Targets, $Group, [switch]$Force) }
     function global:Write-AdmanAudit { param($CorrelationId, $Verb, $Targets, $Target, $Result, $Reason, $Group, [switch]$WhatIf) }
     function global:Adman.Local.Write.New-LocalUser { param($Objects, $Parameters) }
     function global:Adman.Local.Write.Disable-LocalUser { param($Objects, $Parameters) }
@@ -157,7 +157,7 @@ Describe 'D-02/D-03: Invoke-AdmanLocalMutation fixed order + behavior (LOCAL GAT
         Mock Test-AdmanLocalTargetAllowed -ModuleName adman { @{ Allowed = $true; Reason = '' } }
         Mock Assert-AdmanBulkPolicy -ModuleName adman { @{ Cap = 50; Threshold = 5 } }
         Mock Confirm-AdmanAction -ModuleName adman {
-            param($Verb, $Targets, $Group, [switch]$Force, [switch]$WhatIf)
+            param([switch]$WhatIf)
             $script:ConfirmWhatIf = [bool]$WhatIf
             @{ Outcome = 'DryRun'; WhatIf = $true }
         }

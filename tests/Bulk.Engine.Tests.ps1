@@ -187,7 +187,7 @@ Describe 'Invoke-AdmanBulkAction engine (BULK-01..04)' -Tag 'Unit' {
         Mock -ModuleName adman Assert-AdmanBulkPolicy { @{ Cap = 50; Threshold = 5 } }
         $script:OuterWhatIf = $null
         Mock -ModuleName adman Confirm-AdmanAction {
-            param($Verb, $Targets, [switch]$RequireTypedCount, [switch]$Force, [switch]$WhatIf)
+            param([switch]$WhatIf)
             $script:OuterWhatIf = [bool]$WhatIf
             @{ Outcome = 'DryRun'; WhatIf = $true }
         }
