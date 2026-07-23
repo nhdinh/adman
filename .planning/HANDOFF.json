@@ -1,35 +1,35 @@
 {
   "version": "1.0",
-  "timestamp": "2026-07-16T08:39:03.260Z",
+  "timestamp": "2026-07-23T06:59:24.179Z",
   "context": "phase",
-  "phase": "02",
-  "phase_name": "single-object-lifecycle-writes-begin-bounded-to-one",
-  "phase_dir": ".planning/phases/02-single-object-lifecycle-writes-begin-bounded-to-one",
-  "activity": "UAT complete (8 passed, 4 issues, 6 open gaps) — next: commit inline fixes, then gap diagnosis + fix planning",
+  "phase": "05",
+  "phase_name": "hardening-portability",
+  "phase_dir": ".planning/phases/05-hardening-portability",
+  "activity": "Code review and auto-fix cycle completed; paused before final verification re-review due to context limit.",
   "status": "paused",
   "remaining_tasks": [
-    {"id": 1, "name": "Commit inline UAT code fixes (adman.psm1, Private/Config/Initialize-AdmanConfig.ps1, Private/Foundation/Test-AdmanAuditWritable.ps1, Public/Initialize-Adman.ps1) — uncommitted in working tree", "route": "/gsd-quick"},
-    {"id": 2, "name": "Diagnose 6 open gaps + create fix plans (preliminary root causes already in 02-UAT.md Gaps)", "route": "/gsd-verify-work 02 resumes into diagnose_issues, or /gsd-plan-phase 02 --gaps"},
-    {"id": 3, "name": "Execute gap-closure plans", "route": "/gsd-execute-phase 02 --gaps-only"},
-    {"id": 4, "name": "Re-verify fixed tests (2,3,5,11,12) in lab shell", "route": "/gsd-verify-work 02"},
-    {"id": 5, "name": "Phase completion also blocked: no *-VERIFICATION.md (execute-phase verify never ran)", "route": "/gsd-execute-phase 02"}
+    {"id": 1, "name": "Run scoped re-review of files touched by fix commits to verify fixes", "route": "/gsd-code-review 5 --files=Public/Set-AdmanUserPassword.ps1,Public/New-AdmanUser.ps1,Public/Set-AdmanLocalUser.ps1,Private/Workflow/Get-AdmanOffboardingState.ps1,Public/Start-AdmanUserOnboarding.ps1,Public/Config/Export-AdmanConfig.ps1,tests/Workflow.OffboardingState.Tests.ps1,Public/Start-Adman.ps1,build/Sign-AdmanModule.ps1,.github/workflows/ci.yml,Private/Config/Initialize-AdmanConfig.ps1"},
+    {"id": 2, "name": "Address any remaining review findings from verification re-review", "route": "/gsd-code-review 5 --fix or manual edits"},
+    {"id": 3, "name": "Run phase verification and produce/update 05-VERIFICATION.md", "route": "/gsd-verify-work 05 or /gsd-execute-phase 05"},
+    {"id": 4, "name": "Commit any remaining uncommitted work and finalize phase state", "route": "/gsd-quick or manual git"}
   ],
   "blockers": [
-    {"description": "G-02-5 BLOCKER: confirmation disarmed for all 20 mutation call sites — public verbs forward -Confirm:$false into gate; Confirm-AdmanAction.ps1:81 prompt condition sees inherited $ConfirmPreference='None'. Also kills typed-count (Remove-LocalUser). Core safety property OFF on cmdlet path.", "type": "technical"},
-    {"description": "G-02-3 BLOCKER: create flows dead — Write-AdmanAudit.ps1:78 ($t.objectSid.Value) throws under StrictMode for pre-create fabricated targets (objectSid null); fail-closed refuses New-ADUser.", "type": "technical", "workaround": "New-ADUser out-of-band for fixtures"},
-    {"description": "G-02-4 BLOCKER / G-02-2 major: menu prompts crash on non-DN input (identity prompt: sAMAccountName crashes app; parent-OU prompt: raw Get-ADObject crash at Invoke-AdmanMutation.ps1:90).", "type": "technical", "workaround": "enter full DNs at menu prompts"},
-    {"description": "G-02-8 major: protected-group remediation asymmetry dead — member-side check refuses Remove-ADGroupMember for any protected-group member ('recursive member of protected group').", "type": "technical", "workaround": "Remove-ADGroupMember out-of-band"},
-    {"description": "G-02-6 minor: refusal reasons not surfaced to operator (only Denied:1 on screen). G-02-9 minor: group-refusal audit omits member DN.", "type": "technical"}
+    {"description": "Conversation context at 78% — a full 56-file re-review would risk truncation.", "type": "technical", "workaround": "Use --files scoped to the 11 files changed by fix commits, or --depth=quick."}
   ],
-  "human_actions_pending": [
-    {"action": "Lab cleanup (non-blocking): fixtures uat-reset1, uat-outside1 (CN=Users), uat-protected1 (STILL in Domain Admins — adman removal failed per G-02-8; remove out-of-band), UAT-PC01, OUs moved-in/outside-dest; Default Domain Policy lockout threshold now 3", "blocking": false},
-    {"action": "Lab shell must be ELEVATED + local admin for local-SAM verbs (Test 11); runas /netonly alone is not elevated", "blocking": false}
-  ],
+  "human_actions_pending": [],
   "decisions": [
-    {"decision": "Fixed StrictMode cold-start bugs inline during UAT (G-02-1 $script:StorePath, G-02-7 $script:LocalMachineScopeCache — both module-load inits in adman.psm1)", "rationale": "blocked all testing; one-line inits unblocked immediately; still uncommitted"},
-    {"decision": "Test 5 marked issue after user clarified NEITHER Disable nor Enable prompted", "rationale": "confirmation expectation is the core of the test"}
+    {"decision": "Applied 11 of 12 critical/warning findings from the second review pass.", "rationale": "Fixer agent committed each fix atomically; WR-08 was skipped because the source already pinned -Server.", "phase": "05"},
+    {"decision": "Paused instead of running the third /gsd-code-review 5 invocation.", "rationale": "Context warning at 78% made a full review unsafe; user chose to checkpoint.", "phase": "05"}
   ],
-  "uncommitted_files": ["adman.psm1", "Private/Config/Initialize-AdmanConfig.ps1", "Private/Foundation/Test-AdmanAuditWritable.ps1", "Public/Initialize-Adman.ps1"],
-  "next_action": "Commit the 4 uncommitted inline-fix files via /gsd-quick, then /gsd-verify-work 02 to resume into gap diagnosis + fix planning (or /gsd-plan-phase 02 --gaps directly)",
-  "context_notes": "UAT committed as 7b86539. Gap priority: G-02-5 (confirmation) > G-02-3 (create dead) > G-02-4/G-02-2 (prompt crashes — likely ONE shared fix: identity/DN resolver + re-prompt) > G-02-8 > G-02-6/G-02-9. Lab: domain lab.local, DC lab-dc01, managed OU OU=adman-test,DC=lab,DC=local; lab shell reaches SAME repo via \\\\tsclient\\C mapping; audit .store/audit/audit-YYYYMMDD.jsonl. Phase completion ALSO needs *-VERIFICATION.md (status 'missing')."
+  "uncommitted_files": [
+    ".planning/STATE.md",
+    ".planning/config.json",
+    ".planning/phases/05-hardening-portability/05-01b-PLAN.md",
+    ".planning/phases/05-hardening-portability/05-04-PLAN.md",
+    "Public/New-AdmanLocalUser.ps1",
+    "tests/TestResults.xml",
+    "tests/coverage.xml"
+  ],
+  "next_action": "Run scoped re-review of the files touched by the 11 fix commits to verify the fixes.",
+  "context_notes": "We have completed a full review/fix cycle on Phase 5. The 05-REVIEW-FIX.md report documents 11 fixed and 1 skipped finding. A final re-review is needed to confirm the fixes, but context is too low for the original 56-file scope. Resume with a targeted re-review of only the files that changed during the fix pass."
 }
