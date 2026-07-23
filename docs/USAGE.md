@@ -286,7 +286,7 @@ Moves an AD user to a new OU. Both source and destination must be inside managed
 Parameters: `-Identity`, `-TargetPath`, `-Force`
 
 ```powershell
-Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Disabled,DC=contoso,DC=local' -WhatIf
+Move-AdmanUser -Identity 'jdoe' -TargetPath 'OU=Disabled,OU=Managed,DC=contoso,DC=local' -WhatIf
 ```
 
 ### `Disable-AdmanComputer`
@@ -316,7 +316,7 @@ Moves an AD computer account to a new OU.
 Parameters: `-Identity`, `-TargetPath`, `-Force`
 
 ```powershell
-Move-AdmanComputer -Identity 'WKSTN-42' -TargetPath 'OU=Workstations,DC=contoso,DC=local' -WhatIf
+Move-AdmanComputer -Identity 'WKSTN-42' -TargetPath 'OU=Workstations,OU=Managed,DC=contoso,DC=local' -WhatIf
 ```
 
 ### `Reset-AdmanComputerAccount`
