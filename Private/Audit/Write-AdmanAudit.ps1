@@ -186,8 +186,12 @@ function Write-AdmanAudit {
             $canonical[$key] = $rec[$key]
         }
         $canonicalJson = $canonical | ConvertTo-Json -Compress -Depth 5
-        $hashBytes = [System.Security.Cryptography.SHA256]::Create().ComputeHash(
-            [System.Text.Encoding]::UTF8.GetBytes($canonicalJson))
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($canonicalJson))
+        } finally {
+            $sha.Dispose()
+        }
         $rec['hash'] = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
 
         $rec = $rec | ConvertTo-Json -Compress -Depth 5

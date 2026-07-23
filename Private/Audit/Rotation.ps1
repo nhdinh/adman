@@ -170,8 +170,13 @@ function Get-AdmanAuditIntegrity {
 
         $canonicalJson = $canonical | ConvertTo-Json -Compress -Depth 5
         $bytes = [System.Text.Encoding]::UTF8.GetBytes($canonicalJson)
-        $sha = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
-        $computedHash = -join ($sha | ForEach-Object { $_.ToString('x2') })
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha.ComputeHash($bytes)
+        } finally {
+            $sha.Dispose()
+        }
+        $computedHash = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
         $storedHash = ([string]$rec.hash).ToLower()
 
         if ($computedHash -ne $storedHash) {
