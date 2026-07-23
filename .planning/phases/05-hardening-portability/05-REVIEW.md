@@ -1,6 +1,6 @@
 ---
-phase: 05-hardening-portability
-reviewed: 2026-07-23T19:15:00Z
+phase: 05
+reviewed: 2026-07-23T17:00:00Z
 depth: standard
 files_reviewed: 56
 files_reviewed_list:
@@ -61,173 +61,174 @@ files_reviewed_list:
   - tests/PesterConfiguration.psd1
   - tests/Workflow.OffboardingState.Tests.ps1
 findings:
-  critical: 3
-  warning: 8
-  info: 0
+  critical: 2
+  warning: 6
+  info: 3
   total: 11
 status: issues_found
 ---
 
 # Phase 05: Code Review Report
 
-**Reviewed:** 2026-07-23T19:15:00Z
+**Reviewed:** 2026-07-23T17:00:00Z
 **Depth:** standard
 **Files Reviewed:** 56
 **Status:** issues_found
 
 ## Summary
 
-Reviewed the full Phase 5 hardening/portability scope (56 files): all Public verbs, Config verbs, Audit privates, Offboarding workflow, CI matrix, tests, docs, schema/defaults, and the signing script. The codebase is generally well-guarded, but three critical defects were found: a report that crashes on the real AD attribute type returned by `Get-ADUser`, a CI `AllSigned` smoke job that will fail because the self-signed trust anchor is incomplete, and an interactive menu path that hangs when the operator cancels with `B`. Eight warnings cover portability, test mocks, brittle comparisons, and best-effort error handling.
+Reviewed the Phase 05 hardening/portability source set: CI workflow, audit writer/rotation/integrity, config loader, offboarding state reader, all Public verbs, build signing script, config/schema JSON, operator docs, and unit tests. The module shows strong fail-closed discipline around audit, config validation, and scope checks, and the tests mock the right seams. The remaining issues are concentrated in three areas:
+
+1. **Audit fail-closed edge cases** - the audit writer's catch block does not cover mutex-acquisition failures, and SHA256 instances are leaked.
+2. **Operational correctness** - stale-report date comparison ignores timezone kind, and the signing script omits timestamping.
+3. **Project-convention drift** - `Write-Host` is used outside the TUI module, config validation lacks type guards, and operator docs contain misleading examples.
 
 ## Critical Issues
 
-### CR-01: Get-AdmanStaleReport treats `lastLogonTimestamp` as an integer, but AD returns a `DateTime`
+### CR-01: Audit writer does not catch mutex-acquisition failures
 
-**File:** `C:\Users\nhdinh\dev\adman\Public\Get-AdmanStaleReport.ps1:80-92`
-**Issue:** `Get-ADUser` returns `lastLogonTimestamp` as a `System.DateTime` (or `$null`), not a file-time `Int64`. The function compares `$llt -eq 0` and then casts `[int64]$llt`, both of which fail at runtime for any account whose `lastLogonTimestamp` is non-null. The stale-account report therefore throws instead of returning results.
-**Fix:** Use the derived `LastLogonDate` property (already requested in the D-02 property list) and compare `DateTime` values directly:
+**File:** `Private/Audit/Write-AdmanAudit.ps1:55-76` and `206-229`
+**Issue:** The centralized `catch` block that implements the SAFE-04 fail-closed contract starts at line 77, *after* `New-AdmanAuditMutex` is called at line 59. The function's own comment says the mutex seam may throw, but if it does, the exception propagates out of `Write-AdmanAudit` without being mapped to `AUDIT FAIL-CLOSED` (PENDING) or to Event Log escalation / `$script:AuditDegraded = $true` (OUTCOME). The `$null -eq $mutex` guard only protects the `$null` return path, not the throw path. The mutation is still blocked, but the refusal/escalation contract is broken and the caller sees a raw seam error instead of a controlled audit failure.
+**Fix:** Enclose the mutex acquisition inside the same `try` block so the existing catch/finally logic applies.
 
 ```powershell
-$llt = $null
-if ($obj.PSObject.Properties['LastLogonDate']) { $llt = $obj.LastLogonDate }
-
-if ($null -eq $llt -or $llt -eq [datetime]::MinValue) {
-    $created = $null
-    if ($obj.PSObject.Properties['whenCreated']) { $created = $obj.whenCreated }
-    if ($null -ne $created -and $created -is [datetime] -and $created -lt $staleCutoff) {
-        $bucket = 'NeverLoggedOn'
+$mutex = $null
+try {
+    $mutex = New-AdmanAuditMutex
+    if ($null -eq $mutex) {
+        throw "AUDIT FAIL-CLOSED: cannot acquire audit mutex; refusing $Verb."
     }
-} else {
-    if ($llt.ToUniversalTime() -lt $staleCutoff) { $bucket = 'Stale' }
+    $acquired = $false
+    try {
+        $acquired = $mutex.WaitOne([timespan]::FromSeconds(30))
+    } catch [System.Threading.AbandonedMutexException] {
+        $acquired = $true
+    }
+    if (-not $acquired) { ... }
+    # existing record-building logic
+} catch { ... }
+finally {
+    if ($null -ne $mutex) {
+        try { $mutex.ReleaseMutex() } catch { }
+        try { $mutex.Dispose() } catch { }
+    }
 }
 ```
 
-### CR-02: CI AllSigned smoke imports the self-signed cert only to TrustedPublisher, not the Root store
+### CR-02: Stale-report grace-window comparison mixes UTC and local-kind DateTime values
 
-**File:** `C:\Users\nhdinh\dev\adman\.github\workflows\ci.yml:46-54`
-**Issue:** A self-signed code-signing cert must be trusted as a root CA for `Get-AuthenticodeSignature` to report `Valid` under `AllSigned`. The workflow only imports the `.cer` into `Cert:\LocalMachine\TrustedPublisher`, so the signature-verification loop later in the same step is expected to fail.
-**Fix:** Import the cert into both stores and surface failures:
-
-```powershell
-Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -ErrorAction Stop | Out-Null
-Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root -ErrorAction Stop | Out-Null
-```
-
-### CR-03: Start-Adman format-menu `B` cancel loops forever
-
-**File:** `C:\Users\nhdinh\dev\adman\Public\Start-Adman.ps1:228,253`
-**Issue:** In the CSV and HTML output path loops, entering `B` executes `$formatResolved = $true; continue`. The `continue` re-enters the *inner* path loop, and because `$pathAttempts` is not incremented for `B`, the loop never exits. The operator is trapped re-prompting for a path.
-**Fix:** Change both `continue` statements to `break` so the inner loop exits and the outer `if (-not $pathResolved) { continue }` returns to the format menu:
+**File:** `Public/Get-AdmanStaleReport.ps1:62, 82-86`
+**Issue:** `$staleCutoff` is built with `(Get-Date).ToUniversalTime()` (UTC), but `$created` comes directly from `$obj.whenCreated` and is compared without normalization. `DateTime` comparison ignores `Kind`, so the server's timezone offset can push accounts incorrectly in or out of the "never logged on" bucket near the grace-window boundary. This produces incorrect stale/never-logged-on classification, which drives offboarding and cleanup decisions.
+**Fix:** Convert the creation time to UTC before comparing.
 
 ```powershell
-if ($outPath -match '^[Bb]$') { $formatResolved = $true; break }
+$created = $null
+if ($obj.PSObject.Properties['whenCreated']) { $created = $obj.whenCreated }
+if ($null -ne $created -and $created -is [datetime] -and $created.ToUniversalTime() -lt $staleCutoff) {
+    $bucket = 'NeverLoggedOn'
+}
 ```
 
 ## Warnings
 
-### WR-01: Export-AdmanConfig writes machine-specific absolute paths
+### WR-01: Code-signing build script does not timestamp signatures
 
-**File:** `C:\Users\nhdinh\dev\adman\Public\Config\Export-AdmanConfig.ps1:37-53`
-**Issue:** `Initialize-AdmanConfig` absolutizes `AuditDir` and `ReportDir` in memory. `Export-AdmanConfig` serializes those absolute paths, producing backups that are not portable and that import incorrectly on another host.
-**Fix:** Relativize the two path keys against the module root before serialization, or keep the on-disk config relative and absolutize on demand:
+**File:** `build/Sign-AdmanModule.ps1:89`
+**Issue:** `Set-AuthenticodeSignature` is invoked without a `-TimestampServer`. Once the signing certificate expires, the signature becomes invalid, causing `AllSigned` execution policy to reject the module even though the certificate was trusted at signing time. This undermines the trust-anchor rotation documented in `docs/RECOVERY-RUNBOOK.md`.
+**Fix:** Add a timestamp server. Use an internal timestamp server if available; otherwise a public RFC 3161 endpoint.
 
 ```powershell
-$moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$exportClone = $script:Config | ConvertTo-Json -Depth 10 | ConvertFrom-Json
-foreach ($key in @('AuditDir','ReportDir')) {
-    $v = $exportClone.$key
-    if ($v -is [string] -and $v -like "$moduleRoot*") {
-        $exportClone.$key = $v.Substring($moduleRoot.Length).TrimStart('\','/')
-    }
-}
-$json = ConvertTo-Json -InputObject $exportClone -Depth 5
+$result = Set-AuthenticodeSignature `
+    -FilePath $file.FullName `
+    -Certificate $cert `
+    -HashAlgorithm SHA256 `
+    -TimestampServer 'http://timestamp.digicert.com'
 ```
 
-### WR-02: Initialize-AdmanConfig rewrites the config file on every load
+### WR-02: `Write-Host` used outside the TUI-rendering module
 
-**File:** `C:\Users\nhdinh\dev\adman\Private\Config\Initialize-AdmanConfig.ps1:377-381`
-**Issue:** `Save-AdmanConfig` is called unconditionally after validation, even when no migration was necessary. This strips `_comment` annotations, reorders keys, and makes load-time failures (e.g., permissions) block startup even though the file contents are unchanged.
-**Fix:** Track whether any additive merge actually changed the config and only save when `$changed` is true, or compare the serialized form of the loaded config against the original file contents before writing.
-
-### WR-03: Get-AdmanOffboardingState uses exact string DN/SID matching
-
-**File:** `C:\Users\nhdinh\dev\adman\Private\Workflow\Get-AdmanOffboardingState.ps1:82-84`
-**Issue:** DN and SID matching is case-sensitive and sensitive to whitespace/escaping differences between the audit record and the resolved user. A legitimate restore record can be missed because of case drift in the directory or in the audit JSON.
-**Fix:** Normalize before comparing:
+**File:** `Public/Start-AdmanUserOffboarding.ps1:44-45, 187-190`
+**Issue:** The function suppresses `PSAvoidUsingWriteHost` and uses `Write-Host` to emit the manual cleanup checklist. The project convention explicitly restricts `Write-Host` suppression to the TUI-rendering module (`Start-Adman`). A workflow verb should either return structured output or use `Write-PSFMessage -Level Host` (the pattern already used by `Reset-AdmanComputerAccount`).
+**Fix:** Replace `Write-Host` with `Write-PSFMessage -Level Host` and remove the `SuppressMessageAttribute`.
 
 ```powershell
-$dnMatch = $t.PSObject.Properties['dn'] -and $t.dn -and
-    ((ConvertTo-AdmanNormalizedDn -Dn $t.dn) -eq (ConvertTo-AdmanNormalizedDn -Dn $userDn))
-$sidMatch = $t.PSObject.Properties['sid'] -and $t.sid -and
-    ([string]$t.sid).Trim().ToUpper() -eq ([string]$userSid).Trim().ToUpper()
+Write-PSFMessage -Level Host -Message "Offboarding complete for '$Identity'. Manual cleanup checklist:"
+Write-PSFMessage -Level Host -Message "  - Mailbox: archive or convert to shared mailbox (manual only)"
 ```
 
-### WR-04: Sign-AdmanModule path-exclusion regex can match unrelated parent directories
+### WR-03: SHA256 hash instances are not disposed
 
-**File:** `C:\Users\nhdinh\dev\adman\build\Sign-AdmanModule.ps1:80-81`
-**Issue:** The regex `\(tests|\.github|\.githooks)\` is applied to the full path, so a module root located under a path that happens to contain `\tests\` would silently exclude every file.
-**Fix:** Exclude based on the path relative to `$moduleRoot`:
-
-```powershell
-$files = Get-ChildItem -Path $moduleRoot -Include '*.psd1','*.psm1','*.ps1' -Recurse -File |
-    Where-Object {
-        $rel = $_.FullName.Substring($moduleRoot.Length).TrimStart('\')
-        $rel -notmatch '^(tests|\.github|\.githooks)\\'
-    }
-```
-
-### WR-05: Workflow.OffboardingState test mocks the wrong Resolve-AdmanTarget scope
-
-**File:** `C:\Users\nhdinh\dev\adman\tests\Workflow.OffboardingState.Tests.ps1:38,87`
-**Issue:** The test defines a `global:Resolve-AdmanTarget` function, but `Get-AdmanOffboardingState` calls the module-private `Resolve-AdmanTarget`. The global stub is never invoked, so the test will hit the real (AD-dependent) resolver.
-**Fix:** Mock the private function inside the module:
+**File:** `Private/Audit/Write-AdmanAudit.ps1:188-190` and `Private/Audit/Rotation.ps1:171-174`
+**Issue:** Both files create a `SHA256` instance with `[System.Security.Cryptography.SHA256]::Create()` and never call `Dispose()`. These objects implement `IDisposable` and hold unmanaged crypto provider handles; leaking them under high audit volume can exhaust handles and degrade performance.
+**Fix:** Dispose the instance explicitly.
 
 ```powershell
-Mock Resolve-AdmanTarget -ModuleName adman {
-    [pscustomobject]@{
-        DistinguishedName = $userDn
-        objectSid         = [System.Security.Principal.SecurityIdentifier]$userSid
-    }
-}
-```
-
-### WR-06: Invoke-AdmanBulkAction no-op detection assumes memberOf is present on resolved targets
-
-**File:** `C:\Users\nhdinh\dev\adman\Public\Invoke-AdmanBulkAction.ps1:286-294`
-**Issue:** The AddGroup/RemoveGroup no-op checks read `$rec.ResolvedTarget.memberOf`. If `Resolve-AdmanTarget` does not populate `memberOf` (it is not in the D-02 read property list by default), the checks will silently perform redundant group writes instead of skipping already-correct memberships.
-**Fix:** Either ensure `Resolve-AdmanTarget` requests `memberOf` for group operations, or make the check defensive:
-
-```powershell
-$memberOf = if ($rec.ResolvedTarget.PSObject.Properties['memberOf'] -and $null -ne $rec.ResolvedTarget.memberOf) {
-    @($rec.ResolvedTarget.memberOf)
-} else { @() }
-```
-
-### WR-07: Write-AdmanAudit OUTCOME failure can be masked by event-log throw
-
-**File:** `C:\Users\nhdinh\dev\adman\Private\Audit\Write-AdmanAudit.ps1:232-235`
-**Issue:** When the audit OUTCOME write fails, the function sets `$script:AuditDegraded = $true` and tries to escalate to the event log. If `Write-AdmanEventLog` throws (e.g., the source is not registered and the session lacks rights), the original audit failure is lost and the caller sees an unrelated exception.
-**Fix:** Wrap the event-log call in its own try/catch:
-
-```powershell
-$script:AuditDegraded = $true
+$sha = [System.Security.Cryptography.SHA256]::Create()
 try {
-    Write-AdmanEventLog -EventId 9001 -EntryType Error `
-        -Message "AUDIT OUTCOME WRITE FAILED cid=$CorrelationId verb=$Verb (mutation already applied)"
-} catch {
-    Write-Warning "Audit event-log escalation also failed: $_"
+    $hashBytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($canonicalJson))
+} finally {
+    $sha.Dispose()
 }
-Write-Warning "AUDIT OUTCOME WRITE FAILED for cid=$CorrelationId - see Event Log."
+$rec['hash'] = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
 ```
 
-### WR-08: Unlock-AdmanUser -WhatIf falls back to a non-PDCe DC
+### WR-04: Config validator casts integer keys without type guards
 
-**File:** `C:\Users\nhdinh\dev\adman\Public\Unlock-AdmanUser.ps1:91-95`
-**Issue:** Under `-WhatIf`, if the PDC emulator lookup fails, the verb silently falls back to `$script:Config.DC`. The dry-run preview then claims the write would target a DC that may not be the PDCe, contradicting the function's own rationale for PDCe pinning.
-**Fix:** Either propagate the PDCe lookup error under `-WhatIf` (the operator should know the preview cannot be generated) or omit `Server` from the gate parameters when the PDCe cannot be resolved, rather than pinning to an arbitrary DC.
+**File:** `Private/Config/Initialize-AdmanConfig.ps1:156-183`
+**Issue:** `Test-AdmanConfigValid` casts `safety.bulkConfirmThreshold`, `transport.timeouts.perHostProbeCap`, and `transport.timeouts.totalInventoryRemoteCap` directly with `[int]`. If the config contains a non-numeric string, the cast throws a generic `Cannot convert` error instead of the intended validation message. Additionally, `bulk.maxCount` is required but never validated as `>= 1`.
+**Fix:** Add explicit type guards before the integer casts, mirroring the pattern already used for `audit.retentionDays` and `security.passwordGeneration.length`.
+
+```powershell
+$bt = $Config.safety.bulkConfirmThreshold
+if ($bt -isnot [int] -and $bt -isnot [long] -and -not ($bt -is [string] -and $bt -match '^\d+$')) {
+    throw "Config validation failed: 'safety.bulkConfirmThreshold' must be an integer >= 1."
+}
+if ([int]$bt -lt 1) { throw "Config validation failed: 'safety.bulkConfirmThreshold' must be >= 1." }
+```
+
+### WR-05: Audit rotation can move a file before its archive directory is created
+
+**File:** `Private/Audit/Rotation.ps1:236-246`
+**Issue:** Directory/marker creation and the file move are guarded by two independent `ShouldProcess` prompts. If a user confirms the move but declines the directory creation, `Move-Item` fails because `$archiveDir` does not exist. Automated callers typically use `-Confirm:$false`, but the interactive contract is still wrong.
+**Fix:** Create the archive directory idempotently before the move confirmation, or fold both actions under a single `ShouldProcess`.
+
+```powershell
+if (-not (Test-Path -LiteralPath $archiveDir)) {
+    $null = New-Item -ItemType Directory -Path $archiveDir -Force -ErrorAction Stop
+}
+if ($PSCmdlet.ShouldProcess($file.FullName, 'Move to archive')) {
+    Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+}
+```
+
+### WR-06: Usage docs contain out-of-scope move examples
+
+**File:** `docs/USAGE.md:289, 319`
+**Issue:** The `Move-AdmanUser` and `Move-AdmanComputer` examples use destination OUs such as `OU=Disabled,DC=contoso,DC=local` and `OU=Workstations,DC=contoso,DC=local`. The shipped default managed-OU root is `OU=Managed,DC=contoso,DC=local`, so these examples fail with "TargetPath is outside managed OU scope" if copied verbatim.
+**Fix:** Update the examples to use OUs under the managed root, e.g. `OU=Disabled,OU=Managed,DC=contoso,DC=local`.
+
+## Info
+
+### IR-01: Usage docs mislabel password parameters as required
+
+**File:** `docs/USAGE.md:227-240, 262-270, 332-340`
+**Issue:** The guide marks `AccountPassword`, `NewPassword`, and `Password` as required, but the corresponding function parameters are optional. When omitted, the configured password source (`Generate`/`Prompt`) is used. This contradicts the parameter definitions and may confuse operators.
+**Fix:** Change the documentation to indicate these parameters are optional and sourced from config when omitted.
+
+### IR-02: Stale report documented as covering computers as well as users
+
+**File:** `docs/USAGE.md:156-165`
+**Issue:** `Get-AdmanStaleReport` is documented as reporting "stale or inactive user and computer accounts", but the implementation only queries `Get-ADUser`. Either the docs or the implementation needs to match.
+**Fix:** Update the description to "stale or inactive user accounts", or extend `Get-AdmanStaleReport` to support an `-ObjectType` parameter.
+
+### IR-03: Redundant `$moduleRoot` assignment in config loader
+
+**File:** `Private/Config/Initialize-AdmanConfig.ps1:287, 397`
+**Issue:** `$moduleRoot` is computed at line 287 and then recomputed with the same expression at line 397 before path absolutization. The duplicate assignment is harmless but unnecessary.
+**Fix:** Remove line 397 and reuse the existing `$moduleRoot` variable.
 
 ---
 
-_Reviewed: 2026-07-23T19:15:00Z_
+_Reviewed: 2026-07-23T17:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
