@@ -42,6 +42,7 @@ function Start-AdmanUserOffboarding {
         Start-AdmanUserOffboarding -Identity 'jdoe-fake' -WhatIf
     #>
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'High')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification='Cleanup checklist is intentionally console-only TUI output.')]
     param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]

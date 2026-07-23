@@ -20,17 +20,10 @@
         'PSUseConsistentIndentation'
     )
 
-    # --- DOCUMENTED suppression (forward-declared) ------------------------------------------
-    # PSAvoidUsingWriteHost is suppressed ONLY for the future TUI menu module
-    # (e.g. Public/Menu*.ps1, Phase 1) - the menu legitimately paints the console. That module
-    # does not exist in Phase 0, so the target is forward-declared here and will be paired with
-    # a per-file [Diagnostics.CodeAnalysis.SuppressMessage] attribute when the menu lands.
-    # No other rule is suppressed globally.
-    Rules          = @{
-        PSAvoidUsingWriteHost = @{
-            Enable = $false
-        }
-    }
+    # --- DOCUMENTED suppression convention ------------------------------------------------
+    # PSAvoidUsingWriteHost is NOT suppressed globally. Individual files that legitimately
+    # paint the console (e.g. TUI menu modules, offboarding checklists) must use a per-file
+    # [Diagnostics.CodeAnalysis.SuppressMessage] attribute per CLAUDE.md convention.
 
     # --- DOCUMENTED fixture exclusion -------------------------------------------------------
     # tests/Fixtures/** are intentional positive/negative controls for the SAFE-08 guard tests
