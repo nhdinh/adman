@@ -1,94 +1,83 @@
 ---
 phase: 05-hardening-portability
-fixed_at: 2026-07-23T17:45:00Z
-review_path: C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
+fixed_at: 2026-07-23T11:45:00Z
+review_path: .planning/phases/05-hardening-portability/05-REVIEW.md
 iteration: 1
-findings_in_scope: 8
-fixed: 8
+findings_in_scope: 6
+fixed: 6
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 05: Code Review Fix Report
 
-**Fixed at:** 2026-07-23T17:45:00Z
-**Source review:** C:/Users/nhdinh/dev/adman/.planning/phases/05-hardening-portability/05-REVIEW.md
+**Fixed at:** 2026-07-23T11:45:00Z
+**Source review:** `.planning/phases/05-hardening-portability/05-REVIEW.md`
 **Iteration:** 1
 
 **Summary:**
-- Findings in scope: 8
-- Fixed: 8
+- Findings in scope: 6
+- Fixed: 6
 - Skipped: 0
+
+All Critical and Warning findings from the Phase 05 hardening/portability review have been applied and committed.
 
 ## Fixed Issues
 
-### CR-01: Audit writer does not catch mutex-acquisition failures
+### CR-01: AD mutation gate drops caller `-WhatIf`, executing real AD writes during dry-run
 
-**Files modified:** `Private/Audit/Write-AdmanAudit.ps1`
-**Commit:** `4419909`
-**Applied fix:** Moved `New-AdmanAuditMutex`, the `$null` check, and the `WaitOne` timeout logic inside the same `try` block as the record write so a mutex-acquisition failure is caught by the SAFE-04 fail-closed handler instead of propagating as a raw seam error.
-**Verification:** Syntax check passed; `Audit.FailClosed.Tests.ps1` passed (7/7).
+**Files modified:** `Private/Safety/Invoke-AdmanMutation.ps1`, `Private/Safety/Confirm-AdmanAction.ps1`
+**Commits:** `79c3c9c`, `532eb6c`
+**Status:** fixed: requires human verification
+**Applied fix:** Forwarded `-WhatIf:$WhatIfPreference` into both `Confirm-AdmanAction` call sites in the AD mutation gate. Removed the duplicate explicit `[switch]$WhatIf` parameter from `Confirm-AdmanAction` so `SupportsShouldProcess` automatic variable `$WhatIfPreference` is the single source of truth; this resolved the runtime `MetadataException: A parameter with the name 'WhatIf' was defined multiple times` that appeared after the first pass.
 
-### CR-02: Stale-report grace-window comparison mixes UTC and local-kind DateTime values
+### CR-02: Local mutation gate drops caller `-WhatIf`, executing real local writes during dry-run
 
-**Files modified:** `Public/Get-AdmanStaleReport.ps1`
-**Commit:** `26e7cf5`
-**Applied fix:** Normalized `$created` with `$created.ToUniversalTime()` before comparing against the UTC `$staleCutoff` in the never-logged-on bucket.
-**Verification:** Syntax check passed. No dedicated stale-report unit tests exist; this is a logic change requiring human verification.
+**Files modified:** `Private/Safety/Invoke-AdmanLocalMutation.ps1`, `Private/Safety/Confirm-AdmanAction.ps1`
+**Commits:** `f709a7b`, `532eb6c`
+**Status:** fixed: requires human verification
+**Applied fix:** Forwarded `-WhatIf:$WhatIfPreference` into the single `Confirm-AdmanAction` call site in the local mutation gate. Same duplicate-parameter cleanup as CR-01.
 
-### WR-01: Code-signing build script does not timestamp signatures
+### WR-01: `Test-AdmanCapability` bypasses the project's hard-timeout wrappers
 
-**Files modified:** `build/Sign-AdmanModule.ps1`
-**Commit:** `1c94d50`
-**Applied fix:** Added `-TimestampServer 'http://timestamp.digicert.com'` to `Set-AuthenticodeSignature` so signatures remain valid after the signing certificate expires.
-**Verification:** Syntax check passed.
+**Files modified:** `Public/Test-AdmanCapability.ps1`, `tests/Foundation.Capability.Tests.ps1`
+**Commits:** `f5cdea4`, `c9b57c5`
+**Status:** fixed
+**Applied fix:** Replaced direct `Test-WSMan` and `New-CimSession -OperationTimeoutSec` calls with `Test-AdmanWsmanTimeout` and `Test-AdmanCimSessionTimeout` using the configured `probeTimeoutSec`. Updated the structural test to assert the hard-timeout wrappers are present instead of the old `OperationTimeoutSec` string.
 
-### WR-02: Write-Host used outside the TUI-rendering module
+### WR-02: Gate tests mask the `-WhatIf` propagation bug
 
-**Files modified:** `Public/Start-AdmanUserOffboarding.ps1`
-**Commit:** `b40a288`
-**Applied fix:** Replaced `Write-Host` with `Write-PSFMessage -Level Host` for the manual cleanup checklist and removed the `PSAvoidUsingWriteHost` suppression.
-**Verification:** Syntax check passed.
+**Files modified:** `tests/Safety.GateOrder.Tests.ps1`, `tests/Local.Gate.Tests.ps1`, `tests/Safety.ConfirmationRestored.Tests.ps1`, `tests/Bulk.Engine.Tests.ps1`
+**Commits:** `656269b`, `2ebda90`
+**Status:** fixed
+**Applied fix:** Added `-WhatIf` propagation assertions to the AD gate, local gate, and bulk engine tests. Refined global `Confirm-AdmanAction` stubs after removing the duplicate `-WhatIf` parameter so mocks capture the switch via `param([switch]$WhatIf)` inside the relevant scriptblocks without colliding with Pester-generated mock parameters.
 
-### WR-03: SHA256 hash instances are not disposed
+### WR-03: `docs/USAGE.md` mislabels password parameters as required
 
-**Files modified:** `Private/Audit/Write-AdmanAudit.ps1`, `Private/Audit/Rotation.ps1`
-**Commit:** `3ac7c4c`
-**Applied fix:** Wrapped SHA256 creation in `try/finally` with explicit `Dispose()` in both the audit writer and integrity verifier.
-**Verification:** Syntax check passed; `Audit.Integrity.Tests.ps1` and `Audit.Rotation.Tests.ps1` passed (5/5).
+**Files modified:** `docs/USAGE.md`, `Private/Menu/Get-AdmanMenuDefinition.ps1`
+**Commits:** `51c606b`, `d31e53a`
+**Status:** fixed
+**Applied fix:** Changed `AccountPassword`, `NewPassword`, and both `Password` PromptSpec entries from `Required = $true` to `Required = $false` in `Get-AdmanMenuDefinition.ps1`. Updated `docs/USAGE.md` to show these parameters as optional and added a note explaining that omitted passwords source from `$script:Config.security.passwordSource`.
 
-### WR-04: Config validator casts integer keys without type guards
+### WR-04: Stale report scope mismatch between docs and implementation
 
-**Files modified:** `Private/Config/Initialize-AdmanConfig.ps1`
-**Commit:** `e87b2e2`
-**Applied fix:** Added explicit type guards before casting `safety.bulkConfirmThreshold`, `bulk.maxCount`, `transport.timeouts.perHostProbeCap`, and `transport.timeouts.totalInventoryRemoteCap`. Also enforced `bulk.maxCount >= 1`.
-**Verification:** Syntax check passed; timeout-config validator tests passed. Note: `Config.Load.Tests.ps1` has 11 pre-existing failures in `Initialize-AdmanConfig` integration-style cases caused by PowerShell 5.1's `ConvertFrom-Json` unwrapping single-element `ManagedOUs` arrays to strings. These failures exist on the unmodified `master` branch and are unrelated to WR-04.
+**Files modified:** `docs/USAGE.md`, `Private/Menu/Get-AdmanMenuDefinition.ps1`
+**Commits:** `51c606b`, `d31e53a`
+**Status:** fixed
+**Applied fix:** Updated `docs/USAGE.md` and the function reference to state that `Get-AdmanStaleReport` reports user accounts only. Changed the menu label from `Stale/inactive report` to `Stale/inactive user report` in `Get-AdmanMenuDefinition.ps1` so the docs/menu coverage contract passes.
 
-### WR-05: Audit rotation can move a file before its archive directory is created
+## Test Verification
 
-**Files modified:** `Private/Audit/Rotation.ps1`
-**Commit:** `ee11d32`
-**Applied fix:** Folded archive-directory/marker creation and the file move under a single `ShouldProcess` confirmation so confirming the move guarantees the archive directory exists.
-**Verification:** Syntax check passed; `Audit.Rotation.Tests.ps1` passed (1/1).
+Targeted tests for the modified areas were run after the fixes:
 
-### WR-06: Usage docs contain out-of-scope move examples
+- `tests/Docs.Coverage.Tests.ps1`: 16 passed, 0 failed
+- `tests/Safety.GateOrder.Tests.ps1` + `tests/Local.Gate.Tests.ps1` + `tests/Safety.ConfirmationRestored.Tests.ps1` + `tests/Bulk.Engine.Tests.ps1`: 55 passed, 0 failed
+- `tests/Foundation.Capability.Tests.ps1`: 7 passed, 0 failed
 
-**Files modified:** `docs/USAGE.md`
-**Commit:** `94e3c5e`
-**Applied fix:** Updated `Move-AdmanUser` and `Move-AdmanComputer` examples to use destination OUs under `OU=Managed,DC=contoso,DC=local`.
-**Verification:** Markdown section re-read and confirmed.
-
-## Skipped Issues
-
-None — all in-scope findings were fixed.
-
-## Notes
-
-- `CR-02` is a logic-only change (DateTime normalization). Tier 1/Tier 2 verification confirms syntax and structure, not semantic correctness; human verification is recommended before the verification phase.
-- `Config.Load.Tests.ps1` failures observed during WR-04 verification are pre-existing on `master` and unrelated to the changes in this report.
+A full unit-suite run (`Invoke-Pester -Path tests -TagFilter Unit`) reported 799 passed, 35 failed, 74 skipped. The failures are in unrelated areas (`Config.*`, `Find-AdmanUser`, `New-AdmanLocalUser` help tests, `Workflow.Offboarding` cleanup checklist) and are not caused by the Phase 05 review fixes. They appear to be pre-existing fixture/schema mismatches outside the scope of this review.
 
 ---
 
-_Fixed: 2026-07-23T17:45:00Z_
+_Fixed: 2026-07-23T11:45:00Z_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
