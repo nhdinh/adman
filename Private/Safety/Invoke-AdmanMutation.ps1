@@ -211,9 +211,10 @@ function Invoke-AdmanMutation {
     # -CorrelationId - Confirm-AdmanAction never writes audit.
     if ($groupObj) {
         $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() `
-            -Group $groupObj.DistinguishedName -Force:$Force
+            -Group $groupObj.DistinguishedName -Force:$Force -WhatIf:$WhatIfPreference
     } else {
-        $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() -Force:$Force
+        $confirm = Confirm-AdmanAction -Verb $Verb -Targets $allowed.ToArray() `
+            -Force:$Force -WhatIf:$WhatIfPreference
     }
 
     # Genuine decline: write NOTHING (no PENDING, no abort/cancel-style record) and never mutate.
