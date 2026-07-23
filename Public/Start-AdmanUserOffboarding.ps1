@@ -20,8 +20,9 @@ function Start-AdmanUserOffboarding {
           * Disables the account, removes only non-protected groups, moves the account to
             the quarantine OU, and records the original OU and stripped groups in the audit
             log for restore (FLOW-03).
-          * A mid-workflow failure stops later steps for that target and writes a Failure
-            audit before rethrowing (FLOW-04).
+          * A mid-workflow failure stops later steps for that target; the failing inner verb
+            writes its own Failure audit through the mutation gate, so this workflow does not
+            duplicate it (FLOW-04).
           * After a successful offboarding, prints a plain-text checklist of typical cleanup
             items (mailbox, home directory, GPO) with explicit "manual only" wording; none
             of these are automated.
@@ -176,8 +177,10 @@ function Start-AdmanUserOffboarding {
             -Result 'Success' -OriginalOU $originalOu -Groups @($groupsToRemove) `
             -WhatIf:$WhatIfPreference
     } catch {
-        $null = Write-AdmanAudit -Verb 'Start-AdmanUserOffboarding' -Target $user `
-            -Result 'Failure' -Reason $_.Exception.Message -WhatIf:$WhatIfPreference
+        # WR-03 fix: inner verbs (Disable-AdmanUser / Remove-AdmanGroupMember /
+        # Move-AdmanUser) already write their own Failure audit through the mutation gate.
+        # Writing a second Failure record here would duplicate the entry with a different
+        # correlation ID, so we rethrow without adding another audit.
         throw
     }
 

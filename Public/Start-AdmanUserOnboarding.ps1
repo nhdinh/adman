@@ -23,8 +23,9 @@ function Start-AdmanUserOnboarding {
             length <= 20, and no wildcard characters (*, ?).
           * One outer Confirm-AdmanAction gates the whole job; inner verbs are called with
             -Force:$true so they do not re-prompt (review finding / FLOW-01).
-          * A mid-workflow failure stops later steps for that target and writes a Failure
-            audit before rethrowing (FLOW-04 / T-04-09).
+          * A mid-workflow failure stops later steps for that target; the failing inner verb
+            writes its own Failure audit through the mutation gate, so this workflow does not
+            duplicate it (FLOW-04 / T-04-09).
           * -WhatIf propagates to New-AdmanUser and every Add-AdmanGroupMember.
           * Password display-once hygiene is owned by New-AdmanUser (D-14); this workflow
             does NOT duplicate it.
@@ -157,8 +158,10 @@ function Start-AdmanUserOnboarding {
                 -Force:$true -WhatIf:$WhatIfPreference
         }
     } catch {
-        Write-AdmanAudit -Verb 'Start-AdmanUserOnboarding' -Target $sam `
-            -Result 'Failure' -Reason $_.Exception.Message -WhatIf:$WhatIfPreference
+        # WR-03 fix: inner verbs (New-AdmanUser / Add-AdmanGroupMember) already write their
+        # own Failure audit through the mutation gate. Writing a second Failure record here
+        # would duplicate the entry with a different correlation ID, so we rethrow without
+        # adding another audit.
         throw
     }
 }
