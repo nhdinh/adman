@@ -201,7 +201,10 @@ function Invoke-AdmanBulkAction {
 
         foreach ($rec in $records) {
             try {
-                $resolved = @(Resolve-AdmanTarget -Targets @($rec.Identity))
+                # WR-04 fix: group no-op checks need memberOf, so request it explicitly from
+                # the resolver rather than assuming it is always in the default property set.
+                $resolveProps = if ($Action -in @('AddGroup', 'RemoveGroup')) { @('memberOf') } else { @() }
+                $resolved = @(Resolve-AdmanTarget -Targets @($rec.Identity) -Properties $resolveProps)
                 $targetObj = $resolved | Select-Object -First 1
                 $decision = Test-AdmanTargetAllowed -Object $targetObj -Operation $rec.GateVerb
                 if (-not $decision.Allowed) {

@@ -27,8 +27,18 @@ function Resolve-AdmanTarget {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string[]]$Targets
+        [string[]]$Targets,
+
+        # WR-04: optional additional properties so callers can make their dependency on
+        # specific AD attributes explicit (e.g. Invoke-AdmanBulkAction for memberOf checks).
+        # The base set (objectSid, objectClass, DistinguishedName, memberOf, Enabled) is
+        # always requested because the mutation gate and common no-op checks rely on it.
+        [Parameter()]
+        [string[]]$Properties = @()
     )
+
+    $baseProperties = @('objectSid', 'objectClass', 'DistinguishedName', 'memberOf', 'Enabled')
+    $requested = @($baseProperties + $Properties | Select-Object -Unique)
 
     foreach ($id in $Targets) {
         # Identity parameter set ONLY: -Identity + -Server + -Properties (NO -SearchBase/-SearchScope).
@@ -37,6 +47,6 @@ function Resolve-AdmanTarget {
         # WR-03: include Enabled so callers (e.g. Invoke-AdmanBulkAction) can detect
         # already-disabled/enabled accounts without a second AD query.
         Get-ADObject -Identity $id -Server $script:Config.DC `
-            -Properties objectSid, objectClass, DistinguishedName, memberOf, Enabled -ErrorAction Stop
+            -Properties $requested -ErrorAction Stop
     }
 }
