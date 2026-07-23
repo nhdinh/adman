@@ -235,9 +235,16 @@ function Write-AdmanAudit {
         }
         # OUTCOME failure after a successful mutation -> escalate, do NOT roll back AD (D-03).
         $script:AuditDegraded = $true
-        Write-AdmanEventLog -EventId 9001 -EntryType Error `
-            -Message "AUDIT OUTCOME WRITE FAILED cid=$CorrelationId verb=$Verb (mutation already applied)"
-        Write-Warning "AUDIT OUTCOME WRITE FAILED for cid=$CorrelationId - see Event Log."
+        try {
+            Write-AdmanEventLog -EventId 9001 -EntryType Error `
+                -Message "AUDIT OUTCOME WRITE FAILED cid=$CorrelationId verb=$Verb (mutation already applied)"
+            Write-Warning "AUDIT OUTCOME WRITE FAILED for cid=$CorrelationId - see Event Log."
+        } catch {
+            # WR-06 fix: if Event Log escalation itself fails, do not let it mask the OUTCOME
+            # audit failure or propagate to the caller. The audit is already degraded; warn
+            # loudly and continue.
+            Write-Warning "AUDIT OUTCOME WRITE FAILED for cid=$CorrelationId and Event Log escalation also failed: $($_.Exception.Message)"
+        }
     } finally {
         # CR-04 fix: guard against $null mutex (New-AdmanAuditMutex threw above) and
         # tolerate ReleaseMutex/Dispose failures so a secondary exception in finally
