@@ -10,12 +10,11 @@ function Export-AdmanConfig {
         to a plain-JSON file with ConvertTo-Json -Depth 5 (Pitfall 8 / T-00-14) so nested safety keys
         can never be silently truncated. The plain file written here is the CONF-03 round-trip source
         of truth that Initialize-AdmanConfig parses directly.
-    
-        For the PSFramework config backbone (D-01) a SEPARATE mirror file (<name>.psf.json) is written
-        via a path-pinned framework export - NEVER the plain safety file, so a framework envelope can never
-        overwrite and corrupt the file the loader depends on (CONF-03). The mirror is best-effort and
-        is NOT consumed for any safety decision. The per-user auto-import persistence-registration cmdlet
-        is never called for safety values (Pitfall 7 / T-00-07).
+
+        No PSFramework mirror file is written by this function; Import-AdmanConfig loads the plain-JSON
+        file directly and mirrors to the framework backbone from that authoritative source (Pitfall 7 /
+        T-00-07). Keeping the export surface plain-JSON only prevents stale .psf.json siblings from
+        drifting out of sync with the safety file.
     .PARAMETER Path
         Destination plain-JSON path; defaults to $script:StorePath\config.json. A caller-supplied path
         may be used for backup.
@@ -55,13 +54,5 @@ function Export-AdmanConfig {
         # Authoritative CONF-03 plain-JSON write (the loader parses THIS file).
         $json = ConvertTo-Json -InputObject $exportCfg -Depth 5
         Set-Content -LiteralPath $Path -Value $json -Encoding UTF8 -ErrorAction Stop
-
-        # D-01 backbone mirror (best-effort; sibling extension, never the safety file).
-        try {
-            $mirror = [System.IO.Path]::ChangeExtension($Path, '.psf.json')
-            Export-PSFConfig -Path $mirror -Module adman -ErrorAction SilentlyContinue
-        } catch {
-            Write-Verbose "PSFramework mirror export failed for '${Path}': $($_.Exception.Message)"
-        }
     }
 }
